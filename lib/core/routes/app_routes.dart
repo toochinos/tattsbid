@@ -1,0 +1,73 @@
+import 'package:flutter/material.dart';
+
+import '../../screens/auth_screen.dart';
+import '../../screens/splash_screen.dart';
+import '../../screens/checkout_cancel_page.dart';
+import '../../screens/checkout_success_page.dart';
+import '../../screens/edit_profile_page.dart';
+import '../../screens/landing_page.dart';
+import '../../screens/main_shell_page.dart';
+import '../../screens/login_page.dart';
+import '../../screens/paywall_page.dart';
+import '../../screens/profile_screen.dart';
+import '../../screens/settings_page.dart';
+import '../../screens/sign_up_page.dart';
+
+/// Central place for route names and route map.
+/// Use [AppRoutes.landing] etc. and [AppRoutes.routes] for [MaterialApp.routes].
+class AppRoutes {
+  AppRoutes._();
+
+  /// Initial route: redirects to dashboard or landing based on auth.
+  static const String root = '/';
+  static const String landing = '/landing';
+  static const String login = '/login';
+  static const String signUp = '/sign-up';
+  static const String dashboard = '/dashboard';
+  static const String paywall = '/paywall';
+  static const String settings = '/settings';
+  static const String checkoutSuccess = '/checkout/success';
+  static const String checkoutCancel = '/checkout/cancel';
+  static const String editProfile = '/profile/edit';
+  static const String auth = '/auth';
+  static const String profile = '/profile';
+
+  static Map<String, WidgetBuilder> get routes => {
+        root: (_) => const SplashScreen(),
+        landing: (_) => const LandingPage(),
+        login: (_) => const LoginPage(),
+        signUp: (_) => const SignUpPage(),
+        auth: (_) => const AuthScreen(),
+        dashboard: (_) => const MainShellPage(),
+        paywall: (_) => const PaywallPage(),
+        settings: (_) => const SettingsPage(),
+        checkoutCancel: (_) => const CheckoutCancelPage(),
+      };
+
+  static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+    if (settings.name == checkoutSuccess) {
+      final sessionId = settings.arguments as String?;
+      if (sessionId != null) {
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => CheckoutSuccessPage(sessionId: sessionId),
+        );
+      }
+    }
+    if (settings.name == editProfile) {
+      final fromSignUp = settings.arguments == true;
+      return MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => EditProfilePage(fromSignUp: fromSignUp),
+      );
+    }
+    if (settings.name == profile) {
+      final fromSignUp = settings.arguments == true;
+      return MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ProfileScreen(fromSignUp: fromSignUp),
+      );
+    }
+    return null;
+  }
+}

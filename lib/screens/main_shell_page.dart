@@ -1,0 +1,194 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../core/models/tattoo_request.dart';
+import '../core/services/online_presence_service.dart';
+import '../core/services/profile_service.dart';
+import 'bid_detail_page.dart';
+import 'explore_page.dart';
+import 'bid_page.dart';
+import 'add_page.dart';
+import 'chat_page.dart';
+import 'profile_page.dart';
+
+/// Main shell with bottom tab bar. Shows 5 tabs: Explore, Bid, Add, Chat, Profile.
+/// Add (plus) button is only shown to customers; tattoo artists cannot upload.
+class MainShellPage extends StatefulWidget {
+  const MainShellPage({super.key});
+
+  @override
+  State<MainShellPage> createState() => _MainShellPageState();
+}
+
+class _MainShellPageState extends State<MainShellPage> {
+  int _currentIndex = 0;
+  final ValueNotifier<int> _exploreRefreshTrigger = ValueNotifier(0);
+  String? _userType;
+  bool _profileLoaded = false;
+  Timer? _presenceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+    OnlinePresenceService.updatePresence();
+    _presenceTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      OnlinePresenceService.updatePresence();
+    });
+  }
+
+  Future<void> _loadProfile() async {
+    final profile = await ProfileService.getCurrentProfile();
+    if (!mounted) return;
+    setState(() {
+      _userType = profile?.userType;
+      _profileLoaded = true;
+    });
+  }
+
+  bool get _isCustomer => _userType == 'customer';
+
+  List<Widget> get _pages {
+    final pages = <Widget>[
+      Navigator(
+        key: _navKeys[0],
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) => ExplorePage(
+            refreshTrigger: _exploreRefreshTrigger,
+            userType: _userType,
+            onRequestSelectedForBid: _navigateToBidTab,
+          ),
+        ),
+      ),
+      Navigator(
+        key: _navKeys[1],
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) => const BidPage(),
+        ),
+      ),
+    ];
+    if (_isCustomer) {
+      pages.add(
+        Navigator(
+          key: _navKeys[2],
+          onGenerateRoute: (_) => MaterialPageRoute<void>(
+            builder: (_) =>
+                AddPage(onRequestSubmitted: switchToExploreAndRefresh),
+          ),
+        ),
+      );
+    }
+    pages.addAll([
+      Navigator(
+        key: _navKeys[_isCustomer ? 3 : 2],
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) => const ChatPage(),
+        ),
+      ),
+      Navigator(
+        key: _navKeys[_isCustomer ? 4 : 3],
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) => ProfilePage(
+            onProfileUpdated: () {
+              _loadProfile();
+              setState(() => _currentIndex = _pages.length - 1);
+            },
+          ),
+        ),
+      ),
+    ]);
+    return pages;
+  }
+
+  static final List<GlobalKey<NavigatorState>> _navKeys = [
+    GlobalKey<NavigatorState>(),
+    GlobalKey<NavigatorState>(),
+    GlobalKey<NavigatorState>(),
+    GlobalKey<NavigatorState>(),
+    GlobalKey<NavigatorState>(),
+  ];
+
+  List<BottomNavigationBarItem> get _navItems {
+    final items = <BottomNavigationBarItem>[
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.search),
+        label: 'Explore',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.gavel),
+        label: 'Bid',
+      ),
+      if (_isCustomer)
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.add_circle, size: 36),
+          label: 'Upload',
+        ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.chat),
+        label: 'Chat',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.person),
+        label: 'Profile',
+      ),
+    ];
+    return items;
+  }
+
+  /// Switches to Explore tab and triggers a refresh (e.g. after submitting a request).
+  void switchToExploreAndRefresh() {
+    setState(() => _currentIndex = 0);
+    _exploreRefreshTrigger.value++;
+  }
+
+  /// Switches to Bid tab and pushes BidDetailPage.
+  /// When user taps back, pops and switches to Explore tab.
+  void _navigateToBidTab(TattooRequest request) {
+    setState(() => _currentIndex = 1);
+    _navKeys[1]
+        .currentState
+        ?.push(
+          MaterialPageRoute<void>(
+            builder: (_) => BidDetailPage(
+              request: request,
+              userType: _userType,
+            ),
+          ),
+        )
+        .then((_) {
+      if (mounted) setState(() => _currentIndex = 0);
+    });
+  }
+
+  @override
+  void dispose() {
+    _presenceTimer?.cancel();
+    _exploreRefreshTrigger.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_profileLoaded) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      body: IndexedStack(
+        index: _currentIndex.clamp(0, _pages.length - 1),
+        children: _pages,
+      ),
+      bottomNavigationBar: SafeArea(
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex.clamp(0, _navItems.length - 1),
+          onTap: (index) => setState(() => _currentIndex = index),
+          type: BottomNavigationBarType.fixed,
+          items: _navItems,
+        ),
+      ),
+    );
+  }
+}

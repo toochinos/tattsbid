@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Web (no WebGL warning)",
+      "type": "shell",
+      "command": "flutter run -d chrome --web-renderer=html",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" }
+    }
+  ]
+}
