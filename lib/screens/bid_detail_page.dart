@@ -9,6 +9,7 @@ import '../core/models/bid.dart';
 import '../core/models/tattoo_request.dart';
 import 'platform_fee_page.dart';
 import '../core/services/bid_service.dart';
+import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 
 /// Detail page for a tattoo request. Shows image and description.
@@ -39,6 +40,9 @@ class _BidDetailPageState extends State<BidDetailPage> {
   RealtimeChannel? _bidsChannel;
   Timer? _bidsPollTimer;
 
+  /// Fresh profile user type (authoritative for who can bid).
+  String? _profileUserType;
+
   @override
   void initState() {
     super.initState();
@@ -46,16 +50,51 @@ class _BidDetailPageState extends State<BidDetailPage> {
     _loadBids();
     _subscribeToBidsRealtime();
     _startBidsPollFallback();
+    _loadProfileUserType();
   }
+
+  Future<void> _loadProfileUserType() async {
+    final profile = await ProfileService.getCurrentProfile();
+    if (!mounted) return;
+    setState(() => _profileUserType = profile?.userType?.trim());
+  }
+
+  /// Only registered tattoo artists can place bids (matches server / RLS).
+  bool get _canPlaceBid =>
+      (_profileUserType ?? widget.userType) == 'tattoo_artist';
 
   bool get _isOwner {
     final user = Supabase.instance.client.auth.currentUser;
     return user != null && user.id == widget.request.userId;
   }
 
-  /// Only the customer who created the request can pick a winner and pay.
+  /// Only the customer who created the request can select a bid and pay.
   /// (Requests are owned by customers; enforced by RLS on `tattoo_requests` too.)
   bool get _canSelectWinner => _isOwner;
+
+  /// Bid whose amount is closest to the customer's [TattooRequest.startingBid].
+  /// Ties: lower bid amount wins.
+  static String? _bidIdClosestToStartingPrice(
+    List<Bid> bids,
+    double startingBid,
+  ) {
+    if (bids.isEmpty) return null;
+    Bid? best;
+    var bestDiff = double.infinity;
+    for (final b in bids) {
+      final diff = (b.amount - startingBid).abs();
+      if (best == null) {
+        best = b;
+        bestDiff = diff;
+      } else if (diff < bestDiff) {
+        best = b;
+        bestDiff = diff;
+      } else if (diff == bestDiff && b.amount < best.amount) {
+        best = b;
+      }
+    }
+    return best?.id;
+  }
 
   Future<void> _selectWinner(Bid bid) async {
     try {
@@ -68,7 +107,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not select winner: $e')),
+        SnackBar(content: Text('Could not select bid: $e')),
       );
     }
   }
@@ -84,6 +123,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
           builder: (context) => PlatformFeePage(
             requestId: widget.request.id,
             bidId: bid.id,
+            artistUserId: bid.bidderId ?? bid.artistId,
             bidAmount: bid.amount,
             platformFee: platformFee,
             total: total,
@@ -121,7 +161,8 @@ class _BidDetailPageState extends State<BidDetailPage> {
     if (!_canSelectWinner || !isWinner) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Only the customer can pay the winning bid')),
+          content: Text('Only the customer can pay'),
+        ),
       );
       return;
     }
@@ -228,6 +269,15 @@ class _BidDetailPageState extends State<BidDetailPage> {
   }
 
   Future<void> _showPlaceBidDialog() async {
+    if (!_canPlaceBid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Only tattoo artists can place bids.'),
+        ),
+      );
+      return;
+    }
     final amount = await showDialog<double>(
       context: context,
       barrierDismissible: false,
@@ -440,16 +490,39 @@ class _BidDetailPageState extends State<BidDetailPage> {
                   ],
                   const SizedBox(height: 24),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Bids (tattoo artists only)',
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Bids (tattoo artists only)',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            if (!_canPlaceBid) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Only tattoo artists can place bids on requests.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color:
+                                          Theme.of(context).colorScheme.outline,
+                                    ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                      if (widget.userType == 'tattoo_artist') ...[
-                        const Spacer(),
+                      if (_canPlaceBid) ...[
+                        const SizedBox(width: 8),
                         FilledButton.icon(
                           onPressed: _showPlaceBidDialog,
                           icon: const Icon(Icons.gavel, size: 18),
@@ -510,74 +583,95 @@ class _BidDetailPageState extends State<BidDetailPage> {
                       ),
                     )
                   else
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _bids.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final bid = _bids[index];
-                        final isWinner =
-                            _winningBidId == bid.id || bid.isWinner == true;
-                        return ListTile(
-                          onTap: _canSelectWinner && isWinner
-                              ? () => _payWinningBid(bid)
-                              : null,
-                          leading: CircleAvatar(
-                            child: Text(
-                              (bid.bidderName ?? '?')
-                                  .substring(0, 1)
-                                  .toUpperCase(),
-                            ),
-                          ),
-                          title: Text(
-                            bid.bidderName ?? 'Artist',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: isWinner
-                              ? Text(
-                                  _canSelectWinner
-                                      ? 'Winner • Tap to pay'
-                                      : 'Winner',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                )
-                              : null,
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '\$${bid.amount.toStringAsFixed(2)}',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                    Builder(
+                      builder: (context) {
+                        final closestId = _bidIdClosestToStartingPrice(
+                          _bids,
+                          request.startingBid,
+                        );
+                        return ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _bids.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final bid = _bids[index];
+                            final isSelectedForPayment =
+                                _winningBidId == bid.id || bid.isWinner == true;
+                            final isClosestToCustomerPrice =
+                                closestId != null && bid.id == closestId;
+                            final payHint =
+                                isSelectedForPayment && _canSelectWinner;
+                            final subtitleParts = <String>[];
+                            if (isClosestToCustomerPrice) {
+                              subtitleParts.add('Lowest');
+                            }
+                            if (payHint) {
+                              subtitleParts.add('Tap to pay');
+                            }
+                            return ListTile(
+                              onTap: _canSelectWinner && isSelectedForPayment
+                                  ? () => _payWinningBid(bid)
+                                  : null,
+                              leading: CircleAvatar(
+                                child: Text(
+                                  (bid.bidderName ?? '?')
+                                      .substring(0, 1)
+                                      .toUpperCase(),
+                                ),
                               ),
-                              if (_canSelectWinner && !isWinner) ...[
-                                const SizedBox(width: 8),
-                                TextButton(
-                                  onPressed: () => _selectWinner(bid),
-                                  child: const Text('Select'),
+                              title: Text(
+                                bid.bidderName ?? 'Artist',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
                                 ),
-                              ],
-                              if (_canSelectWinner && isWinner) ...[
-                                const SizedBox(width: 8),
-                                FilledButton(
-                                  onPressed: () => _payWinningBid(bid),
-                                  child: const Text('Pay'),
-                                ),
-                              ],
-                            ],
-                          ),
+                              ),
+                              subtitle: subtitleParts.isEmpty
+                                  ? null
+                                  : Text(
+                                      subtitleParts.join(' • '),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '\$${bid.amount.toStringAsFixed(2)}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
+                                  if (_canSelectWinner &&
+                                      !isSelectedForPayment) ...[
+                                    const SizedBox(width: 8),
+                                    TextButton(
+                                      onPressed: () => _selectWinner(bid),
+                                      child: const Text('Select'),
+                                    ),
+                                  ],
+                                  if (_canSelectWinner &&
+                                      isSelectedForPayment) ...[
+                                    const SizedBox(width: 8),
+                                    FilledButton(
+                                      onPressed: () => _payWinningBid(bid),
+                                      child: const Text('Pay'),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          },
                         );
                       },
                     ),

@@ -28,8 +28,12 @@ class BidService {
         .eq(SupabaseProfiles.id, user.id)
         .maybeSingle();
     final userType = profile?[SupabaseProfiles.userType] as String?;
-    if (userType == 'customer') {
-      throw StateError('Customers cannot place bids');
+    if (userType != 'tattoo_artist') {
+      throw StateError(
+        userType == 'customer'
+            ? 'Customers cannot place bids'
+            : 'Only tattoo artists can place bids',
+      );
     }
 
     await Supabase.instance.client.from('bids').insert({

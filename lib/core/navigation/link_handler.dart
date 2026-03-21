@@ -34,13 +34,18 @@ class LinkHandler {
     if (_isCheckoutSuccess(uri)) {
       final sessionId = uri.queryParameters['session_id'];
       final kind = uri.queryParameters['kind'] ?? 'subscription';
+      final receiverId = uri.queryParameters['receiver_id'];
       if (sessionId != null && sessionId.isNotEmpty) {
+        final args = <String, String>{
+          'sessionId': sessionId,
+          'kind': kind,
+        };
+        if (receiverId != null && receiverId.trim().isNotEmpty) {
+          args['receiverId'] = receiverId.trim();
+        }
         nav.pushNamed(
           AppRoutes.checkoutSuccess,
-          arguments: <String, String>{
-            'sessionId': sessionId,
-            'kind': kind,
-          },
+          arguments: args,
         );
       }
     } else if (_isCheckoutCancel(uri)) {

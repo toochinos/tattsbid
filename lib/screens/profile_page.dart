@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../core/models/user_profile.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
+import '../core/utils/user_type_utils.dart';
 
-/// Profile tab - shows user avatar, name, location, and Edit profile button.
+/// Profile tab - shows user avatar, name, location, and Edit contact button.
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, this.onProfileUpdated});
 
@@ -160,14 +161,21 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 32),
               FilledButton.icon(
                 onPressed: () async {
-                  await Navigator.of(context, rootNavigator: true)
-                      .pushNamed(AppRoutes.profile);
+                  final p = _profile;
+                  final allowPick = p != null && !profileHasSetAccountType(p);
+                  await Navigator.of(context, rootNavigator: true).pushNamed(
+                    AppRoutes.profile,
+                    arguments: <String, dynamic>{
+                      'fromSignUp': false,
+                      'allowAccountTypeChoice': allowPick,
+                    },
+                  );
                   if (!mounted) return;
                   await _loadProfile();
                   widget.onProfileUpdated?.call();
                 },
                 icon: const Icon(Icons.edit),
-                label: const Text('Edit profile'),
+                label: const Text('Edit contact'),
               ),
             ],
           ),

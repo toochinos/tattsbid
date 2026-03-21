@@ -8,10 +8,14 @@ import 'package:url_launcher/url_launcher.dart';
 Future<void> startPayment({
   required double amount,
   String? bidId,
+  String? receiverId,
 }) async {
   print("🚀 startPayment called");
   final body = <String, dynamic>{'amount': amount};
   if (bidId != null) body['bid_id'] = bidId;
+  if (receiverId != null && receiverId.trim().isNotEmpty) {
+    body['receiver_id'] = receiverId.trim();
+  }
 
   print("📡 sending request...");
   final response = await http.post(

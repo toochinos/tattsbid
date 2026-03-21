@@ -6,6 +6,7 @@ import '../core/services/payment_service.dart';
 class PlatformFeePage extends StatelessWidget {
   final String requestId;
   final String bidId;
+  final String? artistUserId;
   final double bidAmount;
   final double platformFee;
   final double total;
@@ -14,6 +15,7 @@ class PlatformFeePage extends StatelessWidget {
     super.key,
     required this.requestId,
     required this.bidId,
+    this.artistUserId,
     required this.bidAmount,
     required this.platformFee,
     required this.total,
@@ -21,7 +23,11 @@ class PlatformFeePage extends StatelessWidget {
 
   Future<void> _startStripeCheckout(BuildContext context) async {
     try {
-      await startPayment(amount: platformFee, bidId: bidId);
+      await startPayment(
+        amount: platformFee,
+        bidId: bidId,
+        receiverId: artistUserId,
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

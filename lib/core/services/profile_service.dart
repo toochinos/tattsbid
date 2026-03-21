@@ -32,6 +32,8 @@ class ProfileService {
         location: data?[SupabaseProfiles.location] as String?,
         bio: data?[SupabaseProfiles.bio] as String?,
         userType: data?[SupabaseProfiles.userType] as String?,
+        contactEmail: data?[SupabaseProfiles.contactEmail] as String?,
+        mobile: data?[SupabaseProfiles.mobile] as String?,
       );
     } catch (_) {
       // Profiles table may not exist; use auth user only.
@@ -44,6 +46,37 @@ class ProfileService {
     }
   }
 
+  /// Public profile fields for another user (e.g. bid winner). No auth email.
+  static Future<UserProfile?> getProfileByUserId(String userId) async {
+    if (userId.trim().isEmpty) return null;
+    final user = _client.auth.currentUser;
+    if (user == null) return null;
+
+    try {
+      final res = await _client
+          .from(SupabaseProfiles.table)
+          .select(SupabaseProfiles.selectAll)
+          .eq(SupabaseProfiles.id, userId.trim())
+          .maybeSingle();
+
+      if (res == null) return null;
+      final data = res;
+      return UserProfile(
+        id: userId.trim(),
+        email: '',
+        displayName: data[SupabaseProfiles.displayName] as String?,
+        avatarUrl: data[SupabaseProfiles.avatarUrl] as String?,
+        location: data[SupabaseProfiles.location] as String?,
+        bio: data[SupabaseProfiles.bio] as String?,
+        userType: data[SupabaseProfiles.userType] as String?,
+        contactEmail: data[SupabaseProfiles.contactEmail] as String?,
+        mobile: data[SupabaseProfiles.mobile] as String?,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Updates profile. Creates row if missing.
   /// Pass null for a field to leave it unchanged (merge with existing).
   static Future<void> updateProfile({
@@ -52,6 +85,11 @@ class ProfileService {
     String? location,
     String? bio,
     String? userType,
+    String? contactEmail,
+    String? mobile,
+
+    /// When true, always apply [userType] (e.g. sign-up or first-time role pick).
+    bool forceUserType = false,
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
@@ -82,10 +120,18 @@ class ProfileService {
     data[SupabaseProfiles.location] =
         location ?? existingMap?[SupabaseProfiles.location];
     data[SupabaseProfiles.bio] = bio ?? existingMap?[SupabaseProfiles.bio];
-    // Once set to tattoo_artist or customer, user type cannot be changed.
+    data[SupabaseProfiles.contactEmail] =
+        contactEmail ?? existingMap?[SupabaseProfiles.contactEmail];
+    data[SupabaseProfiles.mobile] =
+        mobile ?? existingMap?[SupabaseProfiles.mobile];
+    // Once set to tattoo_artist or customer, user type cannot be changed
+    // unless [forceUserType] (sign-up / first completion).
     final existingUserType = existingMap?[SupabaseProfiles.userType] as String?;
-    data[SupabaseProfiles.userType] =
-        (existingUserType == 'tattoo_artist' || existingUserType == 'customer')
+    final hasPersistedRole =
+        existingUserType == 'tattoo_artist' || existingUserType == 'customer';
+    data[SupabaseProfiles.userType] = forceUserType && userType != null
+        ? userType
+        : hasPersistedRole
             ? existingUserType
             : (userType ?? existingUserType);
 

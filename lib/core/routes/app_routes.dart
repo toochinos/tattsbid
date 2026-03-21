@@ -41,7 +41,14 @@ class AppRoutes {
         dashboard: (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
           final openChat = args is Map && args['openChat'] == true;
-          return MainShellPage(openChatOnLaunch: openChat);
+          final receiverId = args is Map ? args['receiverId'] as String? : null;
+          final openWinnerProfile =
+              args is Map && args['openWinnerProfile'] == true;
+          return MainShellPage(
+            openChatOnLaunch: openChat,
+            initialChatReceiverId: receiverId,
+            openWinnerProfileOnLaunch: openWinnerProfile,
+          );
         },
         paywall: (_) => const PaywallPage(),
         settings: (_) => const SettingsPage(),
@@ -53,11 +60,13 @@ class AppRoutes {
       final args = settings.arguments;
       String? sessionId;
       var kind = 'subscription';
+      String? receiverId;
       if (args is String) {
         sessionId = args;
       } else if (args is Map) {
         sessionId = args['sessionId'] as String?;
         kind = args['kind'] as String? ?? 'subscription';
+        receiverId = args['receiverId'] as String?;
       }
       if (sessionId != null && sessionId.isNotEmpty) {
         return MaterialPageRoute<void>(
@@ -65,6 +74,7 @@ class AppRoutes {
           builder: (_) => CheckoutSuccessPage(
             sessionId: sessionId!,
             kind: kind,
+            receiverId: receiverId,
           ),
         );
       }
@@ -77,10 +87,22 @@ class AppRoutes {
       );
     }
     if (settings.name == profile) {
-      final fromSignUp = settings.arguments == true;
+      final args = settings.arguments;
+      var fromSignUp = false;
+      var allowAccountTypeChoice = false;
+      if (args is Map) {
+        fromSignUp = args['fromSignUp'] == true;
+        allowAccountTypeChoice = args['allowAccountTypeChoice'] == true;
+      } else if (args == true) {
+        fromSignUp = true;
+        allowAccountTypeChoice = true;
+      }
       return MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => ProfileScreen(fromSignUp: fromSignUp),
+        builder: (_) => ProfileScreen(
+          fromSignUp: fromSignUp,
+          allowAccountTypeChoice: allowAccountTypeChoice || fromSignUp,
+        ),
       );
     }
     return null;

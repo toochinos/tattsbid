@@ -11,6 +11,8 @@
 /// - location (text)
 /// - bio (text)
 /// - user_type (text): 'tattoo_artist' or 'customer'
+/// - contact_email (text, optional): public contact email
+/// - mobile (text, optional): phone / mobile
 /// - created_at (timestamptz)
 /// - updated_at (timestamptz)
 ///
@@ -35,12 +37,14 @@ abstract final class SupabaseProfiles {
   static const String location = 'location';
   static const String bio = 'bio';
   static const String userType = 'user_type';
+  static const String contactEmail = 'contact_email';
+  static const String mobile = 'mobile';
   static const String createdAt = 'created_at';
   static const String updatedAt = 'updated_at';
 
   /// Select clause for full profile fetch.
   static const String selectAll =
-      '$displayName, $avatarUrl, $location, $bio, $userType';
+      '$displayName, $avatarUrl, $location, $bio, $userType, $contactEmail, $mobile';
 }
 
 /// Supabase column names for the tattoo_requests table.

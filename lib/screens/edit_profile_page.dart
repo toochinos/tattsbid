@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
 
-/// Edit profile form: display name, location.
+/// Contact details: email and mobile (no separate “profile” name/location here).
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key, this.fromSignUp = false});
 
@@ -17,8 +17,8 @@ class EditProfilePage extends StatefulWidget {
 
 class _EditProfilePageState extends State<EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _locationController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _mobileController = TextEditingController();
 
   bool _loading = false;
   bool _initialized = false;
@@ -26,8 +26,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _locationController.dispose();
+    _emailController.dispose();
+    _mobileController.dispose();
     super.dispose();
   }
 
@@ -35,8 +35,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final profile = await ProfileService.getCurrentProfile();
     if (!mounted) return;
     if (profile != null) {
-      _nameController.text = profile.displayName ?? '';
-      _locationController.text = profile.location ?? '';
+      _emailController.text = (profile.contactEmail?.trim().isNotEmpty == true)
+          ? profile.contactEmail!.trim()
+          : profile.email;
+      _mobileController.text = profile.mobile?.trim() ?? '';
     }
     setState(() => _initialized = true);
   }
@@ -51,14 +53,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _errorMessage = null;
     if (!_formKey.currentState!.validate()) return;
 
-    final name = _nameController.text.trim();
-    final location = _locationController.text.trim();
+    final email = _emailController.text.trim();
+    final mobile = _mobileController.text.trim();
 
     setState(() => _loading = true);
     try {
       await ProfileService.updateProfile(
-        displayName: name.isEmpty ? null : name,
-        location: location.isEmpty ? null : location,
+        contactEmail: email.isEmpty ? null : email,
+        mobile: mobile.isEmpty ? null : mobile,
       );
       if (!mounted) return;
       if (widget.fromSignUp) {
@@ -82,7 +84,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit profile')),
+      appBar: AppBar(title: const Text('Contact details')),
       body: !_initialized
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -93,34 +95,38 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     TextFormField(
-                      controller: _nameController,
+                      controller: _emailController,
                       decoration: const InputDecoration(
-                        labelText: 'Name',
-                        hintText: 'Your display name',
+                        labelText: 'Email',
+                        hintText: 'Your contact email',
                         border: OutlineInputBorder(),
                       ),
-                      textCapitalization: TextCapitalization.words,
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
                       validator: (v) {
                         final s = v?.trim() ?? '';
-                        if (s.length > 100) {
-                          return 'Name must be 100 characters or less';
+                        if (s.isEmpty) {
+                          return 'Enter an email';
+                        }
+                        if (!s.contains('@') || s.length > 254) {
+                          return 'Enter a valid email';
                         }
                         return null;
                       },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
-                      controller: _locationController,
+                      controller: _mobileController,
                       decoration: const InputDecoration(
-                        labelText: 'Location',
-                        hintText: 'Where are you from?',
+                        labelText: 'Mobile number',
+                        hintText: 'Your phone number',
                         border: OutlineInputBorder(),
                       ),
-                      textCapitalization: TextCapitalization.words,
+                      keyboardType: TextInputType.phone,
                       validator: (v) {
                         final s = v?.trim() ?? '';
-                        if (s.length > 100) {
-                          return 'Location must be 100 characters or less';
+                        if (s.length > 40) {
+                          return 'Max 40 characters';
                         }
                         return null;
                       },
@@ -130,7 +136,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       Text(
                         _errorMessage!,
                         style: TextStyle(
-                            color: Theme.of(context).colorScheme.error),
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 24),

@@ -10,12 +10,14 @@ class CheckoutSuccessPage extends StatefulWidget {
     super.key,
     required this.sessionId,
     this.kind = 'subscription',
+    this.receiverId,
   });
 
   final String sessionId;
 
   /// `deposit` = pay API / tattoo bid; `subscription` = Supabase confirm-checkout.
   final String kind;
+  final String? receiverId;
 
   @override
   State<CheckoutSuccessPage> createState() => _CheckoutSuccessPageState();
@@ -34,14 +36,17 @@ class _CheckoutSuccessPageState extends State<CheckoutSuccessPage> {
   Future<void> _confirmAndNavigate() async {
     try {
       // Deposit (Stripe Checkout from Node /api/pay):
-      // show success screen briefly, then open Chat tab.
+      // After returning to the app (e.g. "Open in SaaS App"), show the winner's profile.
       if (widget.kind == 'deposit') {
         await Future<void>.delayed(const Duration(seconds: 1));
         if (!mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil(
           AppRoutes.dashboard,
           (route) => false,
-          arguments: <String, bool>{'openChat': true},
+          arguments: <String, dynamic>{
+            'openWinnerProfile': true,
+            'receiverId': widget.receiverId,
+          },
         );
         return;
       }

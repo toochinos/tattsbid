@@ -10,7 +10,16 @@ app.use(express.json());
 
 app.post('/api/pay', async (req, res) => {
   try {
-    const { amount, bid_id } = req.body;
+    const { amount, bid_id, receiver_id } = req.body;
+    const receiverId =
+      receiver_id != null && String(receiver_id).trim().length > 0
+        ? String(receiver_id).trim()
+        : '';
+    const successUrl =
+      'http://127.0.0.1:4000/success?session_id={CHECKOUT_SESSION_ID}&kind=deposit' +
+      (receiverId
+        ? `&receiver_id=${encodeURIComponent(receiverId)}`
+        : '');
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -27,11 +36,11 @@ app.post('/api/pay', async (req, res) => {
           quantity: 1,
         },
       ],
-      success_url:
-        'http://127.0.0.1:4000/success?session_id={CHECKOUT_SESSION_ID}&kind=deposit',
+      success_url: successUrl,
       cancel_url: 'http://127.0.0.1:4000/cancel',
       metadata: {
         bid_id: bid_id != null ? String(bid_id) : '',
+        receiver_id: receiverId,
       },
     });
 
@@ -48,9 +57,14 @@ app.post('/api/pay', async (req, res) => {
 app.get('/success', (req, res) => {
   const sessionId = req.query.session_id;
   const kind = req.query.kind || 'deposit';
+  const receiverId = req.query.receiver_id || '';
   const deepLink = `tattsbid://checkout/success?session_id=${encodeURIComponent(
     sessionId || '',
-  )}&kind=${encodeURIComponent(kind)}`;
+  )}&kind=${encodeURIComponent(kind)}${
+    receiverId
+      ? `&receiver_id=${encodeURIComponent(receiverId)}`
+      : ''
+  }`;
 
   res.send(`<!doctype html>
 <html>

@@ -5,13 +5,24 @@ import 'package:image_picker/image_picker.dart';
 
 import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
+import '../core/utils/user_type_utils.dart';
 
-/// Profile screen: display_name, user type (Tattoo Artist / Customer), Save button.
+/// Contact details: display name, location, email, mobile, and user type.
+/// Email and mobile are required for everyone; artists’ contact may be shown after a winning bid.
+
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, this.fromSignUp = false});
+  const ProfileScreen({
+    super.key,
+    this.fromSignUp = false,
+    this.allowAccountTypeChoice = false,
+  });
 
   /// When true (e.g. after sign-up), save navigates to dashboard instead of pop.
   final bool fromSignUp;
+
+  /// When true, ignore stored [user_type] on load so the user can pick Tattoo artist or Customer.
+  /// Use after sign-up or when no role is set yet (see [profileHasSetAccountType]).
+  final bool allowAccountTypeChoice;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -20,12 +31,17 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
-  final _bioController = TextEditingController();
   final _locationController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _mobileController = TextEditingController();
   final _imagePicker = ImagePicker();
 
   String? _avatarUrl;
+
+  /// Current selection in the form (tattoo artist or customer).
   String? _userType; // 'tattoo_artist' or 'customer'
+  /// User type last loaded from the server. Once saved as artist/customer, it can't change.
+  String? _profileUserType;
   bool _loading = false;
   bool _uploadingAvatar = false;
   bool _initialized = false;
@@ -34,11 +50,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _displayNameController.removeListener(_onFieldChanged);
-    _bioController.removeListener(_onFieldChanged);
     _locationController.removeListener(_onFieldChanged);
+    _emailController.removeListener(_onFieldChanged);
+    _mobileController.removeListener(_onFieldChanged);
     _displayNameController.dispose();
-    _bioController.dispose();
     _locationController.dispose();
+    _emailController.dispose();
+    _mobileController.dispose();
     super.dispose();
   }
 
@@ -47,10 +65,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     if (profile != null) {
       _displayNameController.text = profile.displayName ?? '';
-      _bioController.text = profile.bio ?? '';
       _locationController.text = profile.location ?? '';
+      _emailController.text = (profile.contactEmail?.trim().isNotEmpty == true)
+          ? profile.contactEmail!.trim()
+          : profile.email;
+      _mobileController.text = profile.mobile?.trim() ?? '';
       _avatarUrl = profile.avatarUrl;
-      _userType = profile.userType;
+      // Sign-up / first-time pick: don't preload a stale role (e.g. customer) from the DB.
+      if (widget.fromSignUp || widget.allowAccountTypeChoice) {
+        _profileUserType = null;
+        _userType = null;
+      } else {
+        final persisted = canonicalUserType(profile.userType);
+        _profileUserType = persisted;
+        _userType = persisted;
+      }
     }
     setState(() => _initialized = true);
   }
@@ -87,25 +116,127 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// True when every field on this screen is valid (mirrors form validators).
+  /// Save stays disabled until this is true.
   bool get _isFormComplete {
+    if (_loading || _uploadingAvatar) return false;
+
     final name = _displayNameController.text.trim();
-    final bio = _bioController.text.trim();
     final location = _locationController.text.trim();
-    return name.isNotEmpty &&
-        bio.isNotEmpty &&
-        location.isNotEmpty &&
-        (_userType == 'tattoo_artist' || _userType == 'customer');
+    final email = _emailController.text.trim();
+    final mobile = _mobileController.text.trim();
+
+    if (name.isEmpty || name.length > 100) return false;
+    if (location.isEmpty || location.length > 100) return false;
+    if (!(_userType == 'tattoo_artist' || _userType == 'customer')) {
+      return false;
+    }
+    if (email.isEmpty || !email.contains('@') || email.length > 254) {
+      return false;
+    }
+    if (mobile.isEmpty || mobile.length > 40) return false;
+
+    return true;
   }
 
   void _onFieldChanged([_]) => setState(() {});
+
+  bool get _hasPersistedAccountType =>
+      _profileUserType == 'tattoo_artist' || _profileUserType == 'customer';
+
+  /// New users (no saved artist/customer yet) can pick and change until Save.
+  /// After the choice is saved, it is permanent.
+  bool get _canChangeUserType => !_hasPersistedAccountType;
+
+  void _onAccountTypeTap(String type) {
+    if (!_canChangeUserType) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Your account type can’t be changed after it’s saved.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    // Keyboard often steals taps on buttons below text fields.
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _userType = type);
+  }
+
+  Widget _accountTypeTile({
+    required String value,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final theme = Theme.of(context);
+    final selected = _userType == value;
+    final bg = selected
+        ? theme.colorScheme.primaryContainer
+        : theme.colorScheme.surfaceContainerHighest;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _onAccountTypeTap(value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 28,
+                  color: selected
+                      ? theme.colorScheme.onPrimaryContainer
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (selected)
+                  Icon(
+                    Icons.check_circle,
+                    color: theme.colorScheme.primary,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
     _displayNameController.addListener(_onFieldChanged);
-    _bioController.addListener(_onFieldChanged);
     _locationController.addListener(_onFieldChanged);
+    _emailController.addListener(_onFieldChanged);
+    _mobileController.addListener(_onFieldChanged);
   }
 
   Future<void> _save() async {
@@ -118,16 +249,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final displayName = _displayNameController.text.trim();
-    final bio = _bioController.text.trim();
     final location = _locationController.text.trim();
+    final email = _emailController.text.trim();
+    final mobile = _mobileController.text.trim();
 
     setState(() => _loading = true);
     try {
       await ProfileService.updateProfile(
         displayName: displayName.isEmpty ? null : displayName,
-        bio: bio.isEmpty ? null : bio,
         location: location.isEmpty ? null : location,
         userType: _userType,
+        contactEmail: email.isNotEmpty ? email : null,
+        mobile: mobile.isNotEmpty ? mobile : null,
+        forceUserType: widget.fromSignUp || widget.allowAccountTypeChoice,
       );
       if (!mounted) return;
       if (widget.fromSignUp) {
@@ -148,7 +282,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit profile'),
+        title: const Text('Contact details'),
       ),
       body: !_initialized
           ? const Center(child: CircularProgressIndicator())
@@ -258,30 +392,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
-                      controller: _bioController,
-                      decoration: const InputDecoration(
-                        labelText: 'Bio',
-                        hintText: 'Tell us about yourself',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                      validator: (v) {
-                        final s = v?.trim() ?? '';
-                        if (s.isEmpty) return 'Enter your bio';
-                        if (s.length > 500) {
-                          return 'Bio must be 500 characters or less';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
                       controller: _locationController,
                       decoration: InputDecoration(
                         labelText: 'Location',
                         hintText: _userType == 'tattoo_artist'
                             ? 'Where is your tattoo studio located?'
-                            : 'Which suburb are you from?',
+                            : _userType == 'customer'
+                                ? 'Which suburb are you from?'
+                                : 'City or suburb',
                         border: const OutlineInputBorder(),
                       ),
                       textCapitalization: TextCapitalization.words,
@@ -294,92 +412,93 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (_userType == 'tattoo_artist' ||
-                            _userType == 'customer')
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              'User type cannot be changed once set.',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color:
-                                        Theme.of(context).colorScheme.outline,
-                                  ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Choose your account type',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 8),
+                      child: Text(
+                        _canChangeUserType
+                            ? 'Tap Tattoo artist or Customer below. You can switch your choice until you tap Save — after that, your account type is permanent and cannot be changed.'
+                            : 'Your account type is set and cannot be changed.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: _canChangeUserType
+                                  ? Theme.of(context).colorScheme.outline
+                                  : Theme.of(context).colorScheme.error,
                             ),
+                      ),
+                    ),
+                    _accountTypeTile(
+                      value: 'tattoo_artist',
+                      title: 'Tattoo artist',
+                      subtitle: 'Bid on jobs and connect with customers',
+                      icon: Icons.brush,
+                    ),
+                    _accountTypeTile(
+                      value: 'customer',
+                      title: 'Customer',
+                      subtitle: 'Post tattoo jobs and hire artists',
+                      icon: Icons.person,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Contact',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
                           ),
-                        CheckboxListTile(
-                          secondary: Icon(
-                            Icons.brush,
-                            color: _userType == 'tattoo_artist'
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.outline,
-                          ),
-                          title: const Text('Tattoo Artist'),
-                          value: _userType == 'tattoo_artist',
-                          onChanged: _userType == 'tattoo_artist' ||
-                                  _userType == 'customer'
-                              ? null
-                              : (checked) {
-                                  setState(() {
-                                    _userType = checked == true
-                                        ? 'tattoo_artist'
-                                        : null;
-                                  });
-                                },
-                          tileColor: _userType == 'tattoo_artist'
-                              ? Theme.of(context)
-                                  .colorScheme
-                                  .primaryContainer
-                                  .withValues(alpha: 0.5)
-                              : null,
-                          selectedTileColor: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withValues(alpha: 0.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        CheckboxListTile(
-                          secondary: Icon(
-                            Icons.person,
-                            color: _userType == 'customer'
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.outline,
-                          ),
-                          title: const Text('Customer'),
-                          value: _userType == 'customer',
-                          onChanged: _userType == 'tattoo_artist' ||
-                                  _userType == 'customer'
-                              ? null
-                              : (checked) {
-                                  setState(() {
-                                    _userType =
-                                        checked == true ? 'customer' : null;
-                                  });
-                                },
-                          tileColor: _userType == 'customer'
-                              ? Theme.of(context)
-                                  .colorScheme
-                                  .primaryContainer
-                                  .withValues(alpha: 0.5)
-                              : null,
-                          selectedTileColor: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withValues(alpha: 0.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 8),
+                      child: Text(
+                        _userType == 'tattoo_artist'
+                            ? 'Email and mobile are required. Shown to customers after a winning bid.'
+                            : _userType == 'customer'
+                                ? 'Email and mobile are required.'
+                                : 'Email and mobile are required. Choose your account type above first.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                      ),
+                    ),
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email address',
+                        hintText: 'your.email@example.com',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      validator: (v) {
+                        final s = v?.trim() ?? '';
+                        if (s.isEmpty) return 'Enter your email address';
+                        if (!s.contains('@') || s.length > 254) {
+                          return 'Enter a valid email address';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _mobileController,
+                      decoration: const InputDecoration(
+                        labelText: 'Mobile number',
+                        hintText: 'Your phone number',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.phone,
+                      validator: (v) {
+                        final s = v?.trim() ?? '';
+                        if (s.isEmpty) return 'Enter your mobile number';
+                        if (s.length > 40) {
+                          return 'Max 40 characters';
+                        }
+                        return null;
+                      },
                     ),
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 16),

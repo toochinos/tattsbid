@@ -9,6 +9,8 @@ class UserProfile {
     this.location,
     this.bio,
     this.userType,
+    this.contactEmail,
+    this.mobile,
   });
 
   final String id;
@@ -18,6 +20,8 @@ class UserProfile {
   final String? location;
   final String? bio;
   final String? userType;
+  final String? contactEmail;
+  final String? mobile;
 
   String get displayNameOrEmail =>
       displayName?.trim().isNotEmpty == true ? displayName! : email;

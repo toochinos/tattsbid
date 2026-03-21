@@ -28,6 +28,8 @@ class _ChatPageState extends State<ChatPage> {
   final Map<String, String> _displayNames = {};
   final Map<String, String> _userTypes = {};
   String? _receiverId;
+  String? _receiverEmail;
+  String? _receiverMobile;
 
   @override
   void initState() {
@@ -74,6 +76,7 @@ class _ChatPageState extends State<ChatPage> {
         _loading = false;
         _error = null;
       });
+      await _loadReceiverContact(receiverId);
       _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
@@ -189,6 +192,8 @@ class _ChatPageState extends State<ChatPage> {
                       _receiverId = userId;
                       _loading = true;
                       _error = null;
+                      _receiverEmail = null;
+                      _receiverMobile = null;
                     });
                     _loadMessages();
                   },
@@ -257,6 +262,39 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  Future<void> _loadReceiverContact(String receiverId) async {
+    try {
+      final row = await Supabase.instance.client
+          .from(SupabaseProfiles.table)
+          .select('*')
+          .eq(SupabaseProfiles.id, receiverId)
+          .maybeSingle();
+      if (!mounted) return;
+      final data = row is Map<String, dynamic> ? row : <String, dynamic>{};
+      final email = (data[SupabaseProfiles.contactEmail] ??
+              data['email'] ??
+              data['contact_email'])
+          ?.toString()
+          .trim();
+      final mobile = (data[SupabaseProfiles.mobile] ??
+              data['phone'] ??
+              data['phone_number'])
+          ?.toString()
+          .trim();
+      setState(() {
+        _receiverEmail = (email != null && email.isNotEmpty) ? email : null;
+        _receiverMobile = (mobile != null && mobile.isNotEmpty) ? mobile : null;
+      });
+    } catch (_) {
+      // Non-fatal: contact fields can be absent depending on schema/RLS.
+      if (!mounted) return;
+      setState(() {
+        _receiverEmail = null;
+        _receiverMobile = null;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
@@ -272,6 +310,8 @@ class _ChatPageState extends State<ChatPage> {
                   _receiverId = null;
                   _messages = [];
                   _error = null;
+                  _receiverEmail = null;
+                  _receiverMobile = null;
                 }),
               )
             : null,
@@ -309,6 +349,36 @@ class _ChatPageState extends State<ChatPage> {
       ),
       body: Column(
         children: [
+          if (_receiverId != null &&
+              (_receiverEmail != null || _receiverMobile != null))
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Winning artist contact',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  if (_receiverMobile != null) ...[
+                    const SizedBox(height: 6),
+                    Text('Mobile: $_receiverMobile'),
+                  ],
+                  if (_receiverEmail != null) ...[
+                    const SizedBox(height: 4),
+                    Text('Email: $_receiverEmail'),
+                  ],
+                ],
+              ),
+            ),
           Expanded(
             child: _buildMessageList(),
           ),

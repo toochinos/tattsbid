@@ -11,14 +11,24 @@ import 'bid_page.dart';
 import 'add_page.dart';
 import 'chat_page.dart';
 import 'profile_page.dart';
+import 'public_artist_profile_page.dart';
 
 /// Main shell with bottom tab bar. Shows 5 tabs: Explore, Bid, Add, Chat, Profile.
 /// Add (plus) button is only shown to customers; tattoo artists cannot upload.
 class MainShellPage extends StatefulWidget {
-  const MainShellPage({super.key, this.openChatOnLaunch = false});
+  const MainShellPage({
+    super.key,
+    this.openChatOnLaunch = false,
+    this.initialChatReceiverId,
+    this.openWinnerProfileOnLaunch = false,
+  });
 
   /// After Stripe deposit payment, open the Chat tab (see [CheckoutSuccessPage]).
   final bool openChatOnLaunch;
+  final String? initialChatReceiverId;
+
+  /// After Stripe deposit, open the winning artist’s profile (see [CheckoutSuccessPage]).
+  final bool openWinnerProfileOnLaunch;
 
   @override
   State<MainShellPage> createState() => _MainShellPageState();
@@ -30,6 +40,7 @@ class _MainShellPageState extends State<MainShellPage> {
   String? _userType;
   bool _profileLoaded = false;
   Timer? _presenceTimer;
+  bool _didPushWinnerProfile = false;
 
   @override
   void initState() {
@@ -51,6 +62,24 @@ class _MainShellPageState extends State<MainShellPage> {
         // Chat tab: index 3 for customers (5 tabs), index 2 for artists (4 tabs).
         _currentIndex = _isCustomer ? 3 : 2;
       }
+    });
+    _maybeOpenWinnerProfile();
+  }
+
+  /// Pushes the bid winner’s public profile after the user returns from Stripe (e.g. “Open in app”).
+  void _maybeOpenWinnerProfile() {
+    if (_didPushWinnerProfile) return;
+    if (!widget.openWinnerProfileOnLaunch) return;
+    final id = widget.initialChatReceiverId?.trim();
+    if (id == null || id.isEmpty) return;
+    _didPushWinnerProfile = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => PublicArtistProfilePage(userId: id),
+        ),
+      );
     });
   }
 
@@ -90,7 +119,8 @@ class _MainShellPageState extends State<MainShellPage> {
       Navigator(
         key: _navKeys[_isCustomer ? 3 : 2],
         onGenerateRoute: (_) => MaterialPageRoute<void>(
-          builder: (_) => const ChatPage(),
+          builder: (_) =>
+              ChatPage(initialReceiverId: widget.initialChatReceiverId),
         ),
       ),
       Navigator(
