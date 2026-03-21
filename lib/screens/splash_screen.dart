@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/auth_service.dart';
 
-/// Shows the TATTSOX splash image on startup, then redirects based on auth.
+/// Shows the TATTSBID splash image on startup, then redirects based on auth.
 /// Works on all platforms (including desktop where native splash is not supported).
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -42,15 +42,19 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
+      backgroundColor: Colors.white,
+      body: ColoredBox(
         color: Colors.white,
-        child: Center(
-          child: Image.asset(
-            'assets/splash.png',
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const CircularProgressIndicator(),
+        child: SizedBox.expand(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: Image.asset(
+                'assets/logo.png',
+                errorBuilder: (_, __, ___) => const CircularProgressIndicator(),
+              ),
+            ),
           ),
         ),
       ),

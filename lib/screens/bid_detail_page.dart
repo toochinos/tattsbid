@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/constants/app_constants.dart';
 import '../core/models/bid.dart';
 import '../core/models/tattoo_request.dart';
 import 'platform_fee_page.dart';
@@ -74,7 +75,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
 
   Future<void> _payWinningBid(Bid bid) async {
     try {
-      final platformFee = bid.amount * 0.08;
+      final platformFee = bid.amount * AppConstants.platformFeeRate;
       final total = bid.amount;
 
       Navigator.push(

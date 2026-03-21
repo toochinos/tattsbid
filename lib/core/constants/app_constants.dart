@@ -13,6 +13,12 @@ class AppConstants {
   // pay
   static Uri get payUrl => Uri.parse('$apiBaseUrl/api/pay');
 
+  /// Platform fee as a fraction of the winning bid (e.g. 0.10 = 10%).
+  static const double platformFeeRate = 0.10;
+
+  /// Same fee for UI labels (e.g. "Platform fee (10%): …").
+  static const int platformFeePercent = 10;
+
   /// Stripe publishable key (safe for client-side use).
   static const String stripePublishableKey =
       'pk_live_51T67gd0XexFQlFkM7JHrSVxLNgBYcDmWMcmw4quGNBn1jnSkYqveDG3JgE5mpHjdlOYWLJQstY95JMoK0y2av5Jx00cDIdlzLg';

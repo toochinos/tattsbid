@@ -1,8 +1,8 @@
-// Create Stripe Checkout Session for paying platform fee (8% of winning bid).
+// Create Stripe Checkout Session for paying platform fee (10% of winning bid).
 // Requires: STRIPE_SECRET_KEY
 // Optional env:
 // - PLATFORM_FEE_CURRENCY (default: aud)
-// - PLATFORM_FEE_PERCENT (default: 8)
+// - PLATFORM_FEE_PERCENT (default: 10)
 //
 // Call with body:
 // {
@@ -129,9 +129,9 @@ Deno.serve(async (req) => {
       });
     }
     const percent = (() => {
-      const raw = Deno.env.get('PLATFORM_FEE_PERCENT') ?? '8';
+      const raw = Deno.env.get('PLATFORM_FEE_PERCENT') ?? '10';
       const n = Number(raw);
-      return Number.isFinite(n) && n > 0 ? n : 8;
+      return Number.isFinite(n) && n > 0 ? n : 10;
     })();
     const fee = (amount * percent) / 100;
     const amountCents = Math.max(1, Math.round(fee * 100));

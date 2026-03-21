@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_constants.dart';
 import '../core/services/payment_service.dart';
 
 class PlatformFeePage extends StatelessWidget {
@@ -40,7 +41,9 @@ class PlatformFeePage extends StatelessWidget {
         child: Column(
           children: [
             Text("Total cost: \$${total.toStringAsFixed(2)}"),
-            Text("Platform fee (8%): \$${platformFee.toStringAsFixed(2)}"),
+            Text(
+              "Platform fee (${AppConstants.platformFeePercent}%): \$${platformFee.toStringAsFixed(2)}",
+            ),
             Text("Artist receives: \$${artistPayout.toStringAsFixed(2)}"),
             const Spacer(),
             SizedBox(
