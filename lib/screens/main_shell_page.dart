@@ -13,8 +13,9 @@ import 'chat_page.dart';
 import 'profile_page.dart';
 import 'public_artist_profile_page.dart';
 
-/// Main shell with bottom tab bar. Shows 5 tabs: Explore, Bid, Add, Chat, Profile.
-/// Add (plus) button is only shown to customers; tattoo artists cannot upload.
+/// Main shell with bottom tab bar: Explore, Bid, Add (customers), Private chat, Profile.
+/// Private chat is 1:1 between tattoo artists and customers only.
+/// Add (plus) is only for customers; tattoo artists cannot upload.
 class MainShellPage extends StatefulWidget {
   const MainShellPage({
     super.key,
@@ -59,7 +60,7 @@ class _MainShellPageState extends State<MainShellPage> {
       _userType = profile?.userType;
       _profileLoaded = true;
       if (widget.openChatOnLaunch) {
-        // Chat tab: index 3 for customers (5 tabs), index 2 for artists (4 tabs).
+        // Private chat tab: index 3 for customers (5 tabs), index 2 for artists (4 tabs).
         _currentIndex = _isCustomer ? 3 : 2;
       }
     });
@@ -163,7 +164,7 @@ class _MainShellPageState extends State<MainShellPage> {
         ),
       const BottomNavigationBarItem(
         icon: Icon(Icons.chat),
-        label: 'Chat',
+        label: 'Private chat',
       ),
       const BottomNavigationBarItem(
         icon: Icon(Icons.person),

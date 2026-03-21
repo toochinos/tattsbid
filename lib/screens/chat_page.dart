@@ -4,9 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/supabase_schema.dart';
 import '../core/models/chat_message.dart';
 import '../core/services/chat_service.dart';
-import '../core/services/online_presence_service.dart';
 
-/// Chat tab - direct messaging between users.
+/// Private 1:1 chat room between a tattoo artist and a customer only.
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key, this.initialReceiverId});
 
@@ -20,13 +19,11 @@ class _ChatPageState extends State<ChatPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   List<ChatMessage> _messages = [];
-  List<Map<String, dynamic>> _onlineUsers = [];
   bool _loading = true;
   bool _sending = false;
   String? _error;
   RealtimeChannel? _realtimeChannel;
   final Map<String, String> _displayNames = {};
-  final Map<String, String> _userTypes = {};
   String? _receiverId;
   String? _receiverEmail;
   String? _receiverMobile;
@@ -35,7 +32,6 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _receiverId = widget.initialReceiverId;
-    _loadOnlineUsers();
     _subscribeToRealtime();
     if (_receiverId != null) {
       _loadMessages();
@@ -85,125 +81,6 @@ class _ChatPageState extends State<ChatPage> {
         _error = e.toString();
       });
     }
-  }
-
-  Future<void> _loadOnlineUsers() async {
-    try {
-      final users = await OnlinePresenceService.fetchOnlineUsers();
-      if (!mounted) return;
-      final list = users.cast<Map<String, dynamic>>();
-      final userIds = list
-          .map((u) => u['user_id']?.toString())
-          .whereType<String>()
-          .toSet()
-          .toList();
-      final types = await _fetchUserTypes(userIds);
-      if (!mounted) return;
-      setState(() {
-        _onlineUsers = list;
-        _userTypes.addAll(types);
-      });
-    } catch (_) {
-      // Non-fatal; online list is optional
-    }
-  }
-
-  Future<Map<String, String>> _fetchUserTypes(List<String> userIds) async {
-    if (userIds.isEmpty) return {};
-    final res = await Supabase.instance.client
-        .from(SupabaseProfiles.table)
-        .select('${SupabaseProfiles.id}, ${SupabaseProfiles.userType}')
-        .inFilter(SupabaseProfiles.id, userIds);
-    final map = <String, String>{};
-    for (final row in res as List<dynamic>) {
-      final m = row as Map<String, dynamic>;
-      final id = m[SupabaseProfiles.id] as String?;
-      final type = m[SupabaseProfiles.userType] as String?;
-      if (id != null && type != null && type.trim().isNotEmpty) {
-        map[id] = type;
-      }
-    }
-    return map;
-  }
-
-  /// Returns online users (excluding current user, deduplicated by user_id).
-  List<Map<String, dynamic>> _getOnlineOthers(String? currentUserId) {
-    final seen = <String>{};
-    return _onlineUsers.where((u) {
-      final uid = u['user_id']?.toString();
-      if (uid == null || uid == currentUserId) return false;
-      if (seen.contains(uid)) return false;
-      final lastSeenStr = u['last_seen'] as String?;
-      final lastSeen =
-          lastSeenStr != null ? DateTime.tryParse(lastSeenStr) : null;
-      if (lastSeen == null || !OnlinePresenceService.isOnline(lastSeen)) {
-        return false;
-      }
-      seen.add(uid);
-      return true;
-    }).toList();
-  }
-
-  /// Opens a bottom sheet listing online users; tapping a user opens chat.
-  void _showOnlineUsersSheet(BuildContext context, String? currentUserId) {
-    final onlineList = _getOnlineOthers(currentUserId);
-
-    if (onlineList.isEmpty) return;
-
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Online users',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              ...onlineList.map((u) {
-                final userId = u['user_id'] as String?;
-                if (userId == null) return const SizedBox.shrink();
-                final userType = _userTypes[userId];
-                final letter = userType == 'tattoo_artist'
-                    ? 'A'
-                    : (userType == 'customer' ? 'C' : '?');
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.blue,
-                    child: Text(
-                      letter,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  title: FutureBuilder<String>(
-                    future: _getDisplayName(userId),
-                    builder: (_, snap) => Text(snap.data ?? 'User'),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _receiverId = userId;
-                      _loading = true;
-                      _error = null;
-                      _receiverEmail = null;
-                      _receiverMobile = null;
-                    });
-                    _loadMessages();
-                  },
-                );
-              }),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   void _scrollToBottom() {
@@ -297,12 +174,9 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    final onlineCount = _getOnlineOthers(currentUserId).length;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(_receiverId != null ? 'Chat' : 'Messages'),
+        title: const Text('Private chat'),
         leading: _receiverId != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -315,40 +189,20 @@ class _ChatPageState extends State<ChatPage> {
                 }),
               )
             : null,
-        actions: [
-          if (onlineCount > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(
-                child: GestureDetector(
-                  onTap: () => _showOnlineUsersSheet(context, currentUserId),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '$onlineCount online',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
       ),
       body: Column(
         children: [
+          if (_receiverId != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Text(
+                'Private chat between tattoo artists and customers only. '
+                'Only you and this person can see these messages.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+              ),
+            ),
           if (_receiverId != null &&
               (_receiverEmail != null || _receiverMobile != null))
             Container(
@@ -363,7 +217,7 @@ class _ChatPageState extends State<ChatPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Winning artist contact',
+                    'Artist contact',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -393,8 +247,6 @@ class _ChatPageState extends State<ChatPage> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_receiverId == null) {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      final count = _getOnlineOthers(currentUserId).length;
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -408,15 +260,15 @@ class _ChatPageState extends State<ChatPage> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Select a user to start chatting',
+                'Private chat room',
                 style: Theme.of(context).textTheme.titleMedium,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                count > 0
-                    ? 'Tap "$count online" above to see who\'s available.'
-                    : 'No one is online. Check back later.',
+                'This is a private space only between tattoo artists and '
+                'customers. Open a chat from a profile or after you pay a '
+                'winning bid.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
@@ -469,11 +321,16 @@ class _ChatPageState extends State<ChatPage> {
 
     if (_messages.isEmpty) {
       return Center(
-        child: Text(
-          'No messages yet. Say hello!',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.outline,
-              ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No messages yet. Say hello — this private chat is only visible '
+            'to you and the other person.',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+            textAlign: TextAlign.center,
+          ),
         ),
       );
     }
@@ -597,7 +454,7 @@ class _ChatPageState extends State<ChatPage> {
               child: TextField(
                 controller: _controller,
                 decoration: InputDecoration(
-                  hintText: 'Type a message...',
+                  hintText: 'Message (private)',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),

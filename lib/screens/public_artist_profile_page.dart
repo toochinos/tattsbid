@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/models/user_profile.dart';
 import '../core/services/profile_service.dart';
+import 'chat_page.dart';
 
 /// Read-only profile for another user (e.g. tattoo artist after winning a bid).
 class PublicArtistProfilePage extends StatefulWidget {
@@ -61,6 +63,25 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
       default:
         return 'Profile';
     }
+  }
+
+  bool get _isOwnProfile {
+    final me = Supabase.instance.client.auth.currentUser?.id;
+    return me != null && me == widget.userId;
+  }
+
+  void _openChat() {
+    if (_isOwnProfile) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You can’t chat with yourself.')),
+      );
+      return;
+    }
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatPage(initialReceiverId: widget.userId),
+      ),
+    );
   }
 
   @override
@@ -143,6 +164,14 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                   color: scheme.outline,
                 ),
           ),
+          if (!_isOwnProfile) ...[
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _openChat,
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Chat'),
+            ),
+          ],
           if (profile.location != null &&
               profile.location!.trim().isNotEmpty) ...[
             const SizedBox(height: 16),

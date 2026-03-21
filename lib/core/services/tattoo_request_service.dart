@@ -135,6 +135,32 @@ class TattooRequestService {
         .eq(SupabaseTattooRequests.userId, user.id);
   }
 
+  /// Marks a request as completed after the customer finishes the deposit payment.
+  /// Owner-only (RLS). Call from [CheckoutSuccessPage] when [PendingDepositPayment.requestId] is set.
+  static Future<void> markRequestCompletedAfterPayment({
+    required String requestId,
+  }) async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw StateError('User must be authenticated');
+
+    final res = await _client
+        .from(SupabaseTattooRequests.table)
+        .update({
+          SupabaseTattooRequests.status: 'completed',
+          SupabaseTattooRequests.updatedAt: DateTime.now().toIso8601String(),
+        })
+        .eq(SupabaseTattooRequests.id, requestId)
+        .eq(SupabaseTattooRequests.userId, user.id)
+        .select();
+
+    final list = res as List;
+    if (list.isEmpty) {
+      throw StateError(
+        'Could not mark request completed: not found or not owner',
+      );
+    }
+  }
+
   /// Fetches all tattoo requests, newest first.
   static Future<List<TattooRequest>> fetchAllRequests() async {
     final res = await _client

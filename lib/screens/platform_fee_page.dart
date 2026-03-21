@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/constants/app_constants.dart';
+import '../core/payment/pending_deposit_payment.dart';
 import '../core/services/payment_service.dart';
 
 class PlatformFeePage extends StatelessWidget {
@@ -23,6 +24,8 @@ class PlatformFeePage extends StatelessWidget {
 
   Future<void> _startStripeCheckout(BuildContext context) async {
     try {
+      // So CheckoutSuccessPage can mark this request completed after Stripe returns.
+      PendingDepositPayment.requestId = requestId;
       await startPayment(
         amount: platformFee,
         bidId: bidId,

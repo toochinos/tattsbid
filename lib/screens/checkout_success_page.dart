@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../core/payment/pending_deposit_payment.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/subscription_service.dart';
+import '../core/services/tattoo_request_service.dart';
 
 /// Shown when user returns from Stripe checkout (success).
 /// Confirms the session, refreshes subscription state, then navigates.
@@ -39,6 +41,18 @@ class _CheckoutSuccessPageState extends State<CheckoutSuccessPage> {
       // After returning to the app (e.g. "Open in SaaS App"), show the winner's profile.
       if (widget.kind == 'deposit') {
         await Future<void>.delayed(const Duration(seconds: 1));
+        final pendingRequestId = PendingDepositPayment.requestId;
+        if (pendingRequestId != null && pendingRequestId.isNotEmpty) {
+          try {
+            await TattooRequestService.markRequestCompletedAfterPayment(
+              requestId: pendingRequestId,
+            );
+          } catch (_) {
+            // RLS or network; user can still continue — status may update on retry.
+          } finally {
+            PendingDepositPayment.clear();
+          }
+        }
         if (!mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil(
           AppRoutes.dashboard,
