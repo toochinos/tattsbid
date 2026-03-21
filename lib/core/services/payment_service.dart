@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 /// Calls the pay API and opens the Stripe checkout URL in the browser.
-/// [amount] is the platform fee in dollars. [bidId] is optional and sent as metadata.
+/// [amount] is the deposit fee in dollars. [bidId] is optional and sent as metadata.
 Future<void> startPayment({
   required double amount,
   String? bidId,

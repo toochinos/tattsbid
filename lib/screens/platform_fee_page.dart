@@ -35,14 +35,14 @@ class PlatformFeePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final artistPayout = total - platformFee;
     return Scaffold(
-      appBar: AppBar(title: const Text("Payment Summary")),
+      appBar: AppBar(title: const Text("Deposit summary")),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             Text("Total cost: \$${total.toStringAsFixed(2)}"),
             Text(
-              "Platform fee (${AppConstants.platformFeePercent}%): \$${platformFee.toStringAsFixed(2)}",
+              "Deposit fee ${AppConstants.platformFeePercent}%: \$${platformFee.toStringAsFixed(2)}",
             ),
             Text("Artist receives: \$${artistPayout.toStringAsFixed(2)}"),
             const Spacer(),

@@ -1,4 +1,4 @@
-// Create Stripe Checkout Session for paying platform fee (10% of winning bid).
+// Create Stripe Checkout Session for paying deposit fee (10% of winning bid).
 // Requires: STRIPE_SECRET_KEY
 // Optional env:
 // - PLATFORM_FEE_CURRENCY (default: aud)
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
     })();
     const fee = (amount * percent) / 100;
     const amountCents = Math.max(1, Math.round(fee * 100));
-    const description = `Platform fee (${percent}% of $${amount.toFixed(2)})`;
+    const description = `Deposit fee (${percent}% of $${amount.toFixed(2)})`;
 
     let successUrl: string;
     let cancelUrl: string;
