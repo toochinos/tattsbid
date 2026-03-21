@@ -31,14 +31,36 @@ class LinkHandler {
     final nav = navigatorKey.currentState;
     if (nav == null) return;
 
-    if (uri.path.contains('checkout/success')) {
+    if (_isCheckoutSuccess(uri)) {
       final sessionId = uri.queryParameters['session_id'];
+      final kind = uri.queryParameters['kind'] ?? 'subscription';
       if (sessionId != null && sessionId.isNotEmpty) {
-        nav.pushNamed(AppRoutes.checkoutSuccess, arguments: sessionId);
+        nav.pushNamed(
+          AppRoutes.checkoutSuccess,
+          arguments: <String, String>{
+            'sessionId': sessionId,
+            'kind': kind,
+          },
+        );
       }
-    } else if (uri.path.contains('checkout/cancel')) {
+    } else if (_isCheckoutCancel(uri)) {
       nav.pushNamed(AppRoutes.checkoutCancel);
     }
+  }
+
+  /// HTTPS paths or `tattsbid://checkout/success?...` after Stripe redirect.
+  static bool _isCheckoutSuccess(Uri uri) {
+    if (uri.path.contains('checkout/success')) return true;
+    return uri.scheme == 'tattsbid' &&
+        uri.host == 'checkout' &&
+        uri.path == '/success';
+  }
+
+  static bool _isCheckoutCancel(Uri uri) {
+    if (uri.path.contains('checkout/cancel')) return true;
+    return uri.scheme == 'tattsbid' &&
+        uri.host == 'checkout' &&
+        uri.path == '/cancel';
   }
 
   static void dispose() {

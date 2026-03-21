@@ -15,7 +15,10 @@ import 'profile_page.dart';
 /// Main shell with bottom tab bar. Shows 5 tabs: Explore, Bid, Add, Chat, Profile.
 /// Add (plus) button is only shown to customers; tattoo artists cannot upload.
 class MainShellPage extends StatefulWidget {
-  const MainShellPage({super.key});
+  const MainShellPage({super.key, this.openChatOnLaunch = false});
+
+  /// After Stripe deposit payment, open the Chat tab (see [CheckoutSuccessPage]).
+  final bool openChatOnLaunch;
 
   @override
   State<MainShellPage> createState() => _MainShellPageState();
@@ -44,6 +47,10 @@ class _MainShellPageState extends State<MainShellPage> {
     setState(() {
       _userType = profile?.userType;
       _profileLoaded = true;
+      if (widget.openChatOnLaunch) {
+        // Chat tab: index 3 for customers (5 tabs), index 2 for artists (4 tabs).
+        _currentIndex = _isCustomer ? 3 : 2;
+      }
     });
   }
 

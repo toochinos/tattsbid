@@ -38,7 +38,11 @@ class AppRoutes {
         login: (_) => const LoginPage(),
         signUp: (_) => const SignUpPage(),
         auth: (_) => const AuthScreen(),
-        dashboard: (_) => const MainShellPage(),
+        dashboard: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          final openChat = args is Map && args['openChat'] == true;
+          return MainShellPage(openChatOnLaunch: openChat);
+        },
         paywall: (_) => const PaywallPage(),
         settings: (_) => const SettingsPage(),
         checkoutCancel: (_) => const CheckoutCancelPage(),
@@ -46,11 +50,22 @@ class AppRoutes {
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     if (settings.name == checkoutSuccess) {
-      final sessionId = settings.arguments as String?;
-      if (sessionId != null) {
+      final args = settings.arguments;
+      String? sessionId;
+      var kind = 'subscription';
+      if (args is String) {
+        sessionId = args;
+      } else if (args is Map) {
+        sessionId = args['sessionId'] as String?;
+        kind = args['kind'] as String? ?? 'subscription';
+      }
+      if (sessionId != null && sessionId.isNotEmpty) {
         return MaterialPageRoute<void>(
           settings: settings,
-          builder: (_) => CheckoutSuccessPage(sessionId: sessionId),
+          builder: (_) => CheckoutSuccessPage(
+            sessionId: sessionId!,
+            kind: kind,
+          ),
         );
       }
     }

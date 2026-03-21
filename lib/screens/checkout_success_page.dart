@@ -9,9 +9,13 @@ class CheckoutSuccessPage extends StatefulWidget {
   const CheckoutSuccessPage({
     super.key,
     required this.sessionId,
+    this.kind = 'subscription',
   });
 
   final String sessionId;
+
+  /// `deposit` = pay API / tattoo bid; `subscription` = Supabase confirm-checkout.
+  final String kind;
 
   @override
   State<CheckoutSuccessPage> createState() => _CheckoutSuccessPageState();
@@ -29,6 +33,19 @@ class _CheckoutSuccessPageState extends State<CheckoutSuccessPage> {
 
   Future<void> _confirmAndNavigate() async {
     try {
+      // Deposit (Stripe Checkout from Node /api/pay):
+      // show success screen briefly, then open Chat tab.
+      if (widget.kind == 'deposit') {
+        await Future<void>.delayed(const Duration(seconds: 1));
+        if (!mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppRoutes.dashboard,
+          (route) => false,
+          arguments: <String, bool>{'openChat': true},
+        );
+        return;
+      }
+
       await SubscriptionService.confirmCheckout(widget.sessionId);
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil(
