@@ -11,6 +11,7 @@ class UserProfile {
     this.userType,
     this.contactEmail,
     this.mobile,
+    this.portfolioUrls = const [],
   });
 
   final String id;
@@ -22,6 +23,9 @@ class UserProfile {
   final String? userType;
   final String? contactEmail;
   final String? mobile;
+
+  /// Public portfolio images (tattoo artists only; max 10 in app).
+  final List<String> portfolioUrls;
 
   String get displayNameOrEmail =>
       displayName?.trim().isNotEmpty == true ? displayName! : email;

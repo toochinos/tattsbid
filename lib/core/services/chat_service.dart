@@ -266,6 +266,19 @@ class ChatService {
     }
   }
 
+  /// True if the signed-in **customer** has a **completed** request (Stripe
+  /// deposit paid) where [artistUserId] was the winning artist.
+  static Future<bool> customerHasPaidDepositWithArtist(
+    String artistUserId,
+  ) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return false;
+    final id = artistUserId.trim();
+    if (id.isEmpty) return false;
+    final paid = await _paidWinningArtistIdsForCustomer(user.id);
+    return paid.contains(id);
+  }
+
   /// Customers who completed a request where this user was the winning bidder.
   static Future<Set<String>> _customerIdsForCompletedWinsAsArtist(
     String artistId,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/payment/pending_deposit_payment.dart';
@@ -26,10 +27,16 @@ class PlatformFeePage extends StatelessWidget {
     try {
       // So CheckoutSuccessPage can mark this request completed after Stripe returns.
       PendingDepositPayment.requestId = requestId;
+      PendingDepositPayment.artistUserId = artistUserId;
+      PendingDepositPayment.depositAmount = platformFee;
+      final uid = Supabase.instance.client.auth.currentUser?.id;
       await startPayment(
         amount: platformFee,
         bidId: bidId,
         receiverId: artistUserId,
+        requestId: requestId,
+        userId: uid,
+        depositAmount: platformFee,
       );
     } catch (e) {
       if (context.mounted) {

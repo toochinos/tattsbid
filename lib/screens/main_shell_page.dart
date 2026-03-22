@@ -6,15 +6,16 @@ import '../core/models/tattoo_request.dart';
 import '../core/services/message_indicator_service.dart';
 import '../core/services/online_presence_service.dart';
 import '../core/services/profile_service.dart';
+import 'artists_page.dart';
 import 'bid_detail_page.dart';
 import 'explore_page.dart';
-import 'bid_page.dart';
 import 'add_page.dart';
 import 'chat_page.dart';
 import 'profile_page.dart';
 import 'public_artist_profile_page.dart';
 
-/// Main shell with bottom tab bar: Explore, Bid, Add (customers), Message, Profile.
+/// Main shell with bottom tab bar: Explore, Artists, Add (customers), Message, Profile.
+/// Bidding is opened from Explore → request detail ([BidDetailPage]), not a root tab.
 /// Message tab is 1:1 between tattoo artists and customers only.
 /// Add (plus) is only for customers; tattoo artists cannot upload.
 class MainShellPage extends StatefulWidget {
@@ -103,7 +104,7 @@ class _MainShellPageState extends State<MainShellPage> {
       Navigator(
         key: _navKeys[1],
         onGenerateRoute: (_) => MaterialPageRoute<void>(
-          builder: (_) => const BidPage(),
+          builder: (_) => const ArtistsPage(),
         ),
       ),
     ];
@@ -149,9 +150,6 @@ class _MainShellPageState extends State<MainShellPage> {
     GlobalKey<NavigatorState>(),
   ];
 
-  /// Message tab index: 3 for customers (5 tabs), 2 for artists (4 tabs).
-  int get _messageTabIndex => _isCustomer ? 3 : 2;
-
   List<BottomNavigationBarItem> _navItems(bool showEnvelope) {
     return <BottomNavigationBarItem>[
       const BottomNavigationBarItem(
@@ -159,8 +157,9 @@ class _MainShellPageState extends State<MainShellPage> {
         label: 'Explore',
       ),
       const BottomNavigationBarItem(
-        icon: Icon(Icons.gavel),
-        label: 'Bid',
+        icon: _ArtistsTabIcon(selected: false),
+        activeIcon: _ArtistsTabIcon(selected: true),
+        label: 'Artists',
       ),
       if (_isCustomer)
         const BottomNavigationBarItem(
@@ -184,22 +183,21 @@ class _MainShellPageState extends State<MainShellPage> {
     _exploreRefreshTrigger.value++;
   }
 
-  /// Switches to Bid tab and pushes BidDetailPage.
-  /// When user taps back, pops and switches to Explore tab.
+  /// Opens [BidDetailPage] from the Explore stack (no dedicated Bid tab).
   void _navigateToBidTab(TattooRequest request) {
-    setState(() => _currentIndex = 1);
-    _navKeys[1]
-        .currentState
-        ?.push(
-          MaterialPageRoute<void>(
-            builder: (_) => BidDetailPage(
-              request: request,
-              userType: _userType,
+    setState(() => _currentIndex = 0);
+    // Refresh profile so [BidDetailPage] has up-to-date role; eligibility also
+    // re-fetched there via [BidService.isCurrentUserTattooArtist].
+    Future<void>(() async {
+      await _loadProfile();
+      if (!mounted) return;
+      _navKeys[0].currentState?.push(
+            MaterialPageRoute<void>(
+              builder: (_) => BidDetailPage(
+                request: request,
+              ),
             ),
-          ),
-        )
-        .then((_) {
-      if (mounted) setState(() => _currentIndex = 0);
+          );
     });
   }
 
@@ -233,14 +231,53 @@ class _MainShellPageState extends State<MainShellPage> {
               currentIndex: _currentIndex.clamp(0, items.length - 1),
               onTap: (index) {
                 setState(() => _currentIndex = index);
-                if (index == _messageTabIndex) {
-                  MessageIndicatorService.refresh();
-                }
+                // Do not call [MessageIndicatorService.refresh] here — it would
+                // clear the green envelope as soon as the tab is opened, before
+                // the user reads or replies. Updates come from realtime, polling,
+                // and [ChatPage] after send/mark-read.
               },
               type: BottomNavigationBarType.fixed,
               items: items,
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Tattoo machine asset for the Artists tab ([assets/tattoo_machine_icon.png]).
+///
+/// Do **not** use [Image.color] + [BlendMode.srcIn] on full-color PNGs (navy on
+/// white) — that flattens the graphic into a solid square. We show the real
+/// pixels and only adjust opacity for unselected vs selected.
+class _ArtistsTabIcon extends StatelessWidget {
+  const _ArtistsTabIcon({required this.selected});
+
+  final bool selected;
+
+  static const String _asset = 'assets/tattoo_machine_icon.png';
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Opacity(
+      opacity: selected ? 1 : 0.55,
+      child: SizedBox(
+        width: 34,
+        height: 34,
+        child: Image.asset(
+          _asset,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (_, __, ___) => Icon(
+            Icons.brush_outlined,
+            size: 30,
+            color: selected
+                ? scheme.primary
+                : scheme.onSurface.withValues(alpha: 0.64),
+          ),
         ),
       ),
     );

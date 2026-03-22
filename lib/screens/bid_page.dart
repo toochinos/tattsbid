@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Bid tab - placeholder.
+/// Legacy bid hub placeholder — not used in the bottom nav; bidding lives in
+/// [BidDetailPage] from Explore. Kept so existing bid-related code can be reused.
 class BidPage extends StatelessWidget {
   const BidPage({super.key});
 

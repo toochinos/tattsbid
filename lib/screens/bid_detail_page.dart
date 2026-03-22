@@ -4,28 +4,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/config/supabase_schema.dart';
 import '../core/constants/app_constants.dart';
 import '../core/models/bid.dart';
 import '../core/models/tattoo_request.dart';
-import 'platform_fee_page.dart';
+import '../core/models/user_profile.dart';
+import 'chat_page.dart';
+import '../core/payment/pending_deposit_payment.dart';
 import '../core/services/bid_service.dart';
+import '../core/services/payment_service.dart';
+import '../core/services/contact_unlock_service.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 
 /// Detail page for a tattoo request. Shows image and description.
 /// Opened when artist or customer taps a request card in Explore.
-/// Only tattoo artists can place bids; customers cannot.
+/// Primary action uses [SupabaseProfiles.role] when set; otherwise legacy
+/// [BidService.isCurrentUserTattooArtist] for the Bid button.
 class BidDetailPage extends StatefulWidget {
   const BidDetailPage({
     super.key,
     required this.request,
-    this.userType,
   });
 
   final TattooRequest request;
-
-  /// 'tattoo_artist' or 'customer'. Customers cannot place bids.
-  final String? userType;
 
   @override
   State<BidDetailPage> createState() => _BidDetailPageState();
@@ -40,8 +42,23 @@ class _BidDetailPageState extends State<BidDetailPage> {
   RealtimeChannel? _bidsChannel;
   Timer? _bidsPollTimer;
 
-  /// Fresh profile user type (authoritative for who can bid).
-  String? _profileUserType;
+  /// `profiles.role`: `artist` | `customer` (lowercase), or null if unset.
+  String? _userRole;
+
+  /// True until [profiles.role] (and legacy bid eligibility if needed) is loaded.
+  bool _profileRoleLoading = true;
+
+  /// When [_userRole] is null, use same check as [BidService.placeBid] for Bid UI.
+  bool _legacyTattooArtist = false;
+
+  /// [profiles.user_type] for the signed-in user (for customer-only contact unlock UI).
+  String? _viewerUserType;
+
+  /// From [ContactUnlockService.checkIfUnlocked] — paid contact unlock for this request.
+  bool _hasUnlocked = false;
+
+  bool _unlockLoading = false;
+  UserProfile? _winnerArtistProfile;
 
   @override
   void initState() {
@@ -50,18 +67,198 @@ class _BidDetailPageState extends State<BidDetailPage> {
     _loadBids();
     _subscribeToBidsRealtime();
     _startBidsPollFallback();
-    _loadProfileUserType();
+    _loadProfileRole();
+    _loadUnlock();
   }
 
-  Future<void> _loadProfileUserType() async {
-    final profile = await ProfileService.getCurrentProfile();
-    if (!mounted) return;
-    setState(() => _profileUserType = profile?.userType?.trim());
+  /// Reads [SupabaseProfiles.role] for the signed-in user; on error or missing
+  /// column, falls back to legacy tattoo-artist detection only.
+  Future<void> _loadProfileRole() async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      setState(() {
+        _profileRoleLoading = false;
+        _userRole = null;
+        _legacyTattooArtist = false;
+        _viewerUserType = null;
+      });
+      return;
+    }
+
+    try {
+      final row = await client
+          .from(SupabaseProfiles.table)
+          .select(
+            '${SupabaseProfiles.role}, ${SupabaseProfiles.userType}',
+          )
+          .eq(SupabaseProfiles.id, user.id)
+          .maybeSingle();
+
+      String? normalizedRole;
+      final raw = row?[SupabaseProfiles.role] as String?;
+      if (raw != null && raw.trim().isNotEmpty) {
+        normalizedRole = raw.trim().toLowerCase();
+      }
+
+      final legacy = normalizedRole == null
+          ? await BidService.isCurrentUserTattooArtist()
+          : false;
+
+      final ut = row?[SupabaseProfiles.userType] as String?;
+      final viewerUt = ut?.trim();
+
+      if (!mounted) return;
+      setState(() {
+        _profileRoleLoading = false;
+        _userRole = normalizedRole;
+        _legacyTattooArtist = legacy;
+        _viewerUserType = viewerUt?.isEmpty == true ? null : viewerUt;
+      });
+      await _loadUnlock();
+    } catch (e, st) {
+      debugPrint('BidDetailPage _loadProfileRole: $e\n$st');
+      final legacy = await BidService.isCurrentUserTattooArtist();
+      if (!mounted) return;
+      setState(() {
+        _profileRoleLoading = false;
+        _userRole = null;
+        _legacyTattooArtist = legacy;
+        _viewerUserType = null;
+      });
+      await _loadUnlock();
+    }
   }
 
-  /// Only registered tattoo artists can place bids (matches server / RLS).
-  bool get _canPlaceBid =>
-      (_profileUserType ?? widget.userType) == 'tattoo_artist';
+  /// Request owner who is not a tattoo artist (customers only for unlock UI).
+  bool get _showArtistContactSection =>
+      _isOwner &&
+      !_profileRoleLoading &&
+      (_viewerUserType == null || _viewerUserType != 'tattoo_artist') &&
+      _winningBidId != null;
+
+  Bid? get _winningBidModel {
+    final id = _winningBidId;
+    if (id == null) return null;
+    for (final b in _bids) {
+      if (b.id == id) return b;
+    }
+    return null;
+  }
+
+  /// Agreed job price (winning bid amount) — basis for 10% deposit.
+  double? get _jobPrice => _winningBidModel?.amount;
+
+  double? get _depositDollars =>
+      _jobPrice != null ? _jobPrice! * AppConstants.platformFeeRate : null;
+
+  double? get _remainingDollars => _jobPrice != null
+      ? _jobPrice! * (1.0 - AppConstants.platformFeeRate)
+      : null;
+
+  /// Loads [contact_unlocks] via [ContactUnlockService.checkIfUnlocked], then artist profile for display.
+  Future<void> _loadUnlock() async {
+    if (_profileRoleLoading) return;
+
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      setState(() {
+        _unlockLoading = false;
+        _hasUnlocked = false;
+        _winnerArtistProfile = null;
+      });
+      return;
+    }
+
+    if (!_isOwner || _winningBidId == null) {
+      if (!mounted) return;
+      setState(() {
+        _unlockLoading = false;
+        _hasUnlocked = false;
+        _winnerArtistProfile = null;
+      });
+      return;
+    }
+    if (_viewerUserType == 'tattoo_artist') {
+      if (!mounted) return;
+      setState(() {
+        _unlockLoading = false;
+        _hasUnlocked = false;
+        _winnerArtistProfile = null;
+      });
+      return;
+    }
+
+    if (!_showArtistContactSection) {
+      if (!mounted) return;
+      setState(() {
+        _unlockLoading = false;
+        _hasUnlocked = false;
+        _winnerArtistProfile = null;
+      });
+      return;
+    }
+    final bid = _winningBidModel;
+    final artistId = bid?.bidderId ?? bid?.artistId;
+    if (artistId == null || artistId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _unlockLoading = false;
+        _hasUnlocked = false;
+        _winnerArtistProfile = null;
+      });
+      return;
+    }
+
+    setState(() => _unlockLoading = true);
+    try {
+      final unlocked = await ContactUnlockService.checkIfUnlocked(
+        userId: user.id,
+        artistId: artistId,
+        requestId: widget.request.id,
+      );
+      UserProfile? prof;
+      if (unlocked) {
+        prof = await ProfileService.getProfileByUserId(artistId);
+      }
+      if (!mounted) return;
+      setState(() {
+        _unlockLoading = false;
+        _hasUnlocked = unlocked;
+        _winnerArtistProfile = prof;
+      });
+    } catch (e, st) {
+      debugPrint('BidDetailPage _loadUnlock: $e\n$st');
+      if (!mounted) return;
+      setState(() {
+        _unlockLoading = false;
+        _hasUnlocked = false;
+        _winnerArtistProfile = null;
+      });
+    }
+  }
+
+  /// Bidding only while the request is [open]. Closed after winner / payment.
+  bool get _biddingOpen => widget.request.status == 'open';
+
+  /// Role `customer` from [profiles.role], or legacy tattoo artist when role unset.
+  bool get _showBidButton =>
+      !_profileRoleLoading &&
+      _biddingOpen &&
+      !_isOwner &&
+      (_userRole == 'customer' || (_userRole == null && _legacyTattooArtist));
+
+  /// Role `artist`: show tools entry — does not open the bid dialog.
+  bool get _showArtistToolsButton =>
+      !_profileRoleLoading &&
+      _userRole == 'artist' &&
+      _biddingOpen &&
+      !_isOwner;
+
+  /// Matches [_showBidButton] — used before submitting a bid.
+  bool get _canSubmitBid => _showBidButton;
 
   bool get _isOwner {
     final user = Supabase.instance.client.auth.currentUser;
@@ -71,6 +268,12 @@ class _BidDetailPageState extends State<BidDetailPage> {
   /// Only the customer who created the request can select a bid and pay.
   /// (Requests are owned by customers; enforced by RLS on `tattoo_requests` too.)
   bool get _canSelectWinner => _isOwner;
+
+  /// Deposit already paid — no further Pay actions (see [markRequestCompletedAfterPayment]).
+  bool get _depositPaid => widget.request.status == 'completed';
+
+  /// Customer may pay the winning bid only until the request is completed.
+  bool get _canPayWinningBid => _canSelectWinner && !_depositPaid;
 
   /// Bid whose amount is closest to the customer's [TattooRequest.startingBid].
   /// Ties: lower bid amount wins.
@@ -97,6 +300,15 @@ class _BidDetailPageState extends State<BidDetailPage> {
   }
 
   Future<void> _selectWinner(Bid bid) async {
+    if (_depositPaid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This request is already completed.'),
+        ),
+      );
+      return;
+    }
     try {
       await TattooRequestService.setWinningBid(
         requestId: widget.request.id,
@@ -104,6 +316,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
       );
       if (!mounted) return;
       setState(() => _winningBidId = bid.id);
+      await _loadUnlock();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -113,23 +326,38 @@ class _BidDetailPageState extends State<BidDetailPage> {
   }
 
   Future<void> _payWinningBid(Bid bid) async {
-    try {
-      final platformFee = bid.amount * AppConstants.platformFeeRate;
-      final total = bid.amount;
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PlatformFeePage(
-            requestId: widget.request.id,
-            bidId: bid.id,
-            artistUserId: bid.bidderId ?? bid.artistId,
-            bidAmount: bid.amount,
-            platformFee: platformFee,
-            total: total,
-          ),
+    if (_depositPaid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment has already been completed for this request.'),
         ),
       );
+      return;
+    }
+    final artistId = bid.bidderId ?? bid.artistId;
+    if (artistId == null || artistId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing artist for this bid.')),
+      );
+      return;
+    }
+    try {
+      final platformFee = bid.amount * AppConstants.platformFeeRate;
+      PendingDepositPayment.requestId = widget.request.id;
+      PendingDepositPayment.artistUserId = artistId;
+      PendingDepositPayment.depositAmount = platformFee;
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      await startPayment(
+        amount: platformFee,
+        bidId: bid.id,
+        receiverId: artistId,
+        requestId: widget.request.id,
+        userId: uid,
+        depositAmount: platformFee,
+      );
+      if (mounted) await _loadUnlock();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -206,6 +434,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
         _bidsLoading = false;
         _bidsError = null;
       });
+      await _loadUnlock();
     } catch (e, st) {
       if (!mounted) return;
       setState(() {
@@ -268,12 +497,53 @@ class _BidDetailPageState extends State<BidDetailPage> {
     );
   }
 
+  void _onArtistToolsPressed() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Artist tools',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'More artist actions for this job will appear here. '
+                'This does not place a bid.',
+                style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(ctx).colorScheme.outline,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showPlaceBidDialog() async {
-    if (!_canPlaceBid) {
+    if (!_canSubmitBid) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Only tattoo artists can place bids.'),
+          content: Text('You can’t place a bid on this request.'),
+        ),
+      );
+      return;
+    }
+    if (!_biddingOpen) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bidding is closed for this request.'),
         ),
       );
       return;
@@ -497,7 +767,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Bids (tattoo artists only)',
+                              'Bids',
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium
@@ -505,7 +775,26 @@ class _BidDetailPageState extends State<BidDetailPage> {
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
-                            if (!_canPlaceBid) ...[
+                            if (!_profileRoleLoading &&
+                                _userRole == 'artist' &&
+                                _biddingOpen &&
+                                !_isOwner) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Artist tools — bidding is not started from this button.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color:
+                                          Theme.of(context).colorScheme.outline,
+                                    ),
+                              ),
+                            ],
+                            if (!_profileRoleLoading &&
+                                _userRole == null &&
+                                !_legacyTattooArtist &&
+                                !_isOwner) ...[
                               const SizedBox(height: 6),
                               Text(
                                 'Only tattoo artists can place bids on requests.',
@@ -518,10 +807,46 @@ class _BidDetailPageState extends State<BidDetailPage> {
                                     ),
                               ),
                             ],
+                            if (!_profileRoleLoading &&
+                                !_isOwner &&
+                                !_biddingOpen &&
+                                (_userRole == 'artist' ||
+                                    _userRole == 'customer' ||
+                                    (_userRole == null &&
+                                        _legacyTattooArtist))) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Bidding is closed. This request is no longer '
+                                'accepting new bids.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color:
+                                          Theme.of(context).colorScheme.outline,
+                                    ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
-                      if (_canPlaceBid) ...[
+                      if (_profileRoleLoading) ...[
+                        const SizedBox(width: 8),
+                        const SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ],
+                      if (_showArtistToolsButton) ...[
+                        const SizedBox(width: 8),
+                        FilledButton.tonalIcon(
+                          onPressed: _onArtistToolsPressed,
+                          icon: const Icon(Icons.palette_outlined, size: 18),
+                          label: const Text('View Artist Tools'),
+                        ),
+                      ],
+                      if (_showBidButton) ...[
                         const SizedBox(width: 8),
                         FilledButton.icon(
                           onPressed: _showPlaceBidDialog,
@@ -600,87 +925,262 @@ class _BidDetailPageState extends State<BidDetailPage> {
                                 _winningBidId == bid.id || bid.isWinner == true;
                             final isClosestToCustomerPrice =
                                 closestId != null && bid.id == closestId;
-                            final payHint =
-                                isSelectedForPayment && _canSelectWinner;
                             final subtitleParts = <String>[];
                             if (isClosestToCustomerPrice) {
                               subtitleParts.add('Lowest');
                             }
-                            if (payHint) {
-                              subtitleParts.add('Tap to pay');
-                            }
-                            return ListTile(
-                              onTap: _canSelectWinner && isSelectedForPayment
-                                  ? () => _payWinningBid(bid)
-                                  : null,
-                              leading: CircleAvatar(
-                                child: Text(
-                                  (bid.bidderName ?? '?')
-                                      .substring(0, 1)
-                                      .toUpperCase(),
-                                ),
-                              ),
-                              title: Text(
-                                bid.bidderName ?? 'Artist',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: subtitleParts.isEmpty
-                                  ? null
-                                  : Text(
-                                      subtitleParts.join(' • '),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '\$${bid.amount.toStringAsFixed(2)}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _showArtistContactSection
+                                    ? null
+                                    : (_canPayWinningBid && isSelectedForPayment
+                                        ? () => _payWinningBid(bid)
+                                        : null),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 4,
                                   ),
-                                  if (_canSelectWinner &&
-                                      !isSelectedForPayment) ...[
-                                    const SizedBox(width: 8),
-                                    TextButton(
-                                      onPressed: () => _selectWinner(bid),
-                                      child: const Text('Select'),
-                                    ),
-                                  ],
-                                  if (_canSelectWinner &&
-                                      isSelectedForPayment) ...[
-                                    const SizedBox(width: 8),
-                                    FilledButton(
-                                      onPressed: () => _payWinningBid(bid),
-                                      child: const Text('Pay'),
-                                    ),
-                                  ],
-                                ],
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      CircleAvatar(
+                                        child: Text(
+                                          (bid.bidderName ?? '?')
+                                              .substring(0, 1)
+                                              .toUpperCase(),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              bid.bidderName ?? 'Artist',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 16,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            if (subtitleParts.isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                subtitleParts.join(' • '),
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color: Theme.of(context)
+                                                          .colorScheme
+                                                          .primary,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            '\$${bid.amount.toStringAsFixed(2)}',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                          ),
+                                          if (_canPayWinningBid &&
+                                              !isSelectedForPayment)
+                                            TextButton(
+                                              onPressed: () =>
+                                                  _selectWinner(bid),
+                                              child: const Text('Select'),
+                                            ),
+                                          if (_canSelectWinner &&
+                                              isSelectedForPayment) ...[
+                                            if (_depositPaid || _hasUnlocked)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 4,
+                                                ),
+                                                child: Text(
+                                                  'Paid',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .labelLarge
+                                                      ?.copyWith(
+                                                        color: Theme.of(
+                                                          context,
+                                                        ).colorScheme.primary,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                ),
+                                              )
+                                            else if (!_showArtistContactSection)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 4,
+                                                ),
+                                                child: FilledButton(
+                                                  onPressed: () =>
+                                                      _payWinningBid(bid),
+                                                  child: const Text(
+                                                    'Unlock Contact',
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             );
                           },
                         );
                       },
                     ),
+                  if (_showArtistContactSection) ...[
+                    const SizedBox(height: 20),
+                    Text(
+                      (!_unlockLoading && _hasUnlocked)
+                          ? 'Artist contact'
+                          : 'Deposit',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildArtistContactSection(context),
+                  ],
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  void _openChatWithArtist(String artistUserId) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatPage(initialReceiverId: artistUserId),
+      ),
+    );
+  }
+
+  /// Loading / unlocked contact / 10% deposit lines + pay button — all inline on this page (no new screen).
+  Widget _buildArtistContactSection(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    if (_unlockLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (_hasUnlocked) {
+      final p = _winnerArtistProfile;
+      final artistPhone = (p?.mobile != null && p!.mobile!.trim().isNotEmpty)
+          ? p.mobile!.trim()
+          : '—';
+      final artistEmail =
+          (p?.contactEmail != null && p!.contactEmail!.trim().isNotEmpty)
+              ? p.contactEmail!.trim()
+              : '—';
+      final artistChatId =
+          _winningBidModel?.bidderId ?? _winningBidModel?.artistId;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Phone: $artistPhone',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Email: $artistEmail',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          if (artistChatId != null && artistChatId.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => _openChatWithArtist(artistChatId),
+              child: const Text('Chat'),
+            ),
+          ],
+        ],
+      );
+    }
+
+    final price = _jobPrice;
+    final dep = _depositDollars;
+    final rem = _remainingDollars;
+    if (price == null || dep == null || rem == null) {
+      return Text(
+        'Select a winning bid to see the deposit.',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: scheme.outline,
+            ),
+      );
+    }
+
+    final payBlocked = _depositPaid || _winningBidModel == null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Deposit breakdown (inline, directly above the button — no extra route).
+        Text(
+          'Total price: \$${price.toStringAsFixed(2)}',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Deposit (${AppConstants.platformFeePercent}%): '
+          '\$${dep.toStringAsFixed(2)}',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Remaining (90%): \$${rem.toStringAsFixed(2)}',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: scheme.outline,
+              ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed:
+              payBlocked ? null : () => _payWinningBid(_winningBidModel!),
+          child: const Text('Pay 10% Deposit & Unlock Artist'),
+        ),
+      ],
     );
   }
 }

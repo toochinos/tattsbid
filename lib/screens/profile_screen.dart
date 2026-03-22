@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
+import '../core/utils/pick_images.dart';
 import '../core/utils/user_type_utils.dart';
 
 /// Contact details: display name, location, email, mobile, and user type.
@@ -38,12 +39,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String? _avatarUrl;
 
+  /// Portfolio image URLs (tattoo artists only, max [ProfileService.maxPortfolioImages]).
+  List<String> _portfolioUrls = [];
+
   /// Current selection in the form (tattoo artist or customer).
   String? _userType; // 'tattoo_artist' or 'customer'
   /// User type last loaded from the server. Once saved as artist/customer, it can't change.
   String? _profileUserType;
   bool _loading = false;
   bool _uploadingAvatar = false;
+  bool _uploadingPortfolio = false;
   bool _initialized = false;
   String? _errorMessage;
 
@@ -71,6 +76,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           : profile.email;
       _mobileController.text = profile.mobile?.trim() ?? '';
       _avatarUrl = profile.avatarUrl;
+      _portfolioUrls = List<String>.from(profile.portfolioUrls);
       // Sign-up / first-time pick: don't preload a stale role (e.g. customer) from the DB.
       if (widget.fromSignUp || widget.allowAccountTypeChoice) {
         _profileUserType = null;
@@ -119,7 +125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// True when every field on this screen is valid (mirrors form validators).
   /// Save stays disabled until this is true.
   bool get _isFormComplete {
-    if (_loading || _uploadingAvatar) return false;
+    if (_loading || _uploadingAvatar || _uploadingPortfolio) return false;
 
     final name = _displayNameController.text.trim();
     final location = _locationController.text.trim();
@@ -137,6 +143,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mobile.isEmpty || mobile.length > 40) return false;
 
     return true;
+  }
+
+  bool get _isTattooArtist =>
+      _userType == 'tattoo_artist' || _profileUserType == 'tattoo_artist';
+
+  bool get _canAddPortfolio =>
+      _isTattooArtist &&
+      _portfolioUrls.length < ProfileService.maxPortfolioImages;
+
+  Future<void> _pickAndUploadPortfolioImage() async {
+    if (!_canAddPortfolio) return;
+    final remaining = ProfileService.maxPortfolioImages - _portfolioUrls.length;
+    final files = await pickImages();
+    if (files.isEmpty || !mounted) return;
+
+    setState(() {
+      _uploadingPortfolio = true;
+      _errorMessage = null;
+    });
+    try {
+      await ProfileService.uploadPortfolioImages(files);
+      final fresh = await ProfileService.getCurrentProfile();
+      if (!mounted) return;
+      setState(() {
+        _portfolioUrls = List<String>.from(fresh?.portfolioUrls ?? []);
+        _uploadingPortfolio = false;
+      });
+      if (mounted && files.length > remaining) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Only $remaining more image${remaining == 1 ? '' : 's'} allowed '
+              '(${ProfileService.maxPortfolioImages} max).',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _uploadingPortfolio = false;
+        _errorMessage = e.toString();
+      });
+    }
+  }
+
+  Future<void> _removePortfolioImage(int index) async {
+    setState(() => _errorMessage = null);
+    try {
+      await ProfileService.removePortfolioImageAt(index);
+      final fresh = await ProfileService.getCurrentProfile();
+      if (!mounted) return;
+      setState(() {
+        _portfolioUrls = List<String>.from(fresh?.portfolioUrls ?? []);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = e.toString());
+    }
   }
 
   void _onFieldChanged([_]) => setState(() {});
@@ -261,6 +326,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         userType: _userType,
         contactEmail: email.isNotEmpty ? email : null,
         mobile: mobile.isNotEmpty ? mobile : null,
+        portfolioUrls: _userType == 'tattoo_artist' ? _portfolioUrls : [],
         forceUserType: widget.fromSignUp || widget.allowAccountTypeChoice,
       );
       if (!mounted) return;
@@ -444,6 +510,106 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle: 'Post tattoo jobs and hire artists',
                       icon: Icons.person,
                     ),
+                    if (_isTattooArtist) ...[
+                      const SizedBox(height: 24),
+                      Text(
+                        'Portfolio',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 8),
+                        child: Text(
+                          'Add up to ${ProfileService.maxPortfolioImages} images '
+                          'for your public artist profile.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                        ),
+                      ),
+                      if (_portfolioUrls.isNotEmpty)
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 8,
+                            crossAxisSpacing: 8,
+                            childAspectRatio: 1,
+                          ),
+                          itemCount: _portfolioUrls.length,
+                          itemBuilder: (context, index) {
+                            final url = _portfolioUrls[index];
+                            return Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    url,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerHighest,
+                                      child: const Icon(Icons.broken_image),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: Material(
+                                    color: Colors.black54,
+                                    shape: const CircleBorder(),
+                                    child: IconButton(
+                                      icon: const Icon(Icons.close, size: 18),
+                                      color: Colors.white,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 32,
+                                        minHeight: 32,
+                                      ),
+                                      onPressed: _uploadingPortfolio
+                                          ? null
+                                          : () => _removePortfolioImage(index),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      if (_canAddPortfolio)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: OutlinedButton.icon(
+                            onPressed: _uploadingPortfolio
+                                ? null
+                                : _pickAndUploadPortfolioImage,
+                            icon: _uploadingPortfolio
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.add_photo_alternate_outlined),
+                            label: Text(
+                              _uploadingPortfolio
+                                  ? 'Uploading...'
+                                  : 'Add image (${_portfolioUrls.length}/${ProfileService.maxPortfolioImages})',
+                            ),
+                          ),
+                        ),
+                    ],
                     const SizedBox(height: 16),
                     Text(
                       'Contact',

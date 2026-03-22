@@ -11,8 +11,11 @@
 /// - location (text)
 /// - bio (text)
 /// - user_type (text): 'tattoo_artist' or 'customer'
+/// - role (text, optional): 'artist' or 'customer' — Request Detail UI; may be null
+/// - rating (numeric, optional): average rating for Artists directory when added
 /// - contact_email (text, optional): public contact email
 /// - mobile (text, optional): phone / mobile
+/// - portfolio_urls (jsonb): array of image URLs for tattoo artist portfolio (max 10 in app)
 /// - created_at (timestamptz)
 /// - updated_at (timestamptz)
 ///
@@ -37,14 +40,16 @@ abstract final class SupabaseProfiles {
   static const String location = 'location';
   static const String bio = 'bio';
   static const String userType = 'user_type';
+  static const String role = 'role';
   static const String contactEmail = 'contact_email';
   static const String mobile = 'mobile';
+  static const String portfolioUrls = 'portfolio_urls';
   static const String createdAt = 'created_at';
   static const String updatedAt = 'updated_at';
 
   /// Select clause for full profile fetch.
   static const String selectAll =
-      '$displayName, $avatarUrl, $location, $bio, $userType, $contactEmail, $mobile';
+      '$displayName, $avatarUrl, $location, $bio, $userType, $contactEmail, $mobile, $portfolioUrls';
 }
 
 /// Supabase column names for the tattoo_requests table.
@@ -85,6 +90,23 @@ abstract final class SupabaseChatMessages {
 
   /// When set, the receiver has seen this message. Null = unread for receiver.
   static const String readAt = 'read_at';
+}
+
+/// Table: public.contact_unlocks — post–Stripe deposit; unlocks artist contact on request detail.
+abstract final class SupabaseContactUnlocks {
+  SupabaseContactUnlocks._();
+
+  static const String table = 'contact_unlocks';
+
+  static const String id = 'id';
+  static const String userId = 'user_id';
+  static const String artistId = 'artist_id';
+  static const String requestId = 'request_id';
+  static const String status = 'status';
+  static const String depositAmount = 'deposit_amount';
+  static const String createdAt = 'created_at';
+
+  static const String statusPaid = 'paid';
 }
 
 /// Supabase column names for the bids table.

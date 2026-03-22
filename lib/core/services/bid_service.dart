@@ -10,6 +10,20 @@ class BidService {
 
   static SupabaseClient get _client => Supabase.instance.client;
 
+  /// Whether the signed-in user’s profile has `user_type == tattoo_artist`.
+  /// Matches the check in [placeBid] so UI can show the Bid button reliably.
+  static Future<bool> isCurrentUserTattooArtist() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return false;
+    final profile = await _client
+        .from(SupabaseProfiles.table)
+        .select(SupabaseProfiles.userType)
+        .eq(SupabaseProfiles.id, user.id)
+        .maybeSingle();
+    final userType = profile?[SupabaseProfiles.userType] as String?;
+    return userType?.trim() == 'tattoo_artist';
+  }
+
   /// Places a bid on a tattoo request. Only tattoo artists can place bids.
   static Future<void> placeBid({
     required String requestId,
@@ -33,6 +47,21 @@ class BidService {
         userType == 'customer'
             ? 'Customers cannot place bids'
             : 'Only tattoo artists can place bids',
+      );
+    }
+
+    final reqRow = await _client
+        .from(SupabaseTattooRequests.table)
+        .select(SupabaseTattooRequests.status)
+        .eq(SupabaseTattooRequests.id, requestId)
+        .maybeSingle();
+    final requestStatus =
+        reqRow?[SupabaseTattooRequests.status] as String? ?? 'open';
+    if (requestStatus != 'open') {
+      throw StateError(
+        requestStatus == 'completed'
+            ? 'Bidding is closed — this request has been completed.'
+            : 'Bidding is closed for this request.',
       );
     }
 

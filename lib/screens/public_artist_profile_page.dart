@@ -2,17 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/models/user_profile.dart';
+import '../core/services/chat_service.dart';
 import '../core/services/profile_service.dart';
 import 'chat_page.dart';
 
-/// Read-only profile for another user (e.g. tattoo artist after winning a bid).
+/// Read-only profile for another user (e.g. opened from Artists directory).
 class PublicArtistProfilePage extends StatefulWidget {
   const PublicArtistProfilePage({
     super.key,
     required this.userId,
+    this.fromArtistsDirectory = false,
   });
 
   final String userId;
+
+  /// When true (Artists tab list → profile), chat and contact are hidden (browse-only).
+  /// Other entry points use Stripe payment rules instead.
+  final bool fromArtistsDirectory;
 
   @override
   State<PublicArtistProfilePage> createState() =>
@@ -23,6 +29,9 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
   UserProfile? _profile;
   bool _loading = true;
   String? _error;
+
+  /// Chat + email/phone only after customer has paid (completed request with this artist).
+  bool _showContactAndChat = true;
 
   @override
   void initState() {
@@ -37,9 +46,25 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
     });
     try {
       final p = await ProfileService.getProfileByUserId(widget.userId);
+      var allowContact = true;
+      if (widget.fromArtistsDirectory) {
+        // Browsing Artists directory — never show chat/contact on profile.
+        allowContact = false;
+      } else if (p != null) {
+        final uid = Supabase.instance.client.auth.currentUser?.id;
+        final my = await ProfileService.getCurrentProfile();
+        if (uid != null &&
+            uid != widget.userId &&
+            my?.userType == 'customer' &&
+            p.userType == 'tattoo_artist') {
+          allowContact =
+              await ChatService.customerHasPaidDepositWithArtist(widget.userId);
+        }
+      }
       if (!mounted) return;
       setState(() {
         _profile = p;
+        _showContactAndChat = allowContact;
         _loading = false;
         if (p == null) {
           _error = 'Profile not found';
@@ -88,7 +113,8 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bid winner'),
+        centerTitle: true,
+        title: const _FiveStarReviewTitle(),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -164,7 +190,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                   color: scheme.outline,
                 ),
           ),
-          if (!_isOwnProfile) ...[
+          if (!_isOwnProfile && _showContactAndChat) ...[
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: _openChat,
@@ -191,6 +217,45 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
             ),
           ],
           if (profile.userType == 'tattoo_artist') ...[
+            const SizedBox(height: 16),
+            Text(
+              'Portfolio',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: scheme.primary,
+                  ),
+            ),
+            if (profile.portfolioUrls.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 1,
+                ),
+                itemCount: profile.portfolioUrls.length,
+                itemBuilder: (context, index) {
+                  final url = profile.portfolioUrls[index];
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(
+                      url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => ColoredBox(
+                        color: scheme.surfaceContainerHighest,
+                        child: Icon(Icons.broken_image, color: scheme.outline),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ],
+          if (profile.userType == 'tattoo_artist' && _showContactAndChat) ...[
             const SizedBox(height: 32),
             Text(
               'Contact',
@@ -225,6 +290,31 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
               ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Five filled yellow stars in the app bar (review-style), replacing “Bid winner”.
+class _FiveStarReviewTitle extends StatelessWidget {
+  const _FiveStarReviewTitle();
+
+  static const Color _gold = Color(0xFFFFC107);
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '5 out of 5 stars',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(
+          5,
+          (_) => const Icon(
+            Icons.star_rounded,
+            color: _gold,
+            size: 26,
+          ),
+        ),
       ),
     );
   }

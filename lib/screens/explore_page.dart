@@ -22,7 +22,7 @@ class ExplorePage extends StatefulWidget {
   /// 'tattoo_artist' or 'customer'. Tattoo artists cannot delete explore photos.
   final String? userType;
 
-  /// When tapping a request, switches to Bid tab and shows detail.
+  /// When tapping a request, opens bid detail on the Explore stack.
   final void Function(TattooRequest request) onRequestSelectedForBid;
 
   @override

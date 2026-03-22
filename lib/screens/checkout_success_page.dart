@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/payment/pending_deposit_payment.dart';
 import '../core/routes/app_routes.dart';
+import '../core/services/contact_unlock_service.dart';
 import '../core/services/subscription_service.dart';
 import '../core/services/tattoo_request_service.dart';
 
@@ -42,11 +43,29 @@ class _CheckoutSuccessPageState extends State<CheckoutSuccessPage> {
       if (widget.kind == 'deposit') {
         await Future<void>.delayed(const Duration(seconds: 1));
         final pendingRequestId = PendingDepositPayment.requestId;
+        final pendingArtistId = PendingDepositPayment.artistUserId;
+        final artistIdForUnlock =
+            (widget.receiverId != null && widget.receiverId!.trim().isNotEmpty)
+                ? widget.receiverId!.trim()
+                : (pendingArtistId != null && pendingArtistId.trim().isNotEmpty
+                    ? pendingArtistId.trim()
+                    : null);
         if (pendingRequestId != null && pendingRequestId.isNotEmpty) {
           try {
             await TattooRequestService.markRequestCompletedAfterPayment(
               requestId: pendingRequestId,
             );
+            if (artistIdForUnlock != null && artistIdForUnlock.isNotEmpty) {
+              try {
+                await ContactUnlockService.recordUnlockAfterSuccessfulPayment(
+                  requestId: pendingRequestId,
+                  artistId: artistIdForUnlock,
+                  depositAmount: PendingDepositPayment.depositAmount,
+                );
+              } catch (e, st) {
+                debugPrint('record_contact_unlock: $e\n$st');
+              }
+            }
           } catch (_) {
             // RLS or network; user can still continue — status may update on retry.
           } finally {
