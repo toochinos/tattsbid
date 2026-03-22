@@ -246,7 +246,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                       url,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => ColoredBox(
-                        color: scheme.surfaceContainerHighest,
+                        color: Colors.white,
                         child: Icon(Icons.broken_image, color: scheme.outline),
                       ),
                     ),

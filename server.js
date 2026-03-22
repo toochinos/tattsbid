@@ -171,4 +171,6 @@ app.get('/cancel', (req, res) => {
   res.send('Payment cancelled.');
 });
 
-app.listen(4000, '0.0.0.0');
+app.listen(4000, '0.0.0.0', () => {
+  console.log('Server running on port 4000');
+});

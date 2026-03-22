@@ -274,7 +274,13 @@ class _ChatPageState extends State<ChatPage> {
               margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                color: Colors.white,
+                border: Border.all(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withValues(alpha: 0.35),
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -559,9 +565,15 @@ class _ChatPageState extends State<ChatPage> {
                       decoration: BoxDecoration(
                         color: isMe
                             ? Theme.of(context).colorScheme.primaryContainer
-                            : Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
+                            : Colors.white,
+                        border: isMe
+                            ? null
+                            : Border.all(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outline
+                                    .withValues(alpha: 0.35),
+                              ),
                         borderRadius: BorderRadius.only(
                           topLeft: const Radius.circular(18),
                           topRight: const Radius.circular(18),

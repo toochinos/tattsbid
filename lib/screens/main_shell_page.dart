@@ -213,11 +213,13 @@ class _MainShellPageState extends State<MainShellPage> {
   Widget build(BuildContext context) {
     if (!_profileLoaded) {
       return const Scaffold(
+        backgroundColor: Colors.white,
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
+      backgroundColor: Colors.white,
       body: IndexedStack(
         index: _currentIndex.clamp(0, _pages.length - 1),
         children: _pages,

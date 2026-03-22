@@ -4,8 +4,10 @@ class AppConstants {
 
   static const String appName = 'SaaS App';
 
-  static const String apiBaseUrl =
-      String.fromEnvironment('API_URL', defaultValue: 'http://127.0.0.1:4000');
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_URL',
+    defaultValue: 'http://192.168.0.213:4000',
+  );
 
   // bids
   static Uri get bidsUrl => Uri.parse('$apiBaseUrl/api/bids');

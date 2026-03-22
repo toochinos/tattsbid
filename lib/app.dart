@@ -31,8 +31,9 @@ class _SaasAppState extends State<SaasApp> {
       navigatorKey: LinkHandler.navigatorKey,
       title: 'SaaS App',
       theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      // Disable dark mode — always use light / white theme.
+      darkTheme: AppTheme.darkFallback,
+      themeMode: ThemeMode.light,
       initialRoute: AppRoutes.root,
       routes: AppRoutes.routes,
       onGenerateRoute: AppRoutes.onGenerateRoute,

@@ -240,12 +240,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final selected = _userType == value;
     final bg = selected
         ? theme.colorScheme.primaryContainer
-        : theme.colorScheme.surfaceContainerHighest;
+        : Colors.white;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
         color: bg,
-        borderRadius: BorderRadius.circular(12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: selected
+              ? BorderSide.none
+              : BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.35),
+                ),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _onAccountTypeTap(value),
@@ -554,9 +561,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     url,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => Container(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .surfaceContainerHighest,
+                                      color: Colors.white,
                                       child: const Icon(Icons.broken_image),
                                     ),
                                   ),
