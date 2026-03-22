@@ -82,6 +82,9 @@ abstract final class SupabaseChatMessages {
   static const String receiverId = 'receiver_id';
   static const String content = 'content';
   static const String createdAt = 'created_at';
+
+  /// When set, the receiver has seen this message. Null = unread for receiver.
+  static const String readAt = 'read_at';
 }
 
 /// Supabase column names for the bids table.

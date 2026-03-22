@@ -46,6 +46,35 @@ class ProfileService {
     }
   }
 
+  /// Display names for many user ids (inbox, lists). Missing ids get "User".
+  static Future<Map<String, String>> getDisplayNamesByUserIds(
+    List<String> userIds,
+  ) async {
+    if (userIds.isEmpty) return {};
+    final unique = userIds.toSet().toList();
+    try {
+      final res = await _client
+          .from(SupabaseProfiles.table)
+          .select('${SupabaseProfiles.id}, ${SupabaseProfiles.displayName}')
+          .inFilter(SupabaseProfiles.id, unique);
+      final map = <String, String>{};
+      for (final row in res as List<dynamic>) {
+        final m = row as Map<String, dynamic>;
+        final id = m[SupabaseProfiles.id] as String?;
+        final dn = m[SupabaseProfiles.displayName] as String?;
+        if (id != null) {
+          map[id] = (dn != null && dn.trim().isNotEmpty) ? dn.trim() : 'User';
+        }
+      }
+      for (final id in unique) {
+        map.putIfAbsent(id, () => 'User');
+      }
+      return map;
+    } catch (_) {
+      return {for (final id in unique) id: 'User'};
+    }
+  }
+
   /// Public profile fields for another user (e.g. bid winner). No auth email.
   static Future<UserProfile?> getProfileByUserId(String userId) async {
     if (userId.trim().isEmpty) return null;

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/models/tattoo_request.dart';
+import '../core/services/message_indicator_service.dart';
 import '../core/services/online_presence_service.dart';
 import '../core/services/profile_service.dart';
 import 'bid_detail_page.dart';
@@ -13,8 +14,8 @@ import 'chat_page.dart';
 import 'profile_page.dart';
 import 'public_artist_profile_page.dart';
 
-/// Main shell with bottom tab bar: Explore, Bid, Add (customers), Private chat, Profile.
-/// Private chat is 1:1 between tattoo artists and customers only.
+/// Main shell with bottom tab bar: Explore, Bid, Add (customers), Message, Profile.
+/// Message tab is 1:1 between tattoo artists and customers only.
 /// Add (plus) is only for customers; tattoo artists cannot upload.
 class MainShellPage extends StatefulWidget {
   const MainShellPage({
@@ -24,11 +25,11 @@ class MainShellPage extends StatefulWidget {
     this.openWinnerProfileOnLaunch = false,
   });
 
-  /// After Stripe deposit payment, open the Chat tab (see [CheckoutSuccessPage]).
+  /// After Stripe deposit payment, open the Chat tab with the artist (see [CheckoutSuccessPage]).
   final bool openChatOnLaunch;
   final String? initialChatReceiverId;
 
-  /// After Stripe deposit, open the winning artist’s profile (see [CheckoutSuccessPage]).
+  /// Optional: push the winning artist’s profile on launch (e.g. deep links).
   final bool openWinnerProfileOnLaunch;
 
   @override
@@ -60,14 +61,15 @@ class _MainShellPageState extends State<MainShellPage> {
       _userType = profile?.userType;
       _profileLoaded = true;
       if (widget.openChatOnLaunch) {
-        // Private chat tab: index 3 for customers (5 tabs), index 2 for artists (4 tabs).
+        // Message tab: index 3 for customers (5 tabs), index 2 for artists (4 tabs).
         _currentIndex = _isCustomer ? 3 : 2;
       }
     });
+    MessageIndicatorService.start();
     _maybeOpenWinnerProfile();
   }
 
-  /// Pushes the bid winner’s public profile after the user returns from Stripe (e.g. “Open in app”).
+  /// Pushes the bid winner’s public profile when [openWinnerProfileOnLaunch] is set.
   void _maybeOpenWinnerProfile() {
     if (_didPushWinnerProfile) return;
     if (!widget.openWinnerProfileOnLaunch) return;
@@ -147,8 +149,11 @@ class _MainShellPageState extends State<MainShellPage> {
     GlobalKey<NavigatorState>(),
   ];
 
-  List<BottomNavigationBarItem> get _navItems {
-    final items = <BottomNavigationBarItem>[
+  /// Message tab index: 3 for customers (5 tabs), 2 for artists (4 tabs).
+  int get _messageTabIndex => _isCustomer ? 3 : 2;
+
+  List<BottomNavigationBarItem> _navItems(bool showEnvelope) {
+    return <BottomNavigationBarItem>[
       const BottomNavigationBarItem(
         icon: Icon(Icons.search),
         label: 'Explore',
@@ -162,16 +167,15 @@ class _MainShellPageState extends State<MainShellPage> {
           icon: Icon(Icons.add_circle, size: 36),
           label: 'Upload',
         ),
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.chat),
-        label: 'Private chat',
+      BottomNavigationBarItem(
+        icon: _MessageTabIconWithEnvelope(showEnvelope: showEnvelope),
+        label: 'Message',
       ),
       const BottomNavigationBarItem(
         icon: Icon(Icons.person),
         label: 'Profile',
       ),
     ];
-    return items;
   }
 
   /// Switches to Explore tab and triggers a refresh (e.g. after submitting a request).
@@ -201,6 +205,7 @@ class _MainShellPageState extends State<MainShellPage> {
 
   @override
   void dispose() {
+    MessageIndicatorService.stop();
     _presenceTimer?.cancel();
     _exploreRefreshTrigger.dispose();
     super.dispose();
@@ -220,12 +225,60 @@ class _MainShellPageState extends State<MainShellPage> {
         children: _pages,
       ),
       bottomNavigationBar: SafeArea(
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex.clamp(0, _navItems.length - 1),
-          onTap: (index) => setState(() => _currentIndex = index),
-          type: BottomNavigationBarType.fixed,
-          items: _navItems,
+        child: ValueListenableBuilder<bool>(
+          valueListenable: MessageIndicatorService.hasUnread,
+          builder: (context, showEnvelope, _) {
+            final items = _navItems(showEnvelope);
+            return BottomNavigationBar(
+              currentIndex: _currentIndex.clamp(0, items.length - 1),
+              onTap: (index) {
+                setState(() => _currentIndex = index);
+                if (index == _messageTabIndex) {
+                  MessageIndicatorService.refresh();
+                }
+              },
+              type: BottomNavigationBarType.fixed,
+              items: items,
+            );
+          },
         ),
+      ),
+    );
+  }
+}
+
+/// Chat icon with optional small green envelope when a thread awaits your reply.
+class _MessageTabIconWithEnvelope extends StatelessWidget {
+  const _MessageTabIconWithEnvelope({required this.showEnvelope});
+
+  final bool showEnvelope;
+
+  static const Color _envelopeGreen = Color(0xFF2E7D32);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 32,
+      height: 28,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          const Icon(Icons.chat, size: 26),
+          if (showEnvelope)
+            const Positioned(
+              right: -4,
+              top: -6,
+              child: Icon(
+                Icons.mail_rounded,
+                size: 15,
+                color: _envelopeGreen,
+                shadows: [
+                  Shadow(color: Colors.white, blurRadius: 2),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

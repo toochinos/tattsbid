@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/config/supabase_schema.dart';
+import '../core/models/chat_conversation_summary.dart';
 import '../core/models/chat_message.dart';
 import '../core/services/chat_service.dart';
+import '../core/services/message_indicator_service.dart';
 
 /// Private 1:1 chat room between a tattoo artist and a customer only.
 class ChatPage extends StatefulWidget {
@@ -25,8 +27,12 @@ class _ChatPageState extends State<ChatPage> {
   RealtimeChannel? _realtimeChannel;
   final Map<String, String> _displayNames = {};
   String? _receiverId;
+  String? _partnerDisplayName;
   String? _receiverEmail;
   String? _receiverMobile;
+  List<ChatConversationSummary> _conversations = [];
+  bool _loadingConversations = false;
+  String? _conversationsError;
 
   @override
   void initState() {
@@ -37,7 +43,41 @@ class _ChatPageState extends State<ChatPage> {
       _loadMessages();
     } else {
       setState(() => _loading = false);
+      _loadConversations();
     }
+  }
+
+  Future<void> _loadConversations() async {
+    setState(() {
+      _loadingConversations = true;
+      _conversationsError = null;
+    });
+    try {
+      final list = await ChatService.fetchConversationSummaries();
+      if (!mounted) return;
+      setState(() {
+        _conversations = list;
+        _loadingConversations = false;
+      });
+      await MessageIndicatorService.refresh();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _conversationsError = e.toString();
+        _loadingConversations = false;
+      });
+    }
+  }
+
+  void _openConversation(ChatConversationSummary row) {
+    setState(() {
+      _receiverId = row.partnerId;
+      _partnerDisplayName = row.title;
+      _loading = true;
+      _messages = [];
+      _error = null;
+    });
+    _loadMessages();
   }
 
   @override
@@ -52,10 +92,17 @@ class _ChatPageState extends State<ChatPage> {
     _realtimeChannel = Supabase.instance.client
         .channel('chat_messages')
         .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
+          event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'chat_messages',
-          callback: (_) => _loadMessages(),
+          callback: (_) {
+            MessageIndicatorService.refresh();
+            if (_receiverId != null) {
+              _loadMessages();
+            } else {
+              _loadConversations();
+            }
+          },
         )
         .subscribe();
   }
@@ -72,7 +119,15 @@ class _ChatPageState extends State<ChatPage> {
         _loading = false;
         _error = null;
       });
+      try {
+        await ChatService.markConversationRead(receiverId);
+        await MessageIndicatorService.refresh();
+      } catch (_) {
+        // e.g. read_at column not migrated yet
+      }
       await _loadReceiverContact(receiverId);
+      final title = await ChatService.inboxTitleForPartner(receiverId);
+      if (mounted) setState(() => _partnerDisplayName = title);
       _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
@@ -83,15 +138,19 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  /// Standard chat: oldest at top, newest at bottom — pin scroll to the bottom
+  /// after layout so new messages stay in view.
   void _scrollToBottom() {
+    void jump() {
+      if (!_scrollController.hasClients) return;
+      final max = _scrollController.position.maxScrollExtent;
+      _scrollController.jumpTo(max);
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
+      jump();
+      // Second frame: [ListView] may not have final extent after first layout.
+      WidgetsBinding.instance.addPostFrameCallback((_) => jump());
     });
   }
 
@@ -176,17 +235,22 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Private chat'),
+        title: Text(
+            _receiverId == null ? 'Message' : (_partnerDisplayName ?? 'Chat')),
         leading: _receiverId != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => setState(() {
-                  _receiverId = null;
-                  _messages = [];
-                  _error = null;
-                  _receiverEmail = null;
-                  _receiverMobile = null;
-                }),
+                onPressed: () {
+                  setState(() {
+                    _receiverId = null;
+                    _partnerDisplayName = null;
+                    _messages = [];
+                    _error = null;
+                    _receiverEmail = null;
+                    _receiverMobile = null;
+                  });
+                  _loadConversations();
+                },
               )
             : null,
       ),
@@ -196,7 +260,7 @@ class _ChatPageState extends State<ChatPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Text(
-                'Private chat between tattoo artists and customers only. '
+                'Messages between tattoo artists and customers only. '
                 'Only you and this person can see these messages.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
@@ -217,7 +281,7 @@ class _ChatPageState extends State<ChatPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Artist contact',
+                    'Contact',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -242,11 +306,45 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Widget _buildMessageList() {
-    if (_loading && _messages.isEmpty) {
+  String _formatConversationTime(DateTime dt) {
+    final local = dt.toLocal();
+    final now = DateTime.now();
+    if (local.year == now.year &&
+        local.month == now.month &&
+        local.day == now.day) {
+      return '${local.hour.toString().padLeft(2, '0')}:'
+          '${local.minute.toString().padLeft(2, '0')}';
+    }
+    return MaterialLocalizations.of(context).formatShortDate(local);
+  }
+
+  Widget _buildInbox() {
+    if (_loadingConversations && _conversations.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_receiverId == null) {
+    if (_conversationsError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _conversationsError!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _loadConversations,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (_conversations.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -260,15 +358,14 @@ class _ChatPageState extends State<ChatPage> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Private chat room',
+                'No conversations yet',
                 style: Theme.of(context).textTheme.titleMedium,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                'This is a private space only between tattoo artists and '
-                'customers. Open a chat from a profile or after you pay a '
-                'winning bid.',
+                'Chats from Explore (customer messages first) and conversations '
+                'with an artist after you pay the deposit appear here.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
@@ -278,6 +375,64 @@ class _ChatPageState extends State<ChatPage> {
           ),
         ),
       );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadConversations,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _conversations.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final c = _conversations[index];
+          final preview = c.lastMessagePreview.length > 80
+              ? '${c.lastMessagePreview.substring(0, 77)}...'
+              : c.lastMessagePreview;
+          final initial =
+              c.title.isNotEmpty ? c.title.substring(0, 1).toUpperCase() : '?';
+          final w = c.awaitingMyReply ? FontWeight.w700 : FontWeight.w500;
+          return ListTile(
+            leading: CircleAvatar(
+              child: Text(
+                initial,
+                style: TextStyle(
+                    fontWeight: c.awaitingMyReply ? FontWeight.w800 : null),
+              ),
+            ),
+            title: Text(
+              c.title,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: w),
+            ),
+            subtitle: Text(
+              preview,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: c.awaitingMyReply ? FontWeight.w600 : null,
+                  ),
+            ),
+            trailing: Text(
+              _formatConversationTime(c.lastMessageAt),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                    fontWeight: c.awaitingMyReply ? FontWeight.w700 : null,
+                  ),
+            ),
+            onTap: () => _openConversation(c),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMessageList() {
+    if (_receiverId == null) {
+      return _buildInbox();
+    }
+    if (_loading && _messages.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
     }
     if (_error != null && _messages.isEmpty) {
       final isTableMissing = _error!.contains('chat_messages') ||
@@ -324,7 +479,7 @@ class _ChatPageState extends State<ChatPage> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'No messages yet. Say hello — this private chat is only visible '
+            'No messages yet. Say hello — this conversation is only visible '
             'to you and the other person.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
@@ -335,18 +490,27 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
 
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    // [fetchMessages] returns oldest → newest; render in that order (standard chat).
+    final chronological = List<ChatMessage>.from(_messages);
+    final latest = chronological.isNotEmpty ? chronological.last : null;
+    final emphasizeLatestIncoming =
+        latest != null && uid != null && latest.senderId != uid;
+    final latestId = latest?.id;
+
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: _messages.length,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      itemCount: chronological.length,
       itemBuilder: (context, index) {
-        final msg = _messages[index];
-        return _buildMessageBubble(msg);
+        final msg = chronological[index];
+        final boldThis = emphasizeLatestIncoming && msg.id == latestId;
+        return _buildMessageBubble(msg, emphasize: boldThis);
       },
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage msg) {
+  Widget _buildMessageBubble(ChatMessage msg, {bool emphasize = false}) {
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     final isMe = msg.senderId == currentUserId;
     // Avatar/name shows the sender (who wrote the message).
@@ -407,7 +571,10 @@ class _ChatPageState extends State<ChatPage> {
                       ),
                       child: Text(
                         msg.content,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight:
+                                  emphasize ? FontWeight.w700 : FontWeight.w400,
+                            ),
                       ),
                     ),
                     const SizedBox(height: 2),

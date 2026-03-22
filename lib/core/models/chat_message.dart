@@ -6,6 +6,7 @@ class ChatMessage {
     required this.receiverId,
     required this.content,
     required this.createdAt,
+    this.readAt,
   });
 
   final String id;
@@ -13,6 +14,9 @@ class ChatMessage {
   final String receiverId;
   final String content;
   final DateTime createdAt;
+
+  /// Set when the receiver has read the message (server column [read_at]).
+  final DateTime? readAt;
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     final createdAtStr = json['created_at'] as String?;
@@ -24,6 +28,9 @@ class ChatMessage {
       createdAt: createdAtStr != null
           ? DateTime.tryParse(createdAtStr) ?? DateTime.now()
           : DateTime.now(),
+      readAt: json['read_at'] != null
+          ? DateTime.tryParse(json['read_at'] as String)
+          : null,
     );
   }
 }

@@ -142,10 +142,7 @@ class _ExplorePageState extends State<ExplorePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Explore')),
-      body: RefreshIndicator(
-        onRefresh: _loadRequests,
-        child: _buildBody(),
-      ),
+      body: RefreshIndicator(onRefresh: _loadRequests, child: _buildBody()),
     );
   }
 
@@ -197,10 +194,9 @@ class _ExplorePageState extends State<ExplorePage> {
                   Icon(
                     Icons.photo_library_outlined,
                     size: 64,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outline
-                        .withValues(alpha: 0.6),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.6),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -235,19 +231,16 @@ class _ExplorePageState extends State<ExplorePage> {
               mainAxisSpacing: 12,
               childAspectRatio: 0.85,
             ),
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final request = _requests[index];
-                return _RequestCard(
-                  request: request,
-                  currentUserId: Supabase.instance.client.auth.currentUser?.id,
-                  userType: widget.userType,
-                  onTap: () => widget.onRequestSelectedForBid(request),
-                  onDeleted: () => _removeRequest(request.id),
-                );
-              },
-              childCount: _requests.length,
-            ),
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final request = _requests[index];
+              return _RequestCard(
+                request: request,
+                currentUserId: Supabase.instance.client.auth.currentUser?.id,
+                userType: widget.userType,
+                onTap: () => widget.onRequestSelectedForBid(request),
+                onDeleted: () => _removeRequest(request.id),
+              );
+            }, childCount: _requests.length),
           ),
         ),
         if (_loading)
@@ -262,7 +255,13 @@ class _ExplorePageState extends State<ExplorePage> {
   }
 }
 
-class _RequestCard extends StatelessWidget {
+/// Localized short date for when the customer posted the request.
+String _formatPostedDate(BuildContext context, DateTime createdAt) {
+  final local = createdAt.toLocal();
+  return MaterialLocalizations.of(context).formatShortDate(local);
+}
+
+class _RequestCard extends StatefulWidget {
   const _RequestCard({
     required this.request,
     this.currentUserId,
@@ -277,68 +276,91 @@ class _RequestCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onDeleted;
 
-  bool get _isOwner => currentUserId != null && request.userId == currentUserId;
+  @override
+  State<_RequestCard> createState() => _RequestCardState();
+}
+
+class _RequestCardState extends State<_RequestCard> {
+  /// True when pointer is over the bid photo (where the bin sits).
+  bool _hoveringBidImage = false;
+
+  TattooRequest get request => widget.request;
+
+  bool get _isOwner =>
+      widget.currentUserId != null && request.userId == widget.currentUserId;
 
   /// Only customers can delete their own requests; tattoo artists cannot.
-  bool get _canDelete => _isOwner && userType != 'tattoo_artist';
+  bool get _canDelete => _isOwner && widget.userType != 'tattoo_artist';
 
   @override
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.network(
-                    request.imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Center(
-                      child: Icon(Icons.broken_image, size: 48),
+              child: MouseRegion(
+                onEnter: (_) {
+                  if (_canDelete) {
+                    setState(() => _hoveringBidImage = true);
+                  }
+                },
+                onExit: (_) {
+                  if (_canDelete) {
+                    setState(() => _hoveringBidImage = false);
+                  }
+                },
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.network(
+                      request.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(
+                          child: Icon(Icons.broken_image, size: 48)),
                     ),
-                  ),
-                  if (request.status == 'completed')
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                    if (request.status == 'completed')
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text(
-                            'Bid closed',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelMedium
-                                ?.copyWith(
-                                  color: Theme.of(context).colorScheme.error,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              'Bid closed',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context).colorScheme.error,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  if (_canDelete)
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: _DeleteButton(
-                        requestId: request.id,
-                        onDeleted: onDeleted,
+                    if (_canDelete)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: _DeleteButton(
+                          requestId: request.id,
+                          onDeleted: widget.onDeleted,
+                          highlightFromParent: _hoveringBidImage,
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
             Padding(
@@ -382,8 +404,9 @@ class _RequestCard extends StatelessWidget {
                                   .textTheme
                                   .bodySmall
                                   ?.copyWith(
-                                    color:
-                                        Theme.of(context).colorScheme.outline,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.outline,
                                   ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -393,6 +416,33 @@ class _RequestCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 12,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Posted ${_formatPostedDate(context, request.createdAt)}',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
                   Text(
                     '${request.bidCount} bid${request.bidCount == 1 ? '' : 's'}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -422,10 +472,14 @@ class _DeleteButton extends StatefulWidget {
   const _DeleteButton({
     required this.requestId,
     this.onDeleted,
+    this.highlightFromParent = false,
   });
 
   final String requestId;
   final VoidCallback? onDeleted; // Called after successful delete
+
+  /// When the customer hovers the bid image, the bin still highlights (web/desktop).
+  final bool highlightFromParent;
 
   @override
   State<_DeleteButton> createState() => _DeleteButtonState();
@@ -433,6 +487,9 @@ class _DeleteButton extends StatefulWidget {
 
 class _DeleteButtonState extends State<_DeleteButton> {
   bool _deleting = false;
+  bool _hoveringDelete = false;
+
+  bool get _highlight => widget.highlightFromParent || _hoveringDelete;
 
   Future<void> _delete() async {
     setState(() => _deleting = true);
@@ -455,25 +512,65 @@ class _DeleteButtonState extends State<_DeleteButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black54,
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: _deleting ? null : _delete,
-        customBorder: const CircleBorder(),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: _deleting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Icon(
-                  Icons.delete_outline,
-                  size: 20,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
+    final scheme = Theme.of(context).colorScheme;
+    // Resting bin: light grey on dark chip; pointer on button → solid white ([InkWell.onHover]).
+    final bg = _highlight ? Colors.black87 : Colors.black54;
+    final iconColor = _hoveringDelete
+        ? Colors.white
+        : (_highlight
+            ? scheme.error
+            : Colors.white.withValues(alpha: 0.82));
+
+    return Tooltip(
+      message: 'Delete this post',
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: bg,
+          shape: BoxShape.circle,
+          boxShadow: _highlight
+              ? [
+                  BoxShadow(
+                    color: scheme.error.withValues(alpha: 0.45),
+                    blurRadius: 8,
+                    spreadRadius: 0.5,
+                  ),
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            onTap: _deleting ? null : _delete,
+            customBorder: const CircleBorder(),
+            // Prefer [onHover] over [MouseRegion] — more reliable on Flutter web.
+            onHover: (hovered) {
+              if (_hoveringDelete != hovered) {
+                setState(() => _hoveringDelete = hovered);
+              }
+            },
+            hoverColor: Colors.white.withValues(alpha: 0.15),
+            splashColor: Colors.white.withValues(alpha: 0.25),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: _deleting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Icon(
+                      _highlight ? Icons.delete : Icons.delete_outline,
+                      size: _highlight ? 22 : 20,
+                      color: iconColor,
+                    ),
+            ),
+          ),
         ),
       ),
     );

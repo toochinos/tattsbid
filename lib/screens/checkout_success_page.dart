@@ -54,11 +54,13 @@ class _CheckoutSuccessPageState extends State<CheckoutSuccessPage> {
           }
         }
         if (!mounted) return;
+        // Open Message tab with the winning artist so the customer can chat
+        // immediately after the Stripe deposit (receiver_id from checkout redirect).
         Navigator.of(context).pushNamedAndRemoveUntil(
           AppRoutes.dashboard,
           (route) => false,
           arguments: <String, dynamic>{
-            'openWinnerProfile': true,
+            'openChat': true,
             'receiverId': widget.receiverId,
           },
         );
