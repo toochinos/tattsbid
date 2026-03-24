@@ -1,4 +1,5 @@
-.dart_tool/
+build/
+*.apk.dart_tool/
 build/
 node_modules/
 .envnode_modules/
