@@ -1,4 +1,6 @@
 build/
+build/
+*.apk
 *.apk.dart_tool/
 build/
 node_modules/
