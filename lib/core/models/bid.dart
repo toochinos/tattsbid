@@ -9,6 +9,7 @@ class Bid {
     required this.createdAt,
     this.bidderName,
     this.isWinner,
+    this.paymentStatus = 'unpaid',
   });
 
   final String id;
@@ -19,6 +20,9 @@ class Bid {
   final DateTime createdAt;
   final String? bidderName;
   final bool? isWinner;
+
+  /// From [SupabaseBids.paymentStatus]: `unpaid` | `paid` (set by backend after Stripe).
+  final String paymentStatus;
 
   factory Bid.fromJson(Map<String, dynamic> json, {String? bidderName}) {
     String? name = bidderName;
@@ -36,6 +40,10 @@ class Bid {
       createdAt: DateTime.parse(json['created_at'] as String),
       bidderName: name,
       isWinner: json['is_winner'] as bool?,
+      paymentStatus:
+          (json['payment_status'] as String?)?.trim().isEmpty == false
+              ? (json['payment_status'] as String).trim()
+              : 'unpaid',
     );
   }
 }

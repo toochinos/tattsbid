@@ -17,7 +17,8 @@ class PublicArtistProfilePage extends StatefulWidget {
   final String userId;
 
   /// When true (Artists tab list → profile), chat and contact are hidden (browse-only).
-  /// Other entry points use Stripe payment rules instead.
+  /// When false, email/phone/chat show only if the winning bid has [bids.payment_status]
+  /// `paid` for this customer (see [ChatService.customerHasPaidDepositWithArtist]).
   final bool fromArtistsDirectory;
 
   @override

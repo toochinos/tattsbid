@@ -24,6 +24,7 @@ class MainShellPage extends StatefulWidget {
     this.openChatOnLaunch = false,
     this.initialChatReceiverId,
     this.openWinnerProfileOnLaunch = false,
+    this.refreshExploreOnLaunch = false,
   });
 
   /// After Stripe deposit payment, open the Chat tab with the artist (see [CheckoutSuccessPage]).
@@ -32,6 +33,9 @@ class MainShellPage extends StatefulWidget {
 
   /// Optional: push the winning artist’s profile on launch (e.g. deep links).
   final bool openWinnerProfileOnLaunch;
+
+  /// After deposit, reload Explore so request cards show updated status.
+  final bool refreshExploreOnLaunch;
 
   @override
   State<MainShellPage> createState() => _MainShellPageState();
@@ -68,6 +72,11 @@ class _MainShellPageState extends State<MainShellPage> {
     });
     MessageIndicatorService.start();
     _maybeOpenWinnerProfile();
+    if (widget.refreshExploreOnLaunch) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _exploreRefreshTrigger.value++;
+      });
+    }
   }
 
   /// Pushes the bid winner’s public profile when [openWinnerProfileOnLaunch] is set.

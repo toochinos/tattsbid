@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:window_size/window_size.dart';
 
 import 'app.dart';
-import 'core/config/supabase_config.dart';
 
 bool _supabaseInitialized = false;
 
@@ -19,8 +18,8 @@ void main() async {
   if (!_supabaseInitialized) {
     try {
       await Supabase.initialize(
-        url: SupabaseConfig.url,
-        anonKey: SupabaseConfig.anonKey,
+        url: 'https://ikkfdwjmqujgkokpqhez.supabase.co',
+        anonKey: 'sb_publishable_V_ZkAzVmYbRAt3t2GQFdwg_46pY42yZ',
       );
       _supabaseInitialized = true;
     } on AssertionError catch (_) {

@@ -4,16 +4,32 @@ class AppConstants {
 
   static const String appName = 'SaaS App';
 
+  /// Default HTTP API origin (no `/api/...` suffix). Override with
+  /// `--dart-define=API_URL=...` when building or running.
+  ///
+  /// Avoid `http://127.0.0.1:4040` (ngrok **inspector**, not your app) and avoid
+  /// `localhost` / `127.0.0.1` on **device** builds — use the same public HTTPS URL
+  /// as `server.js` (`API_URL` / `PUBLIC_BASE_URL`), e.g. ngrok tunnel → port **4000**.
+  static const String baseUrl =
+      'https://telegraphic-banausic-kathey.ngrok-free.dev';
+
   static const String apiBaseUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'http://192.168.0.213:4000',
+    defaultValue: baseUrl,
   );
 
   // bids
   static Uri get bidsUrl => Uri.parse('$apiBaseUrl/api/bids');
 
-  // pay
-  static Uri get payUrl => Uri.parse('$apiBaseUrl/api/pay');
+  /// Node `server.js` route: `POST /create-payment`.
+  static const String payApiPath = '/create-payment';
+
+  static Uri get payUrl => Uri.parse('$apiBaseUrl$payApiPath');
+
+  /// Node `server.js`: `POST /verify-payment` — records [contact_unlocks] from Stripe session.
+  static const String verifyPaymentPath = '/verify-payment';
+
+  static Uri get verifyPaymentUrl => Uri.parse('$apiBaseUrl$verifyPaymentPath');
 
   /// Deposit fee as a fraction of the winning bid (e.g. 0.10 = 10%).
   static const double platformFeeRate = 0.10;

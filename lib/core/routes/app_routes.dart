@@ -44,10 +44,13 @@ class AppRoutes {
           final receiverId = args is Map ? args['receiverId'] as String? : null;
           final openWinnerProfile =
               args is Map && args['openWinnerProfile'] == true;
+          final refreshExplore =
+              args is Map && args['refreshExplore'] == true;
           return MainShellPage(
             openChatOnLaunch: openChat,
             initialChatReceiverId: receiverId,
             openWinnerProfileOnLaunch: openWinnerProfile,
+            refreshExploreOnLaunch: refreshExplore,
           );
         },
         paywall: (_) => const PaywallPage(),

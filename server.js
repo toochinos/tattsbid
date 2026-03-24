@@ -23,7 +23,68 @@ if (!supabase) {
   );
 }
 
+/**
+ * Base URL Stripe redirects the *browser* to after pay (must be reachable from the phone,
+ * not http://127.0.0.1:4000 or http://localhost:4000). Port 4040 is ngrok's inspector UI,
+ * not your Express app — use the HTTPS tunnel URL that forwards to port 4000.
+ */
+const publicBaseUrl = (
+  process.env.PUBLIC_BASE_URL ||
+  process.env.API_URL ||
+  'https://telegraphic-banausic-kathey.ngrok-free.dev'
+)
+  .trim()
+  .replace(/\/$/, '');
+
+if (/127\.0\.0\.1|localhost|:4040(\/|$|\?)/i.test(publicBaseUrl)) {
+  console.warn(
+    '⚠️  PUBLIC_BASE_URL / API_URL looks like localhost, 127.0.0.1, or port 4040 — Stripe return URLs often fail on physical devices. Use your HTTPS ngrok URL (tunnel to :4000, not the :4040 inspector).',
+  );
+}
+
 app.use(express.json());
+
+/**
+ * Sets bids.payment_status from Stripe Checkout metadata. Runs whenever the session
+ * is paid — does not depend on contact_unlocks metadata being complete (Flutter polls bids).
+ */
+async function updateBidsPaymentStatusFromSession(session) {
+  if (!supabase || !session || session.payment_status !== 'paid') return;
+
+  const md = session.metadata || {};
+  const requestId = md.request_id != null ? String(md.request_id).trim() : '';
+  if (!requestId) {
+    console.warn('bids: paid session missing metadata.request_id');
+    return;
+  }
+
+  const bidId = md.bid_id != null ? String(md.bid_id).trim() : '';
+  const receiverId = md.receiver_id != null ? String(md.receiver_id).trim() : '';
+
+  if (bidId) {
+    const { error } = await supabase
+      .from('bids')
+      .update({ payment_status: 'paid' })
+      .eq('id', bidId);
+    if (error) console.error('bids payment_status (by bid_id):', error);
+    return;
+  }
+  if (receiverId) {
+    const { error } = await supabase
+      .from('bids')
+      .update({ payment_status: 'paid' })
+      .eq('request_id', requestId)
+      .eq('bidder_id', receiverId);
+    if (error) console.error('bids payment_status (request + bidder):', error);
+    return;
+  }
+
+  const { error: fallbackErr } = await supabase
+    .from('bids')
+    .update({ payment_status: 'paid' })
+    .eq('request_id', requestId);
+  if (fallbackErr) console.error('bids payment_status (request_id only):', fallbackErr);
+}
 
 /**
  * After Stripe redirects here with session_id, we retrieve the session and
@@ -31,6 +92,8 @@ app.use(express.json());
  */
 async function recordContactUnlockIfPaid(session) {
   if (!supabase || !session || session.payment_status !== 'paid') return;
+
+  await updateBidsPaymentStatusFromSession(session);
 
   const md = session.metadata || {};
   const userId = md.user_id && String(md.user_id).trim();
@@ -66,7 +129,82 @@ async function recordContactUnlockIfPaid(session) {
   }
 }
 
-app.post('/api/pay', async (req, res) => {
+/**
+ * App calls this after returning from Stripe (in addition to GET /success in the browser).
+ * Retrieves the Checkout session and upserts contact_unlocks when payment_status === 'paid'.
+ */
+app.post('/verify-payment', async (req, res) => {
+  try {
+    const sessionId = req.body?.session_id;
+    if (!sessionId || String(sessionId).trim() === '') {
+      return res.status(400).json({ error: 'session_id required' });
+    }
+    const session = await stripe.checkout.sessions.retrieve(String(sessionId));
+    await recordContactUnlockIfPaid(session);
+    const paid = session.payment_status === 'paid';
+    return res.json({
+      ok: true,
+      payment_status: session.payment_status,
+      paid,
+    });
+  } catch (err) {
+    console.error('verify-payment:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * App calls after verified Stripe payment to mirror unlock state in Supabase
+ * (contact_unlocks + bids.payment_status). Uses service role — keep server URL private.
+ */
+app.post('/success', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ error: 'Supabase not configured' });
+    }
+    const { user_id, request_id, artist_id } = req.body || {};
+    const userId = user_id != null ? String(user_id).trim() : '';
+    const requestId = request_id != null ? String(request_id).trim() : '';
+    const artistId = artist_id != null ? String(artist_id).trim() : '';
+    if (!userId || !requestId || !artistId) {
+      return res
+        .status(400)
+        .json({ error: 'user_id, request_id, and artist_id required' });
+    }
+
+    const { error: unlockErr } = await supabase.from('contact_unlocks').upsert(
+      {
+        user_id: userId,
+        artist_id: artistId,
+        request_id: requestId,
+        status: 'paid',
+      },
+      { onConflict: 'user_id,request_id,artist_id' },
+    );
+    if (unlockErr) {
+      console.error('POST /success contact_unlocks:', unlockErr);
+      return res.status(500).json({ error: unlockErr.message });
+    }
+
+    const { error: bidErr } = await supabase
+      .from('bids')
+      .update({ payment_status: 'paid' })
+      .eq('request_id', requestId)
+      .eq('bidder_id', artistId);
+
+    if (bidErr) {
+      console.error('POST /success bids:', bidErr);
+      return res.status(500).json({ error: bidErr.message });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('POST /success:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/create-payment', async (req, res) => {
   try {
     const { amount, bid_id, receiver_id, request_id, user_id, deposit_amount } =
       req.body;
@@ -88,7 +226,7 @@ app.post('/api/pay', async (req, res) => {
         : String(amount);
 
     const successUrl =
-      'http://127.0.0.1:4000/success?session_id={CHECKOUT_SESSION_ID}&kind=deposit' +
+      `${publicBaseUrl}/success?session_id={CHECKOUT_SESSION_ID}&kind=deposit` +
       (receiverId ? `&receiver_id=${encodeURIComponent(receiverId)}` : '');
 
     const session = await stripe.checkout.sessions.create({
@@ -107,7 +245,7 @@ app.post('/api/pay', async (req, res) => {
         },
       ],
       success_url: successUrl,
-      cancel_url: 'http://127.0.0.1:4000/cancel',
+      cancel_url: `${publicBaseUrl}/cancel`,
       client_reference_id: userId || undefined,
       metadata: {
         bid_id: bid_id != null ? String(bid_id) : '',
@@ -128,16 +266,25 @@ app.post('/api/pay', async (req, res) => {
 });
 
 app.get('/success', async (req, res) => {
-  const sessionId = req.query.session_id;
+  const { session_id } = req.query;
+  const sessionId = session_id;
   const kind = req.query.kind || 'deposit';
   const receiverId = req.query.receiver_id || '';
 
-  if (kind === 'deposit' && supabase && sessionId) {
+  if (sessionId) {
     try {
       const session = await stripe.checkout.sessions.retrieve(String(sessionId));
-      await recordContactUnlockIfPaid(session);
+
+      if (session.payment_status === 'paid' && supabase) {
+        // Same path as POST /verify-payment: bids first, then contact_unlocks when metadata complete.
+        if (kind === 'deposit') {
+          await recordContactUnlockIfPaid(session);
+        } else {
+          await updateBidsPaymentStatusFromSession(session);
+        }
+      }
     } catch (e) {
-      console.error('Stripe session retrieve / contact_unlocks:', e);
+      console.error('GET /success Stripe / unlock:', e);
     }
   }
 

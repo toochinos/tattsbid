@@ -121,4 +121,5 @@ abstract final class SupabaseBids {
   static const String bidderId = 'bidder_id';
   static const String amount = 'amount';
   static const String createdAt = 'created_at';
+  static const String paymentStatus = 'payment_status';
 }

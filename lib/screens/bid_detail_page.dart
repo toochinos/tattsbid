@@ -13,6 +13,7 @@ import 'chat_page.dart';
 import '../core/payment/pending_deposit_payment.dart';
 import '../core/services/bid_service.dart';
 import '../core/services/payment_service.dart';
+import '../core/services/payment_status_service.dart';
 import '../core/services/contact_unlock_service.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
@@ -33,7 +34,10 @@ class BidDetailPage extends StatefulWidget {
   State<BidDetailPage> createState() => _BidDetailPageState();
 }
 
-class _BidDetailPageState extends State<BidDetailPage> {
+class _BidDetailPageState extends State<BidDetailPage>
+    with WidgetsBindingObserver {
+  late TattooRequest _request;
+
   bool _descriptionExpanded = false;
   List<Bid> _bids = [];
   bool _bidsLoading = true;
@@ -63,12 +67,41 @@ class _BidDetailPageState extends State<BidDetailPage> {
   @override
   void initState() {
     super.initState();
-    _winningBidId = widget.request.winningBidId;
+    WidgetsBinding.instance.addObserver(this);
+    _request = widget.request;
+    _winningBidId = _request.winningBidId;
     _loadBids();
     _subscribeToBidsRealtime();
     _startBidsPollFallback();
     _loadProfileRole();
     _loadUnlock();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refreshRequestAndUnlock();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshRequestAndUnlock();
+    }
+  }
+
+  /// After Stripe, [contact_unlocks] and request status update server-side — refetch.
+  Future<void> _refreshRequestAndUnlock() async {
+    final fresh = await TattooRequestService.fetchRequestById(_request.id);
+    if (!mounted) return;
+    if (fresh != null) {
+      setState(() {
+        _request = fresh;
+        if (fresh.winningBidId != null) {
+          _winningBidId = fresh.winningBidId;
+        }
+      });
+      await _loadBids(silent: true);
+    } else {
+      await _loadUnlock();
+    }
   }
 
   /// Reads [SupabaseProfiles.role] for the signed-in user; on error or missing
@@ -214,19 +247,21 @@ class _BidDetailPageState extends State<BidDetailPage> {
 
     setState(() => _unlockLoading = true);
     try {
-      final unlocked = await ContactUnlockService.checkIfUnlocked(
+      final rowUnlocked = await ContactUnlockService.checkIfUnlocked(
         userId: user.id,
         artistId: artistId,
-        requestId: widget.request.id,
+        requestId: _request.id,
       );
+      final bidPaid = (_winningBidModel?.paymentStatus ?? '') == 'paid';
+      final showContactAndChat = rowUnlocked || bidPaid;
       UserProfile? prof;
-      if (unlocked) {
+      if (showContactAndChat) {
         prof = await ProfileService.getProfileByUserId(artistId);
       }
       if (!mounted) return;
       setState(() {
         _unlockLoading = false;
-        _hasUnlocked = unlocked;
+        _hasUnlocked = showContactAndChat;
         _winnerArtistProfile = prof;
       });
     } catch (e, st) {
@@ -241,7 +276,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
   }
 
   /// Bidding only while the request is [open]. Closed after winner / payment.
-  bool get _biddingOpen => widget.request.status == 'open';
+  bool get _biddingOpen => _request.status == 'open';
 
   /// Role `customer` from [profiles.role], or legacy tattoo artist when role unset.
   bool get _showBidButton =>
@@ -262,7 +297,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
 
   bool get _isOwner {
     final user = Supabase.instance.client.auth.currentUser;
-    return user != null && user.id == widget.request.userId;
+    return user != null && user.id == _request.userId;
   }
 
   /// Only the customer who created the request can select a bid and pay.
@@ -270,7 +305,11 @@ class _BidDetailPageState extends State<BidDetailPage> {
   bool get _canSelectWinner => _isOwner;
 
   /// Deposit already paid — no further Pay actions (see [markRequestCompletedAfterPayment]).
-  bool get _depositPaid => widget.request.status == 'completed';
+  bool get _depositPaid => _request.status == 'completed';
+
+  /// STEP 5: show contact when winning bid is paid in DB or [contact_unlocks] row exists.
+  bool get _paidForContact =>
+      (_winningBidModel?.paymentStatus ?? '') == 'paid' || _hasUnlocked;
 
   /// Customer may pay the winning bid only until the request is completed.
   bool get _canPayWinningBid => _canSelectWinner && !_depositPaid;
@@ -311,7 +350,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
     }
     try {
       await TattooRequestService.setWinningBid(
-        requestId: widget.request.id,
+        requestId: _request.id,
         bidId: bid.id,
       );
       if (!mounted) return;
@@ -345,7 +384,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
     }
     try {
       final platformFee = bid.amount * AppConstants.platformFeeRate;
-      PendingDepositPayment.requestId = widget.request.id;
+      PendingDepositPayment.requestId = _request.id;
       PendingDepositPayment.artistUserId = artistId;
       PendingDepositPayment.depositAmount = platformFee;
       final uid = Supabase.instance.client.auth.currentUser?.id;
@@ -353,9 +392,15 @@ class _BidDetailPageState extends State<BidDetailPage> {
         amount: platformFee,
         bidId: bid.id,
         receiverId: artistId,
-        requestId: widget.request.id,
+        requestId: _request.id,
         userId: uid,
         depositAmount: platformFee,
+      );
+      // startPayment returns when Stripe opens, not when payment completes.
+      if (!mounted) return;
+      await PaymentStatusService.checkPaymentStatusAfterCheckoutLaunched(
+        context,
+        _request.id,
       );
       if (mounted) await _loadUnlock();
     } catch (e) {
@@ -399,6 +444,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _bidsChannel?.unsubscribe();
     _bidsPollTimer?.cancel();
     super.dispose();
@@ -413,17 +459,15 @@ class _BidDetailPageState extends State<BidDetailPage> {
     }
     try {
       final supabase = Supabase.instance.client;
-      debugPrint('Request ID: ${widget.request.id}');
-      final bidsResult = await supabase
-          .from('bids')
-          .select()
-          .eq('request_id', widget.request.id);
+      debugPrint('Request ID: ${_request.id}');
+      final bidsResult =
+          await supabase.from('bids').select().eq('request_id', _request.id);
       debugPrint('BIDS RESULT: $bidsResult');
 
       final allBids = await supabase.from('bids').select().limit(20);
       debugPrint('BIDS (first 20): $allBids');
 
-      final bids = await BidService.fetchBidsForRequest(widget.request.id);
+      final bids = await BidService.fetchBidsForRequest(_request.id);
       if (!mounted) return;
       setState(() {
         if (_winningBidId == null) {
@@ -447,7 +491,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
 
   void _subscribeToBidsRealtime() {
     _bidsChannel = Supabase.instance.client
-        .channel('bids_${widget.request.id}')
+        .channel('bids_${_request.id}')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -455,7 +499,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'request_id',
-            value: widget.request.id,
+            value: _request.id,
           ),
           callback: (_) => _loadBids(),
         )
@@ -557,7 +601,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
     if (amount != null && mounted) {
       try {
         await BidService.placeBid(
-          requestId: widget.request.id,
+          requestId: _request.id,
           bidAmount: amount,
         );
         if (!mounted) return;
@@ -580,7 +624,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final request = widget.request;
+    final request = _request;
     final hasDescription = request.description?.trim().isNotEmpty == true;
 
     return Scaffold(
@@ -1013,7 +1057,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
                                             ),
                                           if (_canSelectWinner &&
                                               isSelectedForPayment) ...[
-                                            if (_depositPaid || _hasUnlocked)
+                                            if (_depositPaid || _paidForContact)
                                               Padding(
                                                 padding: const EdgeInsets.only(
                                                   top: 4,
@@ -1060,7 +1104,7 @@ class _BidDetailPageState extends State<BidDetailPage> {
                   if (_showArtistContactSection) ...[
                     const SizedBox(height: 20),
                     Text(
-                      (!_unlockLoading && _hasUnlocked)
+                      (!_unlockLoading && _paidForContact)
                           ? 'Artist contact'
                           : 'Deposit',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -1104,7 +1148,29 @@ class _BidDetailPageState extends State<BidDetailPage> {
       );
     }
 
-    if (_hasUnlocked) {
+    if (_depositPaid && !_paidForContact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Payment is marked complete. If contact is still locked, refresh — '
+            'your unlock is stored after Stripe confirms.',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () async {
+              await _refreshRequestAndUnlock();
+            },
+            icon: const Icon(Icons.refresh),
+            label: const Text('Refresh unlock status'),
+          ),
+        ],
+      );
+    }
+
+    // STEP 5: contact only if paid (DB payment_status or contact_unlocks).
+    if (_paidForContact) {
       final p = _winnerArtistProfile;
       final artistPhone = (p?.mobile != null && p!.mobile!.trim().isNotEmpty)
           ? p.mobile!.trim()
@@ -1116,26 +1182,12 @@ class _BidDetailPageState extends State<BidDetailPage> {
       final artistChatId =
           _winningBidModel?.bidderId ?? _winningBidModel?.artistId;
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Phone: $artistPhone',
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Email: $artistEmail',
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-          if (artistChatId != null && artistChatId.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => _openChatWithArtist(artistChatId),
-              child: const Text('Chat'),
-            ),
-          ],
-        ],
+      return _ContactDetailsWidget(
+        phone: artistPhone,
+        email: artistEmail,
+        onChat: artistChatId != null && artistChatId.isNotEmpty
+            ? () => _openChatWithArtist(artistChatId)
+            : null,
       );
     }
 
@@ -1151,33 +1203,95 @@ class _BidDetailPageState extends State<BidDetailPage> {
       );
     }
 
-    final payBlocked = _depositPaid || _winningBidModel == null;
+    final payBlocked = _winningBidModel == null;
 
+    return _DepositPayButton(
+      totalPrice: price,
+      deposit: dep,
+      remaining: rem,
+      onPay: payBlocked ? null : () => _payWinningBid(_winningBidModel!),
+    );
+  }
+}
+
+/// Shown when [Bid.paymentStatus] is `paid` or [contact_unlocks] exists.
+class _ContactDetailsWidget extends StatelessWidget {
+  const _ContactDetailsWidget({
+    required this.phone,
+    required this.email,
+    this.onChat,
+  });
+
+  final String phone;
+  final String email;
+  final VoidCallback? onChat;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Deposit breakdown (inline, directly above the button — no extra route).
         Text(
-          'Total price: \$${price.toStringAsFixed(2)}',
+          'Phone: $phone',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Email: $email',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        if (onChat != null) ...[
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: onChat,
+            child: const Text('Chat'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Deposit breakdown + pay when not yet [Bid.paymentStatus] == paid.
+class _DepositPayButton extends StatelessWidget {
+  const _DepositPayButton({
+    required this.totalPrice,
+    required this.deposit,
+    required this.remaining,
+    this.onPay,
+  });
+
+  final double totalPrice;
+  final double deposit;
+  final double remaining;
+  final VoidCallback? onPay;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Total price: \$${totalPrice.toStringAsFixed(2)}',
           style: Theme.of(context).textTheme.bodyLarge,
         ),
         const SizedBox(height: 8),
         Text(
           'Deposit (${AppConstants.platformFeePercent}%): '
-          '\$${dep.toStringAsFixed(2)}',
+          '\$${deposit.toStringAsFixed(2)}',
           style: Theme.of(context).textTheme.bodyLarge,
         ),
         const SizedBox(height: 8),
         Text(
-          'Remaining (90%): \$${rem.toStringAsFixed(2)}',
+          'Remaining (90%): \$${remaining.toStringAsFixed(2)}',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: scheme.outline,
               ),
         ),
         const SizedBox(height: 16),
         FilledButton(
-          onPressed:
-              payBlocked ? null : () => _payWinningBid(_winningBidModel!),
+          onPressed: onPay,
           child: const Text('Pay 10% Deposit & Unlock Artist'),
         ),
       ],

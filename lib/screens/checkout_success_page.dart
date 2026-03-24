@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/payment/pending_deposit_payment.dart';
 import '../core/routes/app_routes.dart';
-import '../core/services/contact_unlock_service.dart';
+import '../core/services/payment_status_service.dart';
+import '../core/services/payment_service.dart';
 import '../core/services/subscription_service.dart';
 import '../core/services/tattoo_request_service.dart';
 
@@ -18,7 +20,8 @@ class CheckoutSuccessPage extends StatefulWidget {
 
   final String sessionId;
 
-  /// `deposit` = pay API / tattoo bid; `subscription` = Supabase confirm-checkout.
+  /// `deposit` = tattoo bid deposit via Node `/create-payment` + `/verify-payment`.
+  /// `subscription` = Supabase confirm-checkout.
   final String kind;
   final String? receiverId;
 
@@ -36,12 +39,22 @@ class _CheckoutSuccessPageState extends State<CheckoutSuccessPage> {
     _confirmAndNavigate();
   }
 
+  /// Server-side unlock (Supabase service role) — retry while Stripe finalizes payment.
+  Future<void> _verifyUnlockOnServer() async {
+    for (var i = 0; i < 5; i++) {
+      try {
+        final r = await verifyDepositCheckoutSession(widget.sessionId);
+        if (r.paid) return;
+      } catch (e, st) {
+        debugPrint('verify-payment attempt ${i + 1}: $e\n$st');
+      }
+      await Future<void>.delayed(Duration(milliseconds: 600 + i * 400));
+    }
+  }
+
   Future<void> _confirmAndNavigate() async {
     try {
-      // Deposit (Stripe Checkout from Node /api/pay):
-      // After returning to the app (e.g. "Open in SaaS App"), show the winner's profile.
       if (widget.kind == 'deposit') {
-        await Future<void>.delayed(const Duration(seconds: 1));
         final pendingRequestId = PendingDepositPayment.requestId;
         final pendingArtistId = PendingDepositPayment.artistUserId;
         final artistIdForUnlock =
@@ -50,37 +63,56 @@ class _CheckoutSuccessPageState extends State<CheckoutSuccessPage> {
                 : (pendingArtistId != null && pendingArtistId.trim().isNotEmpty
                     ? pendingArtistId.trim()
                     : null);
+
+        await _verifyUnlockOnServer();
+
+        final uid = Supabase.instance.client.auth.currentUser?.id;
+        if (uid != null &&
+            pendingRequestId != null &&
+            pendingRequestId.isNotEmpty &&
+            artistIdForUnlock != null &&
+            artistIdForUnlock.isNotEmpty) {
+          try {
+            await postDepositSuccessRecord(
+              userId: uid,
+              requestId: pendingRequestId,
+              artistId: artistIdForUnlock,
+            );
+          } catch (e, st) {
+            debugPrint('POST /success (unlock record): $e\n$st');
+          }
+        }
+
         if (pendingRequestId != null && pendingRequestId.isNotEmpty) {
           try {
             await TattooRequestService.markRequestCompletedAfterPayment(
               requestId: pendingRequestId,
             );
-            if (artistIdForUnlock != null && artistIdForUnlock.isNotEmpty) {
-              try {
-                await ContactUnlockService.recordUnlockAfterSuccessfulPayment(
-                  requestId: pendingRequestId,
-                  artistId: artistIdForUnlock,
-                  depositAmount: PendingDepositPayment.depositAmount,
-                );
-              } catch (e, st) {
-                debugPrint('record_contact_unlock: $e\n$st');
-              }
-            }
-          } catch (_) {
-            // RLS or network; user can still continue — status may update on retry.
-          } finally {
-            PendingDepositPayment.clear();
+          } catch (e, st) {
+            debugPrint('markRequestCompletedAfterPayment: $e\n$st');
           }
         }
+
+        final requestIdAfterPay = pendingRequestId?.trim() ?? '';
+        PendingDepositPayment.clear();
+
         if (!mounted) return;
-        // Open Message tab with the winning artist so the customer can chat
-        // immediately after the Stripe deposit (receiver_id from checkout redirect).
-        Navigator.of(context).pushNamedAndRemoveUntil(
+        // Poll Supabase while this route is still on the stack (reliable Navigator context).
+        if (requestIdAfterPay.isNotEmpty) {
+          await PaymentStatusService.checkPaymentStatus(
+            context,
+            requestIdAfterPay,
+          );
+        }
+        if (!mounted) return;
+        setState(() => _loading = false);
+        await Navigator.of(context).pushNamedAndRemoveUntil(
           AppRoutes.dashboard,
           (route) => false,
           arguments: <String, dynamic>{
             'openChat': true,
-            'receiverId': widget.receiverId,
+            'receiverId': artistIdForUnlock ?? widget.receiverId,
+            'refreshExplore': true,
           },
         );
         return;

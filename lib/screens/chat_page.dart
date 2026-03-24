@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/supabase_schema.dart';
 import '../core/models/chat_conversation_summary.dart';
 import '../core/models/chat_message.dart';
+import '../core/models/paid_artist_contact.dart';
 import '../core/services/chat_service.dart';
 import '../core/services/message_indicator_service.dart';
 
@@ -31,6 +32,7 @@ class _ChatPageState extends State<ChatPage> {
   String? _receiverEmail;
   String? _receiverMobile;
   List<ChatConversationSummary> _conversations = [];
+  List<PaidArtistContact> _paidArtistContacts = [];
   bool _loadingConversations = false;
   String? _conversationsError;
 
@@ -53,10 +55,14 @@ class _ChatPageState extends State<ChatPage> {
       _conversationsError = null;
     });
     try {
-      final list = await ChatService.fetchConversationSummaries();
+      final results = await Future.wait([
+        ChatService.fetchConversationSummaries(),
+        ChatService.fetchPaidArtistContactsForCustomer(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _conversations = list;
+        _conversations = results[0] as List<ChatConversationSummary>;
+        _paidArtistContacts = results[1] as List<PaidArtistContact>;
         _loadingConversations = false;
       });
       await MessageIndicatorService.refresh();
@@ -73,6 +79,17 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {
       _receiverId = row.partnerId;
       _partnerDisplayName = row.title;
+      _loading = true;
+      _messages = [];
+      _error = null;
+    });
+    _loadMessages();
+  }
+
+  void _openChatWithPaidArtist(PaidArtistContact contact) {
+    setState(() {
+      _receiverId = contact.artistUserId;
+      _partnerDisplayName = contact.displayName;
       _loading = true;
       _messages = [];
       _error = null;
@@ -350,35 +367,89 @@ class _ChatPageState extends State<ChatPage> {
         ),
       );
     }
+    if (_conversations.isEmpty && _paidArtistContacts.isNotEmpty) {
+      return RefreshIndicator(
+        onRefresh: _loadConversations,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          children: [
+            Text(
+              'Your artist',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Deposit paid — you can message your artist or use their contact details below.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+            const SizedBox(height: 20),
+            ..._paidArtistContacts.map(
+              (c) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _PaidArtistContactCard(
+                  contact: c,
+                  onMessageArtist: () => _openChatWithPaidArtist(c),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     if (_conversations.isEmpty) {
-      return Center(
-        child: Padding(
+      return RefreshIndicator(
+        onRefresh: _loadConversations,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.chat_bubble_outline,
-                size: 64,
-                color: Theme.of(context).colorScheme.outline,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No conversations yet',
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Chats from Explore (customer messages first) and conversations '
-                'with an artist after you pay the deposit appear here.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+          children: [
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.12,
+            ),
+            Icon(
+              Icons.chat_bubble_outline,
+              size: 64,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No conversations yet',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Chats from Explore (customer messages first) appear here. '
+              'After you pay the deposit on your winning bid, this screen shows '
+              'your artist’s contact details and a button to start messaging.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Pay to unlock messaging',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Complete the deposit from your request’s winning bid to unlock '
+              'artist contact and chat.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       );
     }
@@ -659,6 +730,94 @@ class _ChatPageState extends State<ChatPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.send),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaidArtistContactCard extends StatelessWidget {
+  const _PaidArtistContactCard({
+    required this.contact,
+    required this.onMessageArtist,
+  });
+
+  final PaidArtistContact contact;
+  final VoidCallback onMessageArtist;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final avatar = contact.avatarUrl;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outline.withValues(alpha: 0.28)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: scheme.primaryContainer,
+                  backgroundImage: avatar != null && avatar.isNotEmpty
+                      ? NetworkImage(avatar)
+                      : null,
+                  child: avatar == null || avatar.isEmpty
+                      ? Text(
+                          contact.displayName.isNotEmpty
+                              ? contact.displayName[0].toUpperCase()
+                              : '?',
+                          style: TextStyle(color: scheme.onPrimaryContainer),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    contact.displayName,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            if (contact.mobile != null) ...[
+              const SizedBox(height: 12),
+              SelectableText(
+                'Phone: ${contact.mobile}',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ],
+            if (contact.contactEmail != null) ...[
+              const SizedBox(height: 8),
+              SelectableText(
+                'Email: ${contact.contactEmail}',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ],
+            if (contact.mobile == null && contact.contactEmail == null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'No phone or email on file yet.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.outline,
+                    ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onMessageArtist,
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Message artist'),
             ),
           ],
         ),

@@ -181,6 +181,19 @@ class TattooRequestService {
     return _withDisplayNames(res as List<dynamic>);
   }
 
+  /// Latest row for one request (e.g. after payment — refresh status / winning_bid_id).
+  static Future<TattooRequest?> fetchRequestById(String requestId) async {
+    if (requestId.trim().isEmpty) return null;
+    final res = await _client
+        .from(SupabaseTattooRequests.table)
+        .select()
+        .eq(SupabaseTattooRequests.id, requestId.trim())
+        .maybeSingle();
+    if (res == null) return null;
+    final list = await _withDisplayNames([res]);
+    return list.isEmpty ? null : list.first;
+  }
+
   static Future<List<TattooRequest>> _withDisplayNames(
       List<dynamic> rows) async {
     final requests = rows as List<Map<String, dynamic>>;

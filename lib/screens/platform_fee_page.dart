@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/constants/app_constants.dart';
 import '../core/payment/pending_deposit_payment.dart';
 import '../core/services/payment_service.dart';
+import '../core/services/payment_status_service.dart';
 
 class PlatformFeePage extends StatelessWidget {
   final String requestId;
@@ -37,6 +38,11 @@ class PlatformFeePage extends StatelessWidget {
         requestId: requestId,
         userId: uid,
         depositAmount: platformFee,
+      );
+      if (!context.mounted) return;
+      await PaymentStatusService.checkPaymentStatusAfterCheckoutLaunched(
+        context,
+        requestId,
       );
     } catch (e) {
       if (context.mounted) {

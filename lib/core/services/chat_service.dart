@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_schema.dart';
 import '../models/chat_conversation_summary.dart';
 import '../models/chat_message.dart';
+import '../models/paid_artist_contact.dart';
 import '../utils/user_type_utils.dart';
 import 'profile_service.dart';
 
@@ -95,8 +96,8 @@ class ChatService {
   }
 
   /// Inbox: **artist ↔ customer** threads where the customer sent the first
-  /// message from Explore, **or** a completed paid job (Stripe deposit) with
-  /// that partner. Newest activity first.
+  /// message from Explore, **or** winning bid [payment_status] is `paid` with
+  /// that partner (shows a placeholder row before any message). Newest first.
   static Future<List<ChatConversationSummary>>
       fetchConversationSummaries() async {
     final user = _client.auth.currentUser;
@@ -124,6 +125,120 @@ class ChatService {
         awaitingMyReply: s.lastMessageSenderId != uid,
       );
     });
+  }
+
+  /// Winning artists on this customer’s requests where [bids.payment_status] is `paid`.
+  /// Used on the Message tab when there are no threads yet.
+  static Future<List<PaidArtistContact>>
+      fetchPaidArtistContactsForCustomer() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return [];
+
+    try {
+      final reqRes = await _client
+          .from(SupabaseTattooRequests.table)
+          .select(
+            '${SupabaseTattooRequests.id},${SupabaseTattooRequests.winningBidId}',
+          )
+          .eq(SupabaseTattooRequests.userId, user.id);
+
+      final requestIds = <String>[];
+      final winIds = <String>[];
+      for (final raw in reqRes as List) {
+        final m = raw as Map<String, dynamic>;
+        final rid = m[SupabaseTattooRequests.id] as String?;
+        final wb = m[SupabaseTattooRequests.winningBidId] as String?;
+        if (rid != null && rid.isNotEmpty) requestIds.add(rid);
+        if (wb != null && wb.isNotEmpty) winIds.add(wb);
+      }
+      if (requestIds.isEmpty) return [];
+
+      List<dynamic> bidsRes;
+      if (winIds.isNotEmpty) {
+        final r = await _client
+            .from(SupabaseBids.table)
+            .select()
+            .inFilter(SupabaseBids.id, winIds)
+            .eq(SupabaseBids.paymentStatus, 'paid');
+        bidsRes = r as List;
+      } else {
+        bidsRes = [];
+      }
+      if (bidsRes.isEmpty) {
+        final r2 = await _client
+            .from(SupabaseBids.table)
+            .select()
+            .inFilter(SupabaseBids.requestId, requestIds)
+            .eq(SupabaseBids.paymentStatus, 'paid');
+        bidsRes = r2 as List;
+      }
+
+      final artistIds = <String>{};
+      for (final raw in bidsRes) {
+        final m = raw as Map<String, dynamic>;
+        final bidder = m[SupabaseBids.bidderId] as String?;
+        if (bidder != null && bidder.isNotEmpty) artistIds.add(bidder);
+      }
+      if (artistIds.isEmpty) return [];
+
+      final profilesRes = await _client
+          .from(SupabaseProfiles.table)
+          .select(
+            '${SupabaseProfiles.id},${SupabaseProfiles.displayName},'
+            '${SupabaseProfiles.contactEmail},${SupabaseProfiles.mobile},'
+            '${SupabaseProfiles.avatarUrl}',
+          )
+          .inFilter(SupabaseProfiles.id, artistIds.toList());
+
+      final profileById = <String, Map<String, dynamic>>{};
+      for (final raw in profilesRes as List) {
+        final m = raw as Map<String, dynamic>;
+        final id = m[SupabaseProfiles.id] as String?;
+        if (id != null) profileById[id] = m;
+      }
+
+      final out = <PaidArtistContact>[];
+      final seenArtists = <String>{};
+
+      for (final raw in bidsRes) {
+        final m = raw as Map<String, dynamic>;
+        final bidId = m[SupabaseBids.id] as String?;
+        final requestId = m[SupabaseBids.requestId] as String?;
+        final bidderId = m[SupabaseBids.bidderId] as String?;
+        if (bidId == null || requestId == null || bidderId == null) continue;
+        if (!seenArtists.add(bidderId)) continue;
+
+        final prof = profileById[bidderId];
+        final name = prof?[SupabaseProfiles.displayName] as String?;
+        final displayName =
+            (name != null && name.trim().isNotEmpty) ? name.trim() : 'Artist';
+        final mobileRaw = prof?[SupabaseProfiles.mobile] as String?;
+        final emailRaw = prof?[SupabaseProfiles.contactEmail] as String?;
+        final avatarRaw = prof?[SupabaseProfiles.avatarUrl] as String?;
+
+        out.add(
+          PaidArtistContact(
+            artistUserId: bidderId,
+            requestId: requestId,
+            bidId: bidId,
+            displayName: displayName,
+            mobile: mobileRaw != null && mobileRaw.trim().isNotEmpty
+                ? mobileRaw.trim()
+                : null,
+            contactEmail: emailRaw != null && emailRaw.trim().isNotEmpty
+                ? emailRaw.trim()
+                : null,
+            avatarUrl: avatarRaw != null && avatarRaw.trim().isNotEmpty
+                ? avatarRaw.trim()
+                : null,
+          ),
+        );
+      }
+
+      return out;
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Per-partner last message for threads that qualify for the inbox (customer
@@ -229,11 +344,26 @@ class ChatService {
       ));
     }
 
+    // Paid deposit (winning bid) unlocks chat even before any message exists —
+    // otherwise the Message tab stays empty until someone sends first.
+    final shownPartnerIds = filtered.map((s) => s.partnerId).toSet();
+    for (final paidPartnerId in paidPartnerAllowList) {
+      if (shownPartnerIds.contains(paidPartnerId)) continue;
+      shownPartnerIds.add(paidPartnerId);
+      filtered.add((
+        partnerId: paidPartnerId,
+        lastMessagePreview: 'Deposit paid — tap to chat',
+        lastMessageAt: DateTime.now().toUtc(),
+        lastMessageSenderId: uid,
+      ));
+    }
+
     filtered.sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
     return filtered;
   }
 
-  /// Winning artists (user ids) on this customer's completed requests (deposit paid).
+  /// Winning artists (user ids) where the customer's request has a winning bid with
+  /// [SupabaseBids.paymentStatus] `paid` (authoritative for contact + chat unlock).
   static Future<Set<String>> _paidWinningArtistIdsForCustomer(
     String customerId,
   ) async {
@@ -241,8 +371,7 @@ class ChatService {
       final res = await _client
           .from(SupabaseTattooRequests.table)
           .select(SupabaseTattooRequests.winningBidId)
-          .eq(SupabaseTattooRequests.userId, customerId)
-          .eq(SupabaseTattooRequests.status, 'completed');
+          .eq(SupabaseTattooRequests.userId, customerId);
       final bidIds = <String>[];
       for (final raw in res as List) {
         final m = raw as Map<String, dynamic>;
@@ -253,7 +382,8 @@ class ChatService {
       final bidsRes = await _client
           .from(SupabaseBids.table)
           .select(SupabaseBids.bidderId)
-          .inFilter(SupabaseBids.id, bidIds);
+          .inFilter(SupabaseBids.id, bidIds)
+          .eq(SupabaseBids.paymentStatus, 'paid');
       final out = <String>{};
       for (final raw in bidsRes as List) {
         final m = raw as Map<String, dynamic>;
@@ -266,8 +396,8 @@ class ChatService {
     }
   }
 
-  /// True if the signed-in **customer** has a **completed** request (Stripe
-  /// deposit paid) where [artistUserId] was the winning artist.
+  /// True if the signed-in **customer** has a request where [artistUserId] is the
+  /// winning bidder and that bid’s [bids.payment_status] is `paid`.
   static Future<bool> customerHasPaidDepositWithArtist(
     String artistUserId,
   ) async {
@@ -279,28 +409,27 @@ class ChatService {
     return paid.contains(id);
   }
 
-  /// Customers who completed a request where this user was the winning bidder.
-  static Future<Set<String>> _customerIdsForCompletedWinsAsArtist(
+  /// Customers whose request lists this artist’s bid as winner with deposit paid.
+  static Future<Set<String>> _customerIdsForPaidWinsAsArtist(
     String artistId,
   ) async {
     try {
-      final bidRows = await _client
+      final bidRes = await _client
           .from(SupabaseBids.table)
-          .select(SupabaseBids.requestId)
-          .eq(SupabaseBids.bidderId, artistId);
-      final requestIds = (bidRows as List)
+          .select(SupabaseBids.id)
+          .eq(SupabaseBids.bidderId, artistId)
+          .eq(SupabaseBids.paymentStatus, 'paid');
+      final bidIds = (bidRes as List)
           .map(
-            (r) =>
-                (r as Map<String, dynamic>)[SupabaseBids.requestId] as String?,
+            (r) => (r as Map<String, dynamic>)[SupabaseBids.id] as String?,
           )
           .whereType<String>()
           .toList();
-      if (requestIds.isEmpty) return {};
+      if (bidIds.isEmpty) return {};
       final reqRows = await _client
           .from(SupabaseTattooRequests.table)
           .select(SupabaseTattooRequests.userId)
-          .inFilter(SupabaseTattooRequests.id, requestIds)
-          .eq(SupabaseTattooRequests.status, 'completed');
+          .inFilter(SupabaseTattooRequests.winningBidId, bidIds);
       final out = <String>{};
       for (final raw in reqRows as List) {
         final m = raw as Map<String, dynamic>;
@@ -322,7 +451,7 @@ class ChatService {
       return _paidWinningArtistIdsForCustomer(uid);
     }
     if (t == 'tattoo_artist') {
-      return _customerIdsForCompletedWinsAsArtist(uid);
+      return _customerIdsForPaidWinsAsArtist(uid);
     }
     return {};
   }
