@@ -12,6 +12,7 @@ import '../../screens/paywall_page.dart';
 import '../../screens/profile_screen.dart';
 import '../../screens/settings_page.dart';
 import '../../screens/sign_up_page.dart';
+import '../../screens/user_agreement_page.dart';
 
 /// Central place for route names and route map.
 /// Use [AppRoutes.landing] etc. and [AppRoutes.routes] for [MaterialApp.routes].
@@ -31,6 +32,7 @@ class AppRoutes {
   static const String editProfile = '/profile/edit';
   static const String auth = '/auth';
   static const String profile = '/profile';
+  static const String userAgreement = '/user-agreement';
 
   static Map<String, WidgetBuilder> get routes => {
         root: (_) => const SplashScreen(),
@@ -38,14 +40,14 @@ class AppRoutes {
         login: (_) => const LoginPage(),
         signUp: (_) => const SignUpPage(),
         auth: (_) => const AuthScreen(),
+        userAgreement: (_) => const UserAgreementPage(),
         dashboard: (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
           final openChat = args is Map && args['openChat'] == true;
           final receiverId = args is Map ? args['receiverId'] as String? : null;
           final openWinnerProfile =
               args is Map && args['openWinnerProfile'] == true;
-          final refreshExplore =
-              args is Map && args['refreshExplore'] == true;
+          final refreshExplore = args is Map && args['refreshExplore'] == true;
           return MainShellPage(
             openChatOnLaunch: openChat,
             initialChatReceiverId: receiverId,

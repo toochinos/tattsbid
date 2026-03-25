@@ -40,8 +40,11 @@ class _SignUpPageState extends State<SignUpPage> {
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed(
-        AppRoutes.profile,
-        arguments: true,
+        AppRoutes.userAgreement,
+        arguments: const {
+          'nextRoute': AppRoutes.profile,
+          'nextArgs': {'fromSignUp': true, 'allowAccountTypeChoice': true},
+        },
       );
     } on AuthException catch (e) {
       setState(() {

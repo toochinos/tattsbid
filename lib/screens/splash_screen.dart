@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/routes/app_routes.dart';
-import '../core/services/auth_service.dart';
 
 /// Shows the TATTSBID splash image on startup, then redirects based on auth.
 /// Works on all platforms (including desktop where native splash is not supported).
@@ -25,9 +24,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _redirect() async {
     final start = DateTime.now();
-
-    // Wait for auth to be ready (Supabase restores session from storage).
-    await AuthService.authStateChanges.first;
 
     // Ensure splash shows for at least _minDisplayDuration.
     final elapsed = DateTime.now().difference(start);

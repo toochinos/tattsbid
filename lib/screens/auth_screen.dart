@@ -172,8 +172,11 @@ class _SignUpTabState extends State<_SignUpTab> {
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed(
-        AppRoutes.profile,
-        arguments: true,
+        AppRoutes.userAgreement,
+        arguments: const {
+          'nextRoute': AppRoutes.profile,
+          'nextArgs': {'fromSignUp': true, 'allowAccountTypeChoice': true},
+        },
       );
     } on AuthException catch (e) {
       setState(() {

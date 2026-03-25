@@ -16,6 +16,7 @@
 /// - contact_email (text, optional): public contact email
 /// - mobile (text, optional): phone / mobile
 /// - portfolio_urls (jsonb): array of image URLs for tattoo artist portfolio (max 10 in app)
+/// - has_accepted_terms (boolean, default false): user accepted agreement
 /// - created_at (timestamptz)
 /// - updated_at (timestamptz)
 ///
@@ -44,6 +45,7 @@ abstract final class SupabaseProfiles {
   static const String contactEmail = 'contact_email';
   static const String mobile = 'mobile';
   static const String portfolioUrls = 'portfolio_urls';
+  static const String hasAcceptedTerms = 'has_accepted_terms';
   static const String createdAt = 'created_at';
   static const String updatedAt = 'updated_at';
 
