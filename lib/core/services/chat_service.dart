@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_schema.dart';
@@ -12,6 +13,12 @@ class ChatService {
   ChatService._();
 
   static SupabaseClient get _client => Supabase.instance.client;
+
+  static bool _paymentStatusIsPaid(dynamic raw) {
+    if (raw == null) return false;
+    final s = raw.toString().trim().toLowerCase();
+    return s == 'paid';
+  }
 
   /// Marks all unread messages in a thread as read (current user is receiver).
   /// Uses select-then-update so PostgREST reliably applies [read_at] (update+.isFilter
@@ -153,29 +160,28 @@ class ChatService {
       }
       if (requestIds.isEmpty) return [];
 
-      List<dynamic> bidsRes;
-      if (winIds.isNotEmpty) {
-        final r = await _client
-            .from(SupabaseBids.table)
-            .select()
-            .inFilter(SupabaseBids.id, winIds)
-            .eq(SupabaseBids.paymentStatus, 'paid');
-        bidsRes = r as List;
-      } else {
-        bidsRes = [];
-      }
-      if (bidsRes.isEmpty) {
-        final r2 = await _client
-            .from(SupabaseBids.table)
-            .select()
-            .inFilter(SupabaseBids.requestId, requestIds)
-            .eq(SupabaseBids.paymentStatus, 'paid');
-        bidsRes = r2 as List;
-      }
+      final allForRequests = await _client
+          .from(SupabaseBids.table)
+          .select()
+          .inFilter(SupabaseBids.requestId, requestIds);
+      final winSet = winIds.toSet();
+      final paidBids = (allForRequests as List)
+          .map((e) => e as Map<String, dynamic>)
+          .where((m) => _paymentStatusIsPaid(m[SupabaseBids.paymentStatus]))
+          .toList();
+      paidBids.sort((a, b) {
+        final aid = a[SupabaseBids.id] as String?;
+        final bid = b[SupabaseBids.id] as String?;
+        final aw = aid != null && winSet.contains(aid);
+        final bw = bid != null && winSet.contains(bid);
+        if (aw && !bw) return -1;
+        if (!aw && bw) return 1;
+        return 0;
+      });
+      final bidsRes = paidBids;
 
       final artistIds = <String>{};
-      for (final raw in bidsRes) {
-        final m = raw as Map<String, dynamic>;
+      for (final m in bidsRes) {
         final bidder = m[SupabaseBids.bidderId] as String?;
         if (bidder != null && bidder.isNotEmpty) artistIds.add(bidder);
       }
@@ -200,8 +206,7 @@ class ChatService {
       final out = <PaidArtistContact>[];
       final seenArtists = <String>{};
 
-      for (final raw in bidsRes) {
-        final m = raw as Map<String, dynamic>;
+      for (final m in bidsRes) {
         final bidId = m[SupabaseBids.id] as String?;
         final requestId = m[SupabaseBids.requestId] as String?;
         final bidderId = m[SupabaseBids.bidderId] as String?;
@@ -236,7 +241,8 @@ class ChatService {
       }
 
       return out;
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('fetchPaidArtistContactsForCustomer: $e\n$st');
       return [];
     }
   }
@@ -381,12 +387,12 @@ class ChatService {
       if (bidIds.isEmpty) return {};
       final bidsRes = await _client
           .from(SupabaseBids.table)
-          .select(SupabaseBids.bidderId)
-          .inFilter(SupabaseBids.id, bidIds)
-          .eq(SupabaseBids.paymentStatus, 'paid');
+          .select()
+          .inFilter(SupabaseBids.id, bidIds);
       final out = <String>{};
       for (final raw in bidsRes as List) {
         final m = raw as Map<String, dynamic>;
+        if (!_paymentStatusIsPaid(m[SupabaseBids.paymentStatus])) continue;
         final b = m[SupabaseBids.bidderId] as String?;
         if (b != null) out.add(b);
       }
@@ -416,15 +422,15 @@ class ChatService {
     try {
       final bidRes = await _client
           .from(SupabaseBids.table)
-          .select(SupabaseBids.id)
-          .eq(SupabaseBids.bidderId, artistId)
-          .eq(SupabaseBids.paymentStatus, 'paid');
-      final bidIds = (bidRes as List)
-          .map(
-            (r) => (r as Map<String, dynamic>)[SupabaseBids.id] as String?,
-          )
-          .whereType<String>()
-          .toList();
+          .select()
+          .eq(SupabaseBids.bidderId, artistId);
+      final bidIds = <String>[];
+      for (final raw in bidRes as List) {
+        final m = raw as Map<String, dynamic>;
+        if (!_paymentStatusIsPaid(m[SupabaseBids.paymentStatus])) continue;
+        final id = m[SupabaseBids.id] as String?;
+        if (id != null) bidIds.add(id);
+      }
       if (bidIds.isEmpty) return {};
       final reqRows = await _client
           .from(SupabaseTattooRequests.table)

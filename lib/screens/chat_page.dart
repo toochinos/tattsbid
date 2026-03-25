@@ -453,54 +453,109 @@ class _ChatPageState extends State<ChatPage> {
         ),
       );
     }
+
+    final paid = _paidArtistContacts;
+    final items = <Widget>[];
+    if (paid.isNotEmpty) {
+      items.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your artist',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Deposit paid — message your artist or use their contact details.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      );
+      for (final c in paid) {
+        items.add(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: _PaidArtistContactCard(
+              contact: c,
+              onMessageArtist: () => _openChatWithPaidArtist(c),
+            ),
+          ),
+        );
+      }
+      items.add(const Divider(height: 24));
+      items.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: Text(
+            'Conversations',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ),
+      );
+    }
+
+    for (var i = 0; i < _conversations.length; i++) {
+      items.add(_conversationListTile(_conversations[i]));
+      if (i < _conversations.length - 1) {
+        items.add(const Divider(height: 1));
+      }
+    }
+
     return RefreshIndicator(
       onRefresh: _loadConversations,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _conversations.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final c = _conversations[index];
-          final preview = c.lastMessagePreview.length > 80
-              ? '${c.lastMessagePreview.substring(0, 77)}...'
-              : c.lastMessagePreview;
-          final initial =
-              c.title.isNotEmpty ? c.title.substring(0, 1).toUpperCase() : '?';
-          final w = c.awaitingMyReply ? FontWeight.w700 : FontWeight.w500;
-          return ListTile(
-            leading: CircleAvatar(
-              child: Text(
-                initial,
-                style: TextStyle(
-                    fontWeight: c.awaitingMyReply ? FontWeight.w800 : null),
-              ),
-            ),
-            title: Text(
-              c.title,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: w),
-            ),
-            subtitle: Text(
-              preview,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: c.awaitingMyReply ? FontWeight.w600 : null,
-                  ),
-            ),
-            trailing: Text(
-              _formatConversationTime(c.lastMessageAt),
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                    fontWeight: c.awaitingMyReply ? FontWeight.w700 : null,
-                  ),
-            ),
-            onTap: () => _openConversation(c),
-          );
-        },
+      child: ListView(
+        padding: EdgeInsets.symmetric(vertical: paid.isNotEmpty ? 4 : 8),
+        children: items,
       ),
+    );
+  }
+
+  Widget _conversationListTile(ChatConversationSummary c) {
+    final preview = c.lastMessagePreview.length > 80
+        ? '${c.lastMessagePreview.substring(0, 77)}...'
+        : c.lastMessagePreview;
+    final initial =
+        c.title.isNotEmpty ? c.title.substring(0, 1).toUpperCase() : '?';
+    final w = c.awaitingMyReply ? FontWeight.w700 : FontWeight.w500;
+    return ListTile(
+      leading: CircleAvatar(
+        child: Text(
+          initial,
+          style:
+              TextStyle(fontWeight: c.awaitingMyReply ? FontWeight.w800 : null),
+        ),
+      ),
+      title: Text(
+        c.title,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: w),
+      ),
+      subtitle: Text(
+        preview,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: c.awaitingMyReply ? FontWeight.w600 : null,
+            ),
+      ),
+      trailing: Text(
+        _formatConversationTime(c.lastMessageAt),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.outline,
+              fontWeight: c.awaitingMyReply ? FontWeight.w700 : null,
+            ),
+      ),
+      onTap: () => _openConversation(c),
     );
   }
 
