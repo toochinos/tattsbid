@@ -1,9 +1,14 @@
+/**
+ * Payment path: Flutter app → this API on Railway (`API_URL`) → Stripe Checkout (LIVE).
+ * Set `STRIPE_SECRET_KEY` to your live secret (`sk_live_...`) in Railway env, never in client code.
+ */
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 
 require('dotenv').config();
+console.log("STRIPE KEY:", process.env.STRIPE_SECRET_KEY);
 
 console.log('🚀 THIS IS THE NEW SERVER FILE');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
@@ -24,21 +29,20 @@ if (!supabase) {
 }
 
 /**
- * Base URL Stripe redirects the *browser* to after pay (must be reachable from the phone,
- * not http://127.0.0.1:4000 or http://localhost:4000). Port 4040 is ngrok's inspector UI,
- * not your Express app — use the HTTPS tunnel URL that forwards to port 4000.
+ * Base URL for Stripe-related redirects when `PUBLIC_BASE_URL` / `API_URL` are unset.
+ * Must be a public HTTPS origin reachable from the user's device (not localhost).
  */
 const publicBaseUrl = (
   process.env.PUBLIC_BASE_URL ||
   process.env.API_URL ||
-  'https://telegraphic-banausic-kathey.ngrok-free.dev'
+  'https://proactive-insight-production-8e8b.up.railway.app'
 )
   .trim()
   .replace(/\/$/, '');
 
 if (/127\.0\.0\.1|localhost|:4040(\/|$|\?)/i.test(publicBaseUrl)) {
   console.warn(
-    '⚠️  PUBLIC_BASE_URL / API_URL looks like localhost, 127.0.0.1, or port 4040 — Stripe return URLs often fail on physical devices. Use your HTTPS ngrok URL (tunnel to :4000, not the :4040 inspector).',
+    '⚠️  PUBLIC_BASE_URL / API_URL looks like localhost, 127.0.0.1, or port 4040 — Stripe return URLs often fail on physical devices. Set a public HTTPS API URL in env.',
   );
 }
 
@@ -230,7 +234,6 @@ app.post('/create-payment', async (req, res) => {
       (receiverId ? `&receiver_id=${encodeURIComponent(receiverId)}` : '');
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
       payment_method_types: ['card'],
       line_items: [
         {
@@ -244,6 +247,7 @@ app.post('/create-payment', async (req, res) => {
           quantity: 1,
         },
       ],
+      mode: 'payment',
       success_url: successUrl,
       cancel_url: `${publicBaseUrl}/cancel`,
       client_reference_id: userId || undefined,
@@ -255,8 +259,6 @@ app.post('/create-payment', async (req, res) => {
         deposit_amount: depositMeta,
       },
     });
-
-    console.log(session.url);
 
     return res.json({ url: session.url });
   } catch (err) {

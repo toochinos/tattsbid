@@ -3,4 +3,4 @@ SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 
 STRIPE_SECRET_KEY=YOUR_STRIPE_SECRET_KEY
 STRIPE_PUBLISHABLE_KEY=YOUR_STRIPE_PUBLISHABLE_KEY
-API_URL=https://telegraphic-banausic-kathey.ngrok-free.dev
+API_URL=https://proactive-insight-production-8e8b.up.railway.app

@@ -1,4 +1,7 @@
-/// App-wide constants. Add API base URLs, feature flags, etc. when backend is added.
+/// App-wide constants.
+///
+/// **Payments:** Flutter → Railway API ([apiBaseUrl]) → Stripe **Live** Checkout.
+/// Use [stripePublishableKey] `pk_live_...` and set Railway `STRIPE_SECRET_KEY` to `sk_live_...`.
 class AppConstants {
   AppConstants._();
 
@@ -7,11 +10,10 @@ class AppConstants {
   /// Default HTTP API origin (no `/api/...` suffix). Override with
   /// `--dart-define=API_URL=...` when building or running.
   ///
-  /// Avoid `http://127.0.0.1:4040` (ngrok **inspector**, not your app) and avoid
-  /// `localhost` / `127.0.0.1` on **device** builds — use the same public HTTPS URL
-  /// as `server.js` (`API_URL` / `PUBLIC_BASE_URL`), e.g. ngrok tunnel → port **4000**.
+  /// On device builds avoid `localhost` / `127.0.0.1`. Use the same public HTTPS
+  /// origin as `server.js` (`API_URL` / `PUBLIC_BASE_URL`).
   static const String baseUrl =
-      'https://telegraphic-banausic-kathey.ngrok-free.dev';
+      'https://proactive-insight-production-8e8b.up.railway.app';
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_URL',
