@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
@@ -90,7 +91,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _initialized = true);
   }
 
-  Future<void> _pickAndUploadImage() async {
+  Future<void> pickAndUploadImage() async {
     final xFile = await _imagePicker.pickImage(
       source: ImageSource.gallery,
       maxWidth: 512,
@@ -120,6 +121,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : msg;
       });
     }
+  }
+
+  Future<void> _showPhotoSourceSheet() async {
+    if (!mounted || _uploadingAvatar) return;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.of(context).pop('camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Upload from gallery'),
+              onTap: () => Navigator.of(context).pop('gallery'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (choice == 'camera') {
+      await _openCamera();
+      return;
+    }
+    if (choice == 'gallery') {
+      await pickAndUploadImage();
+    }
+  }
+
+  Future<void> _uploadAvatarFromPath(String path) async {
+    if (path.trim().isEmpty || !mounted) return;
+    setState(() {
+      _uploadingAvatar = true;
+      _errorMessage = null;
+    });
+    try {
+      final url = await ProfileService.uploadAvatar(File(path));
+      if (!mounted) return;
+      setState(() {
+        _avatarUrl = url;
+        _uploadingAvatar = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      setState(() {
+        _uploadingAvatar = false;
+        _errorMessage = msg.contains('403') || msg.contains('Forbidden')
+            ? 'Avatar upload denied. Ensure the "avatars" bucket exists and is public in Supabase Dashboard → Storage.'
+            : msg;
+      });
+    }
+  }
+
+  Future<void> _openCamera() async {
+    debugPrint("Camera button tapped"); // debug
+    final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      debugPrint("Camera permission denied");
+      return;
+    }
+    final xFile = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 85,
+    );
+    if (xFile == null) return;
+    await _uploadAvatarFromPath(xFile.path);
   }
 
   /// True when every field on this screen is valid (mirrors form validators).
@@ -238,9 +314,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     final theme = Theme.of(context);
     final selected = _userType == value;
-    final bg = selected
-        ? theme.colorScheme.primaryContainer
-        : Colors.white;
+    final bg = selected ? theme.colorScheme.primaryContainer : Colors.white;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
@@ -370,7 +444,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Material(
                         color: Colors.transparent,
                         child: InkWell(
-                          onTap: _uploadingAvatar ? null : _pickAndUploadImage,
+                          onTap: _uploadingAvatar
+                              ? null
+                              : () {
+                                  _showPhotoSourceSheet();
+                                },
                           borderRadius: BorderRadius.circular(56),
                           child: Stack(
                             alignment: Alignment.center,

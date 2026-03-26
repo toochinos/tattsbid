@@ -26,8 +26,10 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<key>NSCameraUsageDescription</key>
+		<string>We use the camera so you can upload tattoo references.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
-		<string>Allow access to your photos to set a profile picture.</string>
+		<string>We use your photo library to select tattoo images.</string>
 		<key>UIApplicationSceneManifest</key>
 		<dict>
 			<key>UIApplicationSupportsMultipleScenes</key>

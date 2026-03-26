@@ -8,12 +8,14 @@ class ArtistDirectoryEntry {
     required this.id,
     required this.displayName,
     this.avatarUrl,
+    this.location,
     this.rating,
   });
 
   final String id;
   final String displayName;
   final String? avatarUrl;
+  final String? location;
 
   /// Average rating when stored on profile; null if unavailable.
   final double? rating;
@@ -39,10 +41,14 @@ class ArtistDirectoryEntry {
     if (id == null || id.isEmpty) {
       throw ArgumentError('Profile row missing id');
     }
+    final locRaw = m[SupabaseProfiles.location] as String?;
+    final location =
+        (locRaw != null && locRaw.trim().isNotEmpty) ? locRaw.trim() : null;
     return ArtistDirectoryEntry(
       id: id,
       displayName: _nameFromRow(m),
       avatarUrl: m[SupabaseProfiles.avatarUrl] as String?,
+      location: location,
       rating: _ratingFromRow(m),
     );
   }

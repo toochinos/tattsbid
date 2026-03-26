@@ -56,11 +56,12 @@ class _ArtistsPageState extends State<ArtistsPage> {
   List<ArtistDirectoryEntry> get _filtered {
     final q = _searchController.text.trim().toLowerCase();
     if (q.isEmpty) return _all;
-    return _all
-        .where(
-          (a) => a.displayName.toLowerCase().contains(q),
-        )
-        .toList();
+    return _all.where((a) {
+      final nameMatch = a.displayName.toLowerCase().contains(q);
+      final loc = (a.location ?? '').toLowerCase();
+      final locationMatch = loc.contains(q);
+      return nameMatch || locationMatch;
+    }).toList();
   }
 
   void _openProfile(ArtistDirectoryEntry artist) {
@@ -76,8 +77,6 @@ class _ArtistsPageState extends State<ArtistsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Artists'),
@@ -91,7 +90,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
               controller: _searchController,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'Search for tattoo artist',
+                hintText: 'Search artist or location',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -171,7 +170,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
               Text(
                 _all.isEmpty
                     ? 'Check back when tattoo artists join the platform.'
-                    : 'Try a different name.',
+                    : 'Try a different name or location.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
@@ -196,6 +195,9 @@ class _ArtistsPageState extends State<ArtistsPage> {
         ),
         itemBuilder: (context, index) {
           final artist = list[index];
+          final hasLocation =
+              artist.location != null && artist.location!.trim().isNotEmpty;
+          final hasRating = artist.rating != null;
           return ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -223,29 +225,54 @@ class _ArtistsPageState extends State<ArtistsPage> {
               artist.displayName,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            subtitle: artist.rating != null
-                ? Padding(
+            subtitle: (!hasLocation && !hasRating)
+                ? null
+                : Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.star_rounded,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          artist.rating!.toStringAsFixed(1),
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                        ),
+                        if (hasLocation)
+                          Text(
+                            artist.location!.trim(),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        if (hasRating)
+                          Padding(
+                            padding: EdgeInsets.only(
+                              top: hasLocation ? 6 : 0,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.star_rounded,
+                                  size: 18,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  artist.rating!.toStringAsFixed(1),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
-                  )
-                : null,
+                  ),
             trailing: Icon(
               Icons.chevron_right,
               color: Theme.of(context).colorScheme.outline,
