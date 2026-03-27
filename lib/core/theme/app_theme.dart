@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// Material 3 theme — **light / white only** (no dark mode).
+/// Material 3 theme setup with runtime light/dark switching.
 class AppTheme {
   AppTheme._();
 
-  /// Forces white surfaces and light brightness app-wide.
+  /// Global app theme mode state.
+  static final ValueNotifier<ThemeMode> themeModeNotifier =
+      ValueNotifier<ThemeMode>(ThemeMode.light);
+
   static ThemeData get light => ThemeData(
         brightness: Brightness.light,
         useMaterial3: true,
@@ -23,6 +26,16 @@ class AppTheme {
         ),
       );
 
-  /// Same as [light] — used so `darkTheme` cannot apply a dark palette.
-  static ThemeData get darkFallback => light;
+  static ThemeData get dark => ThemeData(
+        brightness: Brightness.dark,
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.indigo,
+          brightness: Brightness.dark,
+        ),
+        appBarTheme: const AppBarTheme(
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+        ),
+      );
 }

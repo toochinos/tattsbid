@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/routes/app_routes.dart';
 import '../core/models/tattoo_request.dart';
 import '../core/services/message_indicator_service.dart';
 import '../core/services/online_presence_service.dart';
@@ -11,6 +12,7 @@ import 'bid_detail_page.dart';
 import 'explore_page.dart';
 import 'add_page.dart';
 import 'chat_page.dart';
+import 'destination_page.dart';
 import 'profile_page.dart';
 import 'public_artist_profile_page.dart';
 
@@ -210,6 +212,18 @@ class _MainShellPageState extends State<MainShellPage> {
     });
   }
 
+  void _openSettings() {
+    Navigator.of(context, rootNavigator: true).pushNamed(AppRoutes.settings);
+  }
+
+  Future<void> _openGlobe() async {
+    await Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const DestinationPage(),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     MessageIndicatorService.stop();
@@ -229,9 +243,24 @@ class _MainShellPageState extends State<MainShellPage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: IndexedStack(
-        index: _currentIndex.clamp(0, _pages.length - 1),
-        children: _pages,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex.clamp(0, _pages.length - 1),
+            children: _pages,
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: SafeArea(
+              minimum: const EdgeInsets.only(top: 6, right: 8),
+              child: _GlobalTopRightActions(
+                onGlobeTap: _openGlobe,
+                onSettingsTap: _openSettings,
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: SafeArea(
         child: ValueListenableBuilder<bool>(
@@ -257,34 +286,92 @@ class _MainShellPageState extends State<MainShellPage> {
   }
 }
 
-/// Tattoo machine asset for the Artists tab ([assets/tattoo_machine_icon.png]).
-///
-/// Do **not** use [Image.color] + [BlendMode.srcIn] on full-color PNGs (navy on
-/// white) — that flattens the graphic into a solid square. We show the real
-/// pixels and only adjust opacity for unselected vs selected.
-class _ArtistsTabIcon extends StatelessWidget {
-  const _ArtistsTabIcon({required this.selected});
+class _GlobalTopRightActions extends StatelessWidget {
+  const _GlobalTopRightActions({
+    required this.onGlobeTap,
+    required this.onSettingsTap,
+  });
 
-  final bool selected;
-
-  static const String _asset = 'assets/tattoo_machine_icon.png';
+  final VoidCallback onGlobeTap;
+  final VoidCallback onSettingsTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _TopActionButton(
+          tooltip: 'Explore',
+          icon: Icons.public,
+          onTap: onGlobeTap,
+          background: scheme.surface,
+        ),
+        const SizedBox(width: 8),
+        _TopActionButton(
+          tooltip: 'Settings',
+          icon: Icons.settings,
+          onTap: onSettingsTap,
+          background: scheme.surface,
+        ),
+      ],
+    );
+  }
+}
+
+class _TopActionButton extends StatelessWidget {
+  const _TopActionButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    required this.background,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background.withValues(alpha: 0.96),
+      borderRadius: BorderRadius.circular(12),
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onTap,
+        icon: Icon(icon),
+      ),
+    );
+  }
+}
+
+/// Tattoo machine icon for Artists tab.
+class _ArtistsTabIcon extends StatelessWidget {
+  const _ArtistsTabIcon({required this.selected});
+
+  final bool selected;
+  static const String _asset = 'assets/icons/tattoo.png';
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Opacity(
-      opacity: selected ? 1 : 0.55,
+      opacity: selected ? 1 : (isDark ? 0.75 : 0.62),
       child: SizedBox(
-        width: 34,
-        height: 34,
+        width: 30,
+        height: 30,
         child: Image.asset(
           _asset,
           fit: BoxFit.contain,
           gaplessPlayback: true,
           filterQuality: FilterQuality.medium,
+          color: isDark ? Colors.white : Colors.black,
+          colorBlendMode: BlendMode.srcIn,
           errorBuilder: (_, __, ___) => Icon(
             Icons.brush_outlined,
-            size: 30,
+            size: 24,
             color: selected
                 ? scheme.primary
                 : scheme.onSurface.withValues(alpha: 0.64),

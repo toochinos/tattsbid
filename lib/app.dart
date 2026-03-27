@@ -26,21 +26,23 @@ class _SaasAppState extends State<SaasApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      navigatorKey: LinkHandler.navigatorKey,
-      title: 'SaaS App',
-      theme: AppTheme.light,
-      // Disable dark mode — always use light / white theme.
-      darkTheme: AppTheme.darkFallback,
-      themeMode: ThemeMode.light,
-      initialRoute: AppRoutes.root,
-      routes: AppRoutes.routes,
-      onGenerateRoute: AppRoutes.onGenerateRoute,
-      builder: (context, child) => DefaultTextStyle(
-        textAlign: TextAlign.center,
-        style: DefaultTextStyle.of(context).style,
-        child: child!,
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppTheme.themeModeNotifier,
+      builder: (context, mode, _) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        navigatorKey: LinkHandler.navigatorKey,
+        title: 'SaaS App',
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: mode,
+        initialRoute: AppRoutes.root,
+        routes: AppRoutes.routes,
+        onGenerateRoute: AppRoutes.onGenerateRoute,
+        builder: (context, child) => DefaultTextStyle(
+          textAlign: TextAlign.center,
+          style: DefaultTextStyle.of(context).style,
+          child: child!,
+        ),
       ),
     );
   }

@@ -1,28 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../core/routes/app_routes.dart';
 import '../core/services/auth_service.dart';
-import 'camera_page.dart';
+import '../core/theme/app_theme.dart';
 
-Future<void> openCamera(BuildContext context) async {
-  final status = await Permission.camera.request();
-
-  if (!status.isGranted) {
-    print("Camera permission denied");
-    return;
-  }
-  if (!context.mounted) return;
-
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const CameraPage()),
-  );
-}
-
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
   Future<void> _logout(BuildContext context) async {
     await AuthService.signOut();
     if (!context.mounted) return;
@@ -31,16 +20,22 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.themeModeNotifier.value == ThemeMode.dark;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          ElevatedButton(
-            onPressed: () {
-              openCamera(context);
+          SwitchListTile(
+            value: isDark,
+            secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
+            title: Text(isDark ? 'Dark mode' : 'Light mode'),
+            subtitle: const Text('Toggle app theme'),
+            onChanged: (enabled) {
+              AppTheme.themeModeNotifier.value =
+                  enabled ? ThemeMode.dark : ThemeMode.light;
+              setState(() {});
             },
-            child: const Text("Open Camera"),
           ),
           const SizedBox(height: 12),
           ListTile(
