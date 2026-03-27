@@ -20,6 +20,14 @@
 /// - created_at (timestamptz)
 /// - updated_at (timestamptz)
 ///
+/// Table: public.reviews
+/// - id (uuid, PK)
+/// - user_id (uuid, reviewer — auth.users)
+/// - artist_id (uuid — profiles.id of tattoo artist)
+/// - rating (int 1–5 or smallint)
+/// - comment (text)
+/// - created_at (timestamptz, default now) — used for sort newest first
+///
 /// Dart model: UserProfile (lib/core/models/user_profile.dart)
 /// Column mapping:
 ///   display_name  -> displayName
@@ -124,4 +132,19 @@ abstract final class SupabaseBids {
   static const String amount = 'amount';
   static const String createdAt = 'created_at';
   static const String paymentStatus = 'payment_status';
+}
+
+/// Table: public.reviews — ratings and comments for tattoo artists.
+abstract final class SupabaseReviews {
+  SupabaseReviews._();
+
+  static const String table = 'reviews';
+  static const String schema = 'public';
+
+  static const String id = 'id';
+  static const String userId = 'user_id';
+  static const String artistId = 'artist_id';
+  static const String rating = 'rating';
+  static const String comment = 'comment';
+  static const String createdAt = 'created_at';
 }

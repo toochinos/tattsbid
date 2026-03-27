@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/models/artist_review.dart';
 import '../core/models/user_profile.dart';
 import '../core/services/chat_service.dart';
 import '../core/services/profile_service.dart';
+import '../core/services/review_service.dart';
 import 'chat_page.dart';
 
 /// Read-only profile for another user (e.g. opened from Artists directory).
@@ -31,6 +33,12 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
   bool _loading = true;
   String? _error;
 
+  List<ArtistReview> _reviews = [];
+  final TextEditingController _reviewCommentController =
+      TextEditingController();
+  int _draftRating = 0;
+  bool _submittingReview = false;
+
   /// Chat + email/phone only after customer has paid (completed request with this artist).
   bool _showContactAndChat = true;
 
@@ -40,6 +48,12 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _reviewCommentController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -47,6 +61,12 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
     });
     try {
       final p = await ProfileService.getProfileByUserId(widget.userId);
+      var reviews = <ArtistReview>[];
+      try {
+        reviews = await ReviewService.fetchForArtist(widget.userId);
+      } catch (_) {
+        // RLS/offline: still show profile
+      }
       var allowContact = true;
       if (widget.fromArtistsDirectory) {
         // Browsing Artists directory — never show chat/contact on profile.
@@ -63,8 +83,25 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
         }
       }
       if (!mounted) return;
+      final me = Supabase.instance.client.auth.currentUser?.id;
+      ArtistReview? mine;
+      if (me != null) {
+        for (final r in reviews) {
+          if (r.userId == me) {
+            mine = r;
+            break;
+          }
+        }
+      }
       setState(() {
         _profile = p;
+        _reviews = reviews;
+        if (mine != null &&
+            _reviewCommentController.text.trim().isEmpty &&
+            _draftRating == 0) {
+          _reviewCommentController.text = mine.comment;
+          _draftRating = mine.rating;
+        }
         _showContactAndChat = allowContact;
         _loading = false;
         if (p == null) {
@@ -96,6 +133,15 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
     return me != null && me == widget.userId;
   }
 
+  ArtistReview? get _myExistingReview {
+    final me = Supabase.instance.client.auth.currentUser?.id;
+    if (me == null) return null;
+    for (final r in _reviews) {
+      if (r.userId == me) return r;
+    }
+    return null;
+  }
+
   void _openChat() {
     if (_isOwnProfile) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -110,12 +156,88 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
     );
   }
 
+  String get _appBarTitle {
+    if (_loading) return 'Profile';
+    final p = _profile;
+    if (p == null) return 'Profile';
+    final n = p.displayName?.trim();
+    if (n != null && n.isNotEmpty) return n;
+    return 'Profile';
+  }
+
+  Future<void> _refreshReviewsOnly() async {
+    try {
+      final list = await ReviewService.fetchForArtist(widget.userId);
+      if (!mounted) return;
+      setState(() {
+        _reviews = list;
+        final mine = _myExistingReview;
+        if (mine != null &&
+            _reviewCommentController.text.trim().isEmpty &&
+            _draftRating == 0) {
+          _reviewCommentController.text = mine.comment;
+          _draftRating = mine.rating;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+    }
+  }
+
+  Future<void> _submitReview() async {
+    final comment = _reviewCommentController.text.trim();
+    if (_draftRating < 1 || _draftRating > 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a star rating.')),
+      );
+      return;
+    }
+    if (comment.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please write a comment.')),
+      );
+      return;
+    }
+    setState(() => _submittingReview = true);
+    try {
+      final result = await ReviewService.submitReview(
+        artistId: widget.userId,
+        rating: _draftRating,
+        comment: comment,
+      );
+      if (!mounted) return;
+      _reviewCommentController.clear();
+      setState(() {
+        _draftRating = 0;
+        _submittingReview = false;
+      });
+      await _refreshReviewsOnly();
+      if (!mounted) return;
+      final msg = switch (result) {
+        ReviewSubmitResult.created => 'Thanks — your review was posted.',
+        ReviewSubmitResult.updated =>
+          'You have already reviewed this artist. Your review was updated.',
+        ReviewSubmitResult.alreadyReviewed =>
+          'You have already reviewed this artist',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submittingReview = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not submit review right now. Please try again.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: const _FiveStarReviewTitle(),
+        title: Text(_appBarTitle),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -218,6 +340,129 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
             ),
           ],
           if (profile.userType == 'tattoo_artist') ...[
+            const SizedBox(height: 28),
+            Text(
+              'Reviews',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: scheme.primary,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            if (_reviews.isEmpty)
+              Text(
+                'No reviews yet.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.outline,
+                    ),
+              )
+            else ...[
+              Text(
+                '${ReviewService.averageRating(_reviews).toStringAsFixed(1)} average',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Center(
+                child: _ReviewStarRow(
+                  rating:
+                      ReviewService.averageRating(_reviews).round().clamp(1, 5),
+                  size: 22,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            ..._reviews.map(
+              (r) => Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ReviewStarRow(rating: r.rating, size: 18),
+                    const SizedBox(height: 6),
+                    Text(
+                      r.comment,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatReviewDate(r.createdAt),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.outline,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (Supabase.instance.client.auth.currentUser != null &&
+                !_isOwnProfile) ...[
+              const SizedBox(height: 8),
+              Text(
+                _myExistingReview == null
+                    ? 'Write a review'
+                    : 'Edit your review',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(5, (i) {
+                    final value = i + 1;
+                    final filled = value <= _draftRating;
+                    return IconButton(
+                      onPressed: _submittingReview
+                          ? null
+                          : () => setState(() => _draftRating = value),
+                      icon: Icon(
+                        Icons.star_rounded,
+                        color: filled
+                            ? const Color(0xFFFFC107)
+                            : scheme.outline.withValues(alpha: 0.45),
+                        size: 36,
+                      ),
+                    );
+                  }),
+                ),
+              ),
+              TextField(
+                controller: _reviewCommentController,
+                enabled: !_submittingReview,
+                minLines: 2,
+                maxLines: 4,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  hintText: 'Share your experience…',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor:
+                      scheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                ),
+              ),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: _submittingReview ? null : _submitReview,
+                child: _submittingReview
+                    ? SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      )
+                    : const Text('Submit review'),
+              ),
+            ],
             const SizedBox(height: 16),
             Text(
               'Portfolio',
@@ -294,27 +539,39 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
       ),
     );
   }
+
+  String _formatReviewDate(DateTime dt) {
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
 }
 
-/// Five filled yellow stars in the app bar (review-style), replacing “Bid winner”.
-class _FiveStarReviewTitle extends StatelessWidget {
-  const _FiveStarReviewTitle();
+/// Non-interactive 1–5 star row for display.
+class _ReviewStarRow extends StatelessWidget {
+  const _ReviewStarRow({
+    required this.rating,
+    this.size = 20,
+  });
+
+  final int rating;
+  final double size;
 
   static const Color _gold = Color(0xFFFFC107);
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      label: '5 out of 5 stars',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(
-          5,
-          (_) => const Icon(
-            Icons.star_rounded,
-            color: _gold,
-            size: 26,
-          ),
+    final emptyColor =
+        Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(
+        5,
+        (i) => Icon(
+          Icons.star_rounded,
+          color: i < rating ? _gold : emptyColor,
+          size: size,
         ),
       ),
     );

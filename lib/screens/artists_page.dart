@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/models/artist_directory_entry.dart';
 import '../core/services/profile_service.dart';
+import '../core/services/review_service.dart';
 import 'public_artist_profile_page.dart';
 
 /// Browse tattoo artists (directory + search).
@@ -16,6 +17,9 @@ class _ArtistsPageState extends State<ArtistsPage> {
   final TextEditingController _searchController = TextEditingController();
 
   List<ArtistDirectoryEntry> _all = [];
+
+  /// Average from `reviews` table, keyed by artist profile id.
+  Map<String, double> _reviewAverages = {};
   bool _loading = true;
   String? _error;
 
@@ -39,9 +43,18 @@ class _ArtistsPageState extends State<ArtistsPage> {
     });
     try {
       final list = await ProfileService.fetchTattooArtistsForDirectory();
+      var averages = <String, double>{};
+      try {
+        averages = await ReviewService.fetchAverageRatingsForArtistIds(
+          list.map((a) => a.id),
+        );
+      } catch (_) {
+        // RLS or offline — still show directory with profile.rating if any
+      }
       if (!mounted) return;
       setState(() {
         _all = list;
+        _reviewAverages = averages;
         _loading = false;
       });
     } catch (e) {
@@ -197,7 +210,8 @@ class _ArtistsPageState extends State<ArtistsPage> {
           final artist = list[index];
           final hasLocation =
               artist.location != null && artist.location!.trim().isNotEmpty;
-          final hasRating = artist.rating != null;
+          final displayRating = _reviewAverages[artist.id] ?? artist.rating;
+          final hasRating = displayRating != null && displayRating > 0;
           return ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -249,25 +263,8 @@ class _ArtistsPageState extends State<ArtistsPage> {
                             padding: EdgeInsets.only(
                               top: hasLocation ? 6 : 0,
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.star_rounded,
-                                  size: 18,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  artist.rating!.toStringAsFixed(1),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                ),
-                              ],
+                            child: _DirectoryStarReviewRow(
+                              average: displayRating,
                             ),
                           ),
                       ],
@@ -281,6 +278,40 @@ class _ArtistsPageState extends State<ArtistsPage> {
           );
         },
       ),
+    );
+  }
+}
+
+/// Five-star display + numeric average (matches review UI styling).
+class _DirectoryStarReviewRow extends StatelessWidget {
+  const _DirectoryStarReviewRow({required this.average});
+
+  final double average;
+  static const Color _gold = Color(0xFFFFC107);
+
+  @override
+  Widget build(BuildContext context) {
+    final empty = Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
+    final filledCount = average.round().clamp(1, 5);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ...List.generate(
+          5,
+          (i) => Icon(
+            Icons.star_rounded,
+            size: 18,
+            color: i < filledCount ? _gold : empty,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          average.toStringAsFixed(1),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ],
     );
   }
 }
