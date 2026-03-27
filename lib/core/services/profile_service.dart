@@ -45,6 +45,9 @@ class ProfileService {
         displayName: data?[SupabaseProfiles.displayName] as String?,
         avatarUrl: data?[SupabaseProfiles.avatarUrl] as String?,
         location: data?[SupabaseProfiles.location] as String?,
+        country: data?[SupabaseProfiles.country] as String?,
+        city: data?[SupabaseProfiles.city] as String?,
+        suburb: data?[SupabaseProfiles.suburb] as String?,
         bio: data?[SupabaseProfiles.bio] as String?,
         userType: data?[SupabaseProfiles.userType] as String?,
         contactEmail: data?[SupabaseProfiles.contactEmail] as String?,
@@ -125,6 +128,37 @@ class ProfileService {
     }
   }
 
+  /// Location-aware profile search within a selected country.
+  ///
+  /// Filters by [selectedCountry], matches [search] against city OR suburb
+  /// using case-insensitive partial search, and orders by
+  /// `last_location_update` ascending.
+  static Future<List<Map<String, dynamic>>> searchProfilesByLocation({
+    required String selectedCountry,
+    required String search,
+  }) async {
+    final country =
+        selectedCountry.trim().isEmpty ? 'Indonesia' : selectedCountry.trim();
+    final q = search.trim();
+
+    var query = _client
+        .from(SupabaseProfiles.table)
+        .select()
+        .eq(SupabaseProfiles.country, country);
+
+    if (q.isNotEmpty) {
+      query = query.or(
+        '${SupabaseProfiles.city}.ilike.%$q%,${SupabaseProfiles.suburb}.ilike.%$q%',
+      );
+    }
+
+    final res = await query.order(
+      SupabaseProfiles.lastLocationUpdate,
+      ascending: true,
+    );
+    return List<Map<String, dynamic>>.from(res as List);
+  }
+
   /// Public profile fields for another user (e.g. bid winner). No auth email.
   static Future<UserProfile?> getProfileByUserId(String userId) async {
     if (userId.trim().isEmpty) return null;
@@ -146,6 +180,9 @@ class ProfileService {
         displayName: data[SupabaseProfiles.displayName] as String?,
         avatarUrl: data[SupabaseProfiles.avatarUrl] as String?,
         location: data[SupabaseProfiles.location] as String?,
+        country: data[SupabaseProfiles.country] as String?,
+        city: data[SupabaseProfiles.city] as String?,
+        suburb: data[SupabaseProfiles.suburb] as String?,
         bio: data[SupabaseProfiles.bio] as String?,
         userType: data[SupabaseProfiles.userType] as String?,
         contactEmail: data[SupabaseProfiles.contactEmail] as String?,
@@ -164,6 +201,9 @@ class ProfileService {
     String? displayName,
     String? avatarUrl,
     String? location,
+    String? country,
+    String? city,
+    String? suburb,
     String? bio,
     String? userType,
     String? contactEmail,
@@ -186,7 +226,7 @@ class ProfileService {
     try {
       existing = await _client
           .from(SupabaseProfiles.table)
-          .select(SupabaseProfiles.selectAll)
+          .select()
           .eq(SupabaseProfiles.id, user.id)
           .maybeSingle();
     } catch (_) {
@@ -201,6 +241,11 @@ class ProfileService {
         avatarUrl ?? existingMap?[SupabaseProfiles.avatarUrl];
     data[SupabaseProfiles.location] =
         location ?? existingMap?[SupabaseProfiles.location];
+    data[SupabaseProfiles.country] =
+        country ?? existingMap?[SupabaseProfiles.country];
+    data[SupabaseProfiles.city] = city ?? existingMap?[SupabaseProfiles.city];
+    data[SupabaseProfiles.suburb] =
+        suburb ?? existingMap?[SupabaseProfiles.suburb];
     data[SupabaseProfiles.bio] = bio ?? existingMap?[SupabaseProfiles.bio];
     data[SupabaseProfiles.contactEmail] =
         contactEmail ?? existingMap?[SupabaseProfiles.contactEmail];
@@ -222,6 +267,13 @@ class ProfileService {
         : hasPersistedRole
             ? existingUserType
             : (userType ?? existingUserType);
+
+    final hasLocationUpdateInput =
+        country != null || city != null || suburb != null;
+    if (hasLocationUpdateInput) {
+      data[SupabaseProfiles.lastLocationUpdate] =
+          DateTime.now().toIso8601String();
+    }
 
     await _client
         .from(SupabaseProfiles.table)

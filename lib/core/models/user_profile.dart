@@ -7,6 +7,9 @@ class UserProfile {
     this.displayName,
     this.avatarUrl,
     this.location,
+    this.country,
+    this.city,
+    this.suburb,
     this.bio,
     this.userType,
     this.contactEmail,
@@ -19,6 +22,9 @@ class UserProfile {
   final String? displayName;
   final String? avatarUrl;
   final String? location;
+  final String? country;
+  final String? city;
+  final String? suburb;
   final String? bio;
   final String? userType;
   final String? contactEmail;

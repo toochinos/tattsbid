@@ -33,10 +33,27 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
-  final _locationController = TextEditingController();
+  final _suburbController = TextEditingController();
   final _emailController = TextEditingController();
   final _mobileController = TextEditingController();
   final _imagePicker = ImagePicker();
+  static const List<String> _countryOptions = <String>[
+    'Indonesia',
+    'Thailand',
+    'Vietnam',
+    'Cambodia',
+    'Australia',
+  ];
+  static const Map<String, List<String>> _cityOptionsByCountry =
+      <String, List<String>>{
+    'Indonesia': <String>['Bali', 'Jakarta', 'Bandung', 'Surabaya'],
+    'Thailand': <String>['Bangkok', 'Chiang Mai', 'Phuket', 'Pattaya'],
+    'Vietnam': <String>['Saigon', 'Hanoi', 'Da Nang'],
+    'Cambodia': <String>['Phnom Penh', 'Siem Reap'],
+    'Australia': <String>['Sydney', 'Melbourne', 'Brisbane', 'Perth'],
+  };
+  String? _selectedCountry = 'Indonesia';
+  String? _selectedCity;
 
   String? _avatarUrl;
 
@@ -56,11 +73,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _displayNameController.removeListener(_onFieldChanged);
-    _locationController.removeListener(_onFieldChanged);
+    _suburbController.removeListener(_onFieldChanged);
     _emailController.removeListener(_onFieldChanged);
     _mobileController.removeListener(_onFieldChanged);
     _displayNameController.dispose();
-    _locationController.dispose();
+    _suburbController.dispose();
     _emailController.dispose();
     _mobileController.dispose();
     super.dispose();
@@ -71,7 +88,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     if (profile != null) {
       _displayNameController.text = profile.displayName ?? '';
-      _locationController.text = profile.location ?? '';
+      _selectedCountry = (profile.country != null &&
+              _countryOptions.contains(profile.country!.trim()))
+          ? profile.country!.trim()
+          : _selectedCountry;
+      final initialCity = profile.city?.trim().isNotEmpty == true
+          ? profile.city!.trim()
+          : profile.location?.trim();
+      _selectedCity = initialCity?.isNotEmpty == true ? initialCity : null;
+      _suburbController.text = profile.suburb?.trim() ?? '';
       _emailController.text = (profile.contactEmail?.trim().isNotEmpty == true)
           ? profile.contactEmail!.trim()
           : profile.email;
@@ -204,12 +229,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_loading || _uploadingAvatar || _uploadingPortfolio) return false;
 
     final name = _displayNameController.text.trim();
-    final location = _locationController.text.trim();
+    final city = (_selectedCity ?? '').trim();
+    final country = (_selectedCountry ?? '').trim();
     final email = _emailController.text.trim();
     final mobile = _mobileController.text.trim();
 
     if (name.isEmpty || name.length > 100) return false;
-    if (location.isEmpty || location.length > 100) return false;
+    if (country.isEmpty) return false;
+    if (city.isEmpty || city.length > 100) return false;
     if (!(_userType == 'tattoo_artist' || _userType == 'customer')) {
       return false;
     }
@@ -380,7 +407,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _loadProfile();
     _displayNameController.addListener(_onFieldChanged);
-    _locationController.addListener(_onFieldChanged);
+    _suburbController.addListener(_onFieldChanged);
     _emailController.addListener(_onFieldChanged);
     _mobileController.addListener(_onFieldChanged);
   }
@@ -395,7 +422,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final displayName = _displayNameController.text.trim();
-    final location = _locationController.text.trim();
+    final country = (_selectedCountry ?? '').trim();
+    final city = (_selectedCity ?? '').trim();
+    final suburb = _suburbController.text.trim();
     final email = _emailController.text.trim();
     final mobile = _mobileController.text.trim();
 
@@ -403,7 +432,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await ProfileService.updateProfile(
         displayName: displayName.isEmpty ? null : displayName,
-        location: location.isEmpty ? null : location,
+        location: city.isEmpty ? null : city,
+        country: country.isEmpty ? null : country,
+        city: city.isEmpty ? null : city,
+        suburb: suburb.isEmpty ? null : suburb,
         userType: _userType,
         contactEmail: email.isNotEmpty ? email : null,
         mobile: mobile.isNotEmpty ? mobile : null,
@@ -542,23 +574,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedCountry,
+                      decoration: const InputDecoration(
+                        labelText: 'Country',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _countryOptions
+                          .map(
+                            (c) => DropdownMenuItem<String>(
+                              value: c,
+                              child: Text(c),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        setState(() {
+                          _selectedCountry = v;
+                          final nextCities = _cityOptionsByCountry[v ?? ''] ??
+                              const <String>[];
+                          if (!nextCities.contains(_selectedCity)) {
+                            _selectedCity = null;
+                          }
+                        });
+                      },
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Select country'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedCity,
+                      decoration: const InputDecoration(
+                        labelText: 'City',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: (() {
+                        final cities =
+                            _cityOptionsByCountry[_selectedCountry ?? ''] ??
+                                const <String>[];
+                        final options = <String>[
+                          ...cities,
+                          if (_selectedCity != null &&
+                              _selectedCity!.trim().isNotEmpty &&
+                              !cities.contains(_selectedCity))
+                            _selectedCity!,
+                        ];
+                        return options
+                            .map(
+                              (c) => DropdownMenuItem<String>(
+                                value: c,
+                                child: Text(c),
+                              ),
+                            )
+                            .toList();
+                      })(),
+                      onChanged: (v) => setState(() => _selectedCity = v),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Select city'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
                     TextFormField(
-                      controller: _locationController,
-                      decoration: InputDecoration(
-                        labelText: 'Location',
-                        hintText: _userType == 'tattoo_artist'
-                            ? 'Where is your tattoo studio located?'
-                            : _userType == 'customer'
-                                ? 'Which suburb are you from?'
-                                : 'City or suburb',
-                        border: const OutlineInputBorder(),
+                      controller: _suburbController,
+                      decoration: const InputDecoration(
+                        labelText: 'Suburb (optional)',
+                        hintText: 'Enter suburb',
+                        border: OutlineInputBorder(),
                       ),
                       textCapitalization: TextCapitalization.words,
                       validator: (v) {
                         final s = v?.trim() ?? '';
-                        if (s.isEmpty) return 'Enter your location';
                         if (s.length > 100) {
-                          return 'Location must be 100 characters or less';
+                          return 'Suburb must be 100 characters or less';
                         }
                         return null;
                       },

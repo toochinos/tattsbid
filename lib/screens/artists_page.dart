@@ -105,6 +105,13 @@ class _ArtistsPageState extends State<ArtistsPage> {
               decoration: InputDecoration(
                 hintText: 'Search artist or location',
                 prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.trim().isNotEmpty
+                    ? IconButton(
+                        onPressed: () => _searchController.clear(),
+                        icon: const Icon(Icons.close),
+                        tooltip: 'Clear search',
+                      )
+                    : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),

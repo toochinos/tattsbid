@@ -9,6 +9,10 @@
 /// - display_name (text)
 /// - avatar_url (text)
 /// - location (text)
+/// - country (text, optional)
+/// - city (text, optional)
+/// - suburb (text, optional)
+/// - last_location_update (timestamptz, optional)
 /// - bio (text)
 /// - user_type (text): 'tattoo_artist' or 'customer'
 /// - role (text, optional): 'artist' or 'customer' — Request Detail UI; may be null
@@ -47,6 +51,10 @@ abstract final class SupabaseProfiles {
   static const String displayName = 'display_name';
   static const String avatarUrl = 'avatar_url';
   static const String location = 'location';
+  static const String country = 'country';
+  static const String city = 'city';
+  static const String suburb = 'suburb';
+  static const String lastLocationUpdate = 'last_location_update';
   static const String bio = 'bio';
   static const String userType = 'user_type';
   static const String role = 'role';
@@ -59,7 +67,7 @@ abstract final class SupabaseProfiles {
 
   /// Select clause for full profile fetch.
   static const String selectAll =
-      '$displayName, $avatarUrl, $location, $bio, $userType, $contactEmail, $mobile, $portfolioUrls';
+      '$displayName, $avatarUrl, $location, $country, $city, $suburb, $lastLocationUpdate, $bio, $userType, $contactEmail, $mobile, $portfolioUrls';
 }
 
 /// Supabase column names for the tattoo_requests table.
