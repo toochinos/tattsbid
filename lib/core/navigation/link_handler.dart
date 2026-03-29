@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../routes/app_routes.dart';
@@ -16,14 +17,47 @@ class LinkHandler {
 
   static StreamSubscription<Uri>? _linkSubscription;
 
+  static Uri? _pendingInitialUri;
+
+  static const int _maxInitialLinkDeliveryFrames = 30;
+
   /// Initialize link handling. Call from app init.
   static void init() {
     _linkSubscription?.cancel();
+    _pendingInitialUri = null;
     _linkSubscription = _appLinks.uriLinkStream.listen(_handleLink);
-    _appLinks.getInitialLink().then((uri) {
-      if (uri != null) {
-        _handleLink(uri);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _appLinks.getInitialLink().then((uri) {
+        if (uri == null) return;
+        _pendingInitialUri = uri;
+        _deliverPendingInitialLink(frame: 0);
+      });
+    });
+  }
+
+  /// [getInitialLink] is only meaningful once; we stash the URI until [navigatorKey] is ready.
+  static void _deliverPendingInitialLink({required int frame}) {
+    final uri = _pendingInitialUri;
+    if (uri == null) return;
+
+    final nav = navigatorKey.currentState;
+    if (nav != null && nav.mounted) {
+      _handleLink(uri);
+      _pendingInitialUri = null;
+      return;
+    }
+
+    if (frame >= _maxInitialLinkDeliveryFrames) {
+      if (kDebugMode) {
+        debugPrint(
+          '[LinkHandler] Initial link not delivered: navigator not ready',
+        );
       }
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _deliverPendingInitialLink(frame: frame + 1);
     });
   }
 

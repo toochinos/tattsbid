@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/routes/app_routes.dart';
+import '../core/startup/post_dashboard_onboarding.dart';
 import '../core/models/tattoo_request.dart';
 import '../core/services/message_indicator_service.dart';
 import '../core/services/online_presence_service.dart';
@@ -54,6 +55,7 @@ class _MainShellPageState extends State<MainShellPage> {
   @override
   void initState() {
     super.initState();
+    PostDashboardOnboarding.scheduleAfterFirstFrame();
     _loadProfile();
     OnlinePresenceService.updatePresence();
     _presenceTimer = Timer.periodic(const Duration(seconds: 30), (_) {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../screens/auth_gate_page.dart';
 import '../../screens/auth_screen.dart';
-import '../../screens/splash_screen.dart';
 import '../../screens/checkout_cancel_page.dart';
 import '../../screens/checkout_success_page.dart';
 import '../../screens/edit_profile_page.dart';
@@ -13,14 +13,18 @@ import '../../screens/profile_screen.dart';
 import '../../screens/settings_page.dart';
 import '../../screens/sign_up_page.dart';
 import '../../screens/user_agreement_page.dart';
+import '../../screens/welcome_onboarding_page.dart';
 
 /// Central place for route names and route map.
 /// Use [AppRoutes.landing] etc. and [AppRoutes.routes] for [MaterialApp.routes].
 class AppRoutes {
   AppRoutes._();
 
-  /// Initial route: redirects to dashboard or landing based on auth.
-  static const String root = '/';
+  /// Branded splash; then navigates to [root] ([AuthGatePage]).
+  static const String splash = '/splash';
+
+  /// Auth gate after login (not `/` — that conflicts with [MaterialApp.home]).
+  static const String root = '/auth-gate';
   static const String landing = '/landing';
   static const String login = '/login';
   static const String signUp = '/sign-up';
@@ -30,15 +34,18 @@ class AppRoutes {
   static const String checkoutSuccess = '/checkout/success';
   static const String checkoutCancel = '/checkout/cancel';
   static const String editProfile = '/profile/edit';
+  static const String welcome = '/welcome';
+
   static const String auth = '/auth';
   static const String profile = '/profile';
   static const String userAgreement = '/user-agreement';
 
   static Map<String, WidgetBuilder> get routes => {
-        root: (_) => const SplashScreen(),
+        root: (_) => const AuthGatePage(),
         landing: (_) => const LandingPage(),
         login: (_) => const LoginPage(),
         signUp: (_) => const SignUpPage(),
+        welcome: (_) => const WelcomeOnboardingPage(),
         auth: (_) => const AuthScreen(),
         userAgreement: (_) => const UserAgreementPage(),
         dashboard: (context) {

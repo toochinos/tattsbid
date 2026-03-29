@@ -67,7 +67,8 @@ Future<void> startPayment({
 }
 
 /// Backend confirms Stripe Checkout and writes [contact_unlocks] (service role on server).
-Future<DepositVerifyResult> verifyDepositCheckoutSession(String sessionId) async {
+Future<DepositVerifyResult> verifyDepositCheckoutSession(
+    String sessionId) async {
   final trimmed = sessionId.trim();
   if (trimmed.isEmpty) {
     throw ArgumentError('sessionId required');

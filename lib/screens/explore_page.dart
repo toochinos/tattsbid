@@ -518,9 +518,7 @@ class _DeleteButtonState extends State<_DeleteButton> {
     final bg = _highlight ? Colors.black87 : Colors.black54;
     final iconColor = _hoveringDelete
         ? Colors.white
-        : (_highlight
-            ? scheme.error
-            : Colors.white.withValues(alpha: 0.82));
+        : (_highlight ? scheme.error : Colors.white.withValues(alpha: 0.82));
 
     return Tooltip(
       message: 'Delete this post',

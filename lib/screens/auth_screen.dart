@@ -14,7 +14,7 @@ class AuthScreen extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Login'),
+          title: const Text('Account'),
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Login'),
@@ -66,7 +66,7 @@ class _LoginTabState extends State<_LoginTab> {
         password: _passwordController.text,
       );
       if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+      Navigator.of(context).pushReplacementNamed(AppRoutes.root);
     } on AuthException catch (e) {
       setState(() {
         _loading = false;

@@ -116,69 +116,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _initialized = true);
   }
 
-  Future<void> pickAndUploadImage() async {
+  Future<void> _showPhotoSourceSheet() async {
+    if (!mounted || _uploadingAvatar) return;
+    final source = await showPhotoSourceBottomSheet(context);
+    if (source == null || !mounted) return;
+    await _pickAndUploadAvatar(source);
+  }
+
+  Future<void> _pickAndUploadAvatar(ImageSource source) async {
+    if (source == ImageSource.camera) {
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Camera permission is required to take a photo.'),
+          ),
+        );
+        return;
+      }
+    }
     final xFile = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       maxWidth: 512,
       maxHeight: 512,
       imageQuality: 85,
     );
     if (xFile == null || !mounted) return;
-
-    setState(() {
-      _uploadingAvatar = true;
-      _errorMessage = null;
-    });
-    try {
-      final url = await ProfileService.uploadAvatar(File(xFile.path));
-      if (!mounted) return;
-      setState(() {
-        _avatarUrl = url;
-        _uploadingAvatar = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      final msg = e.toString();
-      setState(() {
-        _uploadingAvatar = false;
-        _errorMessage = msg.contains('403') || msg.contains('Forbidden')
-            ? 'Avatar upload denied. Ensure the "avatars" bucket exists and is public in Supabase Dashboard → Storage.'
-            : msg;
-      });
-    }
-  }
-
-  Future<void> _showPhotoSourceSheet() async {
-    if (!mounted || _uploadingAvatar) return;
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Take photo'),
-              onTap: () => Navigator.of(context).pop('camera'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Upload from gallery'),
-              onTap: () => Navigator.of(context).pop('gallery'),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-
-    if (choice == 'camera') {
-      await _openCamera();
-      return;
-    }
-    if (choice == 'gallery') {
-      await pickAndUploadImage();
-    }
+    await _uploadAvatarFromPath(xFile.path);
   }
 
   Future<void> _uploadAvatarFromPath(String path) async {
@@ -204,23 +169,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : msg;
       });
     }
-  }
-
-  Future<void> _openCamera() async {
-    debugPrint("Camera button tapped"); // debug
-    final status = await Permission.camera.request();
-    if (!status.isGranted) {
-      debugPrint("Camera permission denied");
-      return;
-    }
-    final xFile = await _imagePicker.pickImage(
-      source: ImageSource.camera,
-      maxWidth: 512,
-      maxHeight: 512,
-      imageQuality: 85,
-    );
-    if (xFile == null) return;
-    await _uploadAvatarFromPath(xFile.path);
   }
 
   /// True when every field on this screen is valid (mirrors form validators).

@@ -1,11 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/routes/app_routes.dart';
-import '../core/services/auth_service.dart';
-import '../core/services/onboarding_service.dart';
 
-/// Shows loading then redirects to Dashboard if logged in, Landing if not.
-/// Used as the app's initial route so session is checked on startup.
+/// **After login only** (e.g. [AuthScreen] → [AppRoutes.root]): session → Explore ([AppRoutes.dashboard]), else Login.
+/// [SplashScreen] does not navigate here; it goes straight to dashboard or auth when onboarding is done.
 class AuthGatePage extends StatefulWidget {
   const AuthGatePage({super.key});
 
@@ -17,43 +17,33 @@ class _AuthGatePageState extends State<AuthGatePage> {
   @override
   void initState() {
     super.initState();
-    _redirect();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _redirect();
+    });
   }
 
-  Future<void> _redirect() async {
-    // Wait for first auth state (Supabase restores session from storage).
-    final state = await AuthService.authStateChanges.first;
+  void _redirect() {
     if (!mounted) return;
-    if (state.session == null) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.auth);
-      return;
-    }
-    final needsAgreement = await OnboardingService.needsAgreement();
-    if (!mounted) return;
-    if (needsAgreement) {
-      Navigator.of(context).pushReplacementNamed(
-        AppRoutes.userAgreement,
-        arguments: const {
-          'nextRoute': AppRoutes.profile,
-          'nextArgs': {'fromSignUp': true, 'allowAccountTypeChoice': true},
-        },
+    final session = Supabase.instance.client.auth.currentSession;
+    if (kDebugMode) {
+      debugPrint(
+        '[Startup] AuthGate: session=${session != null} → '
+        '${session != null ? AppRoutes.dashboard : AppRoutes.auth}',
       );
-      return;
     }
-    final needsProfileSetup = await OnboardingService.needsProfileSetup();
-    if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed(
-      needsProfileSetup ? AppRoutes.profile : AppRoutes.dashboard,
-      arguments: needsProfileSetup
-          ? const {'fromSignUp': true, 'allowAccountTypeChoice': true}
-          : null,
-    );
+    if (session != null) {
+      Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+    } else {
+      Navigator.of(context).pushReplacementNamed(AppRoutes.auth);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
     );
   }
 }

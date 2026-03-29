@@ -6,24 +6,28 @@
 // tree, read text, and verify the values of widget properties.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:saas_app/app.dart';
 
 void main() {
   setUpAll(() async {
+    SharedPreferences.setMockInitialValues({
+      'seenOnboarding': true,
+    });
     await Supabase.initialize(
       url: 'https://test.supabase.co',
       anonKey: 'test-anon-key',
     );
   });
 
-  testWidgets('App loads and shows landing page when unauthenticated',
+  testWidgets('App routes to login when unauthenticated after startup',
       (WidgetTester tester) async {
     await tester.pumpWidget(const SaasApp());
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pumpAndSettle(const Duration(seconds: 5));
 
-    expect(find.text('Landing Page'), findsOneWidget);
-    expect(find.text('Login'), findsOneWidget);
+    expect(find.text('Login'), findsWidgets);
   });
 }

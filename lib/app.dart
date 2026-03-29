@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/navigation/link_handler.dart';
 import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
+import 'screens/startup_router.dart';
 
 class SaasApp extends StatefulWidget {
   const SaasApp({super.key});
@@ -35,7 +36,7 @@ class _SaasAppState extends State<SaasApp> {
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
         themeMode: mode,
-        initialRoute: AppRoutes.root,
+        home: const StartupRouter(),
         routes: AppRoutes.routes,
         onGenerateRoute: AppRoutes.onGenerateRoute,
         builder: (context, child) => DefaultTextStyle(

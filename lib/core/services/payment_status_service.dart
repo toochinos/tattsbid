@@ -51,15 +51,15 @@ class PaymentStatusService {
   }
 
   /// Winning artist for [requestId] when their bid has [payment_status] `paid`.
-  static Future<String?> _artistUserIdForPaidWinningBid(String requestId) async {
+  static Future<String?> _artistUserIdForPaidWinningBid(
+      String requestId) async {
     final client = Supabase.instance.client;
     final req = await client
         .from(SupabaseTattooRequests.table)
         .select(SupabaseTattooRequests.winningBidId)
         .eq(SupabaseTattooRequests.id, requestId)
         .maybeSingle();
-    final winBidId =
-        req?[SupabaseTattooRequests.winningBidId] as String?;
+    final winBidId = req?[SupabaseTattooRequests.winningBidId] as String?;
     if (winBidId != null && winBidId.isNotEmpty) {
       final bid = await client
           .from(SupabaseBids.table)

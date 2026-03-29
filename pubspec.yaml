@@ -1,7 +1,7 @@
 name: saas_app
 description: A subscription-based SaaS app.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -17,6 +17,8 @@ dependencies:
   http: ^1.6.0
   camera: 0.10.5+9
   permission_handler: 11.3.0
+  shared_preferences: ^2.3.2
+  smooth_page_indicator: ^1.2.0+3
 
 dev_dependencies:
   flutter_test:
@@ -31,6 +33,7 @@ flutter:
     - assets/
     - assets/flags/
     - assets/icons/
+    - assets/onboarding/
 
 flutter_native_splash:
   color: "#ffffff"

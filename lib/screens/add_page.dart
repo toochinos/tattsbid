@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../core/services/photo_service.dart';
 import '../core/services/tattoo_request_service.dart';
+import '../core/utils/pick_images.dart';
 
 /// Add tab: customer uploads reference photo, adds description and starting bid.
 class AddPage extends StatefulWidget {
@@ -46,7 +47,6 @@ class _AddPageState extends State<AddPage> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    Navigator.of(context).pop();
     final xFile = await _imagePicker.pickImage(
       source: source,
       maxWidth: 1920,
@@ -81,36 +81,10 @@ class _AddPageState extends State<AddPage> {
     }
   }
 
-  void _showPhotoOptions() {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(
-                  Icons.camera_alt,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                title: const Text('Take a photo'),
-                onTap: () => _pickImage(ImageSource.camera),
-              ),
-              ListTile(
-                leading: Icon(
-                  Icons.photo_library,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                title: const Text('Upload from gallery'),
-                onTap: () => _pickImage(ImageSource.gallery),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  Future<void> _showPhotoOptions() async {
+    final source = await showPhotoSourceBottomSheet(context);
+    if (source == null || !mounted) return;
+    await _pickImage(source);
   }
 
   void _startOver() {
