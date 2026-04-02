@@ -1,0 +1,4 @@
+[functions.delete-user]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/delete-user/index.ts"

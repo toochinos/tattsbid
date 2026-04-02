@@ -12,9 +12,13 @@ import 'login_page.dart';
 /// Full-screen slides; copy is baked into images:
 /// 1. `welcome_hero.png` — 2. `find_the.png` — 3. `perfect.png` — 4. `artist.png` — 5. `at_the_right_price.png`
 ///
-/// Then [LoginPage] (login + sign-up tabs) via [MaterialPageRoute]. After sign-in → [AppRoutes.root] ([AuthGatePage]) → Explore.
+/// From [StartupRouter]: [onFinished] persists `seenOnboarding` and swaps to [LoginPage] in parent.
+/// From `/welcome` only: prefs + [Navigator] to [LoginPage]. After sign-in → [AppRoutes.root] ([AuthGatePage]) → Explore.
 class WelcomeOnboardingPage extends StatefulWidget {
-  const WelcomeOnboardingPage({super.key});
+  const WelcomeOnboardingPage({super.key, this.onFinished});
+
+  /// When set (e.g. from [StartupRouter]), prefs + parent [setState] — no [Navigator.pushReplacement].
+  final Future<void> Function()? onFinished;
 
   static const List<String> slideAssets = [
     'assets/onboarding/welcome_hero.png',
@@ -86,6 +90,10 @@ class _WelcomeOnboardingPageState extends State<WelcomeOnboardingPage> {
 
   Future<void> _finishOnboarding() async {
     _autoAdvanceTimer?.cancel();
+    if (widget.onFinished != null) {
+      await widget.onFinished!();
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('seenOnboarding', true);
     if (!mounted) return;

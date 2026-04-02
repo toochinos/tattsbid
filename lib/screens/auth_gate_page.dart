@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/routes/app_routes.dart';
 
 /// **After login only** (e.g. [AuthScreen] → [AppRoutes.root]): session → Explore ([AppRoutes.dashboard]), else Login.
-/// [SplashScreen] does not navigate here; it goes straight to dashboard or auth when onboarding is done.
 class AuthGatePage extends StatefulWidget {
   const AuthGatePage({super.key});
 

@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'core/config/supabase_config.dart';
 import 'core/navigation/link_handler.dart';
 import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'screens/startup_router.dart';
 
 class SaasApp extends StatefulWidget {
-  const SaasApp({super.key});
+  const SaasApp({super.key, required this.startupSnapshot});
+
+  final StartupSnapshot startupSnapshot;
 
   @override
   State<SaasApp> createState() => _SaasAppState();
@@ -17,6 +22,15 @@ class _SaasAppState extends State<SaasApp> {
   void initState() {
     super.initState();
     LinkHandler.init();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initSupabaseAfterFirstFrame());
+    });
+  }
+
+  Future<void> _initSupabaseAfterFirstFrame() async {
+    await ensureSupabaseInitialized();
+    await applyStartupTestingAfterSupabase();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -36,7 +50,7 @@ class _SaasAppState extends State<SaasApp> {
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
         themeMode: mode,
-        home: const StartupRouter(),
+        home: StartupRouter(snapshot: widget.startupSnapshot),
         routes: AppRoutes.routes,
         onGenerateRoute: AppRoutes.onGenerateRoute,
         builder: (context, child) => DefaultTextStyle(

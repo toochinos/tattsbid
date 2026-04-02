@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/navigation/link_handler.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/auth_service.dart';
 import '../core/theme/app_theme.dart';
@@ -18,8 +20,72 @@ class _SettingsPageState extends State<SettingsPage> {
     Navigator.of(context).pushReplacementNamed(AppRoutes.landing);
   }
 
+  Future<void> _confirmDeleteAccount() async {
+    final supabase = Supabase.instance.client;
+
+    final session = supabase.auth.currentSession;
+
+    if (session == null) {
+      print('❌ No session — user already logged out');
+      return;
+    }
+
+    try {
+      await supabase.auth.refreshSession();
+      if (supabase.auth.currentSession == null) {
+        print('❌ No session after refresh');
+        return;
+      }
+
+      // Do not set Authorization manually: AuthHttpClient uses putIfAbsent, so a
+      // hand-set Bearer token blocks automatic refresh and can produce stale JWTs.
+      // The SDK attaches the current session JWT (and refreshes when needed).
+
+      // 1) Edge function deletes user while JWT is still valid
+      final response = await supabase.functions.invoke('delete-user');
+
+      if (response.status != 200) {
+        print('❌ Delete failed: ${response.status}');
+        return;
+      }
+
+      // 2) THEN clear local session (only after successful delete)
+      await AuthService.signOut();
+
+      print('✅ Account deleted');
+
+      if (!mounted) return;
+      LinkHandler.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        AppRoutes.login,
+        (route) => false,
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final root = LinkHandler.navigatorKey.currentContext;
+        if (root != null && root.mounted) {
+          ScaffoldMessenger.of(root).showSnackBar(
+            const SnackBar(content: Text('Account deleted')),
+          );
+        }
+      });
+    } on FunctionException catch (e) {
+      print('Delete error: $e');
+      final detail = e.details?.toString() ?? '';
+      if (detail.contains('Invalid JWT')) {
+        debugPrint(
+          'delete-user: Supabase gateway rejected the JWT. If this persists, '
+          'deploy the function with verify_jwt disabled for this route (see '
+          'supabase/config.toml [functions.delete-user] verify_jwt = false) '
+          'then run: supabase functions deploy delete-user',
+        );
+      }
+    } catch (e) {
+      print('Delete error: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isDark = AppTheme.themeModeNotifier.value == ThemeMode.dark;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -42,6 +108,30 @@ class _SettingsPageState extends State<SettingsPage> {
             leading: const Icon(Icons.logout),
             title: const Text('Sign out'),
             onTap: () => _logout(context),
+          ),
+          const Divider(height: 32),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: Text(
+              'Danger zone',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            onPressed: () async {
+              await _confirmDeleteAccount();
+            },
+            child: const Text(
+              'Delete Account',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),

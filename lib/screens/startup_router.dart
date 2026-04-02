@@ -1,89 +1,98 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../core/routes/app_routes.dart';
+import '../core/config/supabase_config.dart';
+import 'login_page.dart';
+import 'main_shell_page.dart';
+import 'welcome_onboarding_page.dart';
 
 // TEMP (testing): set to false before shipping — persist seenOnboarding = true (e.g. clear stuck “never finished”).
-const bool _kResetSeenOnboardingPrefToTrue = true;
+const bool _kResetSeenOnboardingPrefToTrue = false;
 
 // TEMP (testing): set to false before shipping — always show onboarding this launch (in-memory only if pref reset above is true).
-const bool _kForceShowOnboardingForTesting = true;
+const bool _kForceShowOnboardingForTesting = false;
 
 // TEMP (testing): set to false before shipping — clears persisted session so cold start never skips login.
-const bool _kForceLogoutOnStartupForTesting = false;
+const bool _kForceLogoutOnStartupForTesting = true;
 
-/// Single startup control: onboarding flag + session → one of welcome / login / dashboard.
-///
-/// Used as [MaterialApp.home]. No `Navigator` decision should duplicate this logic elsewhere.
-class StartupRouter extends StatefulWidget {
-  const StartupRouter({super.key});
+/// Onboarding flag resolved in [main] before [runApp]. Session is read live in [StartupRouter.build].
+class StartupSnapshot {
+  const StartupSnapshot({required this.hasSeenOnboarding});
 
-  @override
-  State<StartupRouter> createState() => _StartupRouterState();
-}
+  final bool hasSeenOnboarding;
 
-class _StartupRouterState extends State<StartupRouter> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_routeFromStartup());
-    });
-  }
-
-  Future<void> _routeFromStartup() async {
-    if (!mounted) return;
-
+  /// Prefs only (before first UI frame). Same key as onboarding completion.
+  static Future<StartupSnapshot> load() async {
     final prefs = await SharedPreferences.getInstance();
     var hasSeenOnboarding = prefs.getBool('seenOnboarding') ?? false;
     if (!hasSeenOnboarding) {
       final legacy = prefs.getBool('has_seen_welcome') ?? false;
       if (legacy) {
         await prefs.setBool('seenOnboarding', true);
-        if (!mounted) return;
         hasSeenOnboarding = true;
       }
     }
     if (_kResetSeenOnboardingPrefToTrue) {
       await prefs.setBool('seenOnboarding', true);
-      if (!mounted) return;
       hasSeenOnboarding = true;
     }
     if (_kForceShowOnboardingForTesting) {
       hasSeenOnboarding = false;
     }
-    if (!mounted) return;
 
-    // Onboarding always wins — do not branch on session until this is true.
-    if (!hasSeenOnboarding) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.welcome);
-      return;
+    return StartupSnapshot(hasSeenOnboarding: hasSeenOnboarding);
+  }
+}
+
+/// Run after [ensureSupabaseInitialized] (e.g. temp forced logout).
+Future<void> applyStartupTestingAfterSupabase() async {
+  if (!_kForceLogoutOnStartupForTesting) return;
+  try {
+    await Supabase.instance.client.auth.signOut();
+  } catch (_) {}
+}
+
+class StartupRouter extends StatefulWidget {
+  const StartupRouter({super.key, required this.snapshot});
+
+  final StartupSnapshot snapshot;
+
+  @override
+  State<StartupRouter> createState() => _StartupRouterState();
+}
+
+class _StartupRouterState extends State<StartupRouter> {
+  late bool _hasSeenOnboarding = widget.snapshot.hasSeenOnboarding;
+
+  @override
+  void didUpdateWidget(covariant StartupRouter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.snapshot.hasSeenOnboarding !=
+        widget.snapshot.hasSeenOnboarding) {
+      _hasSeenOnboarding = widget.snapshot.hasSeenOnboarding;
     }
+  }
 
-    if (_kForceLogoutOnStartupForTesting) {
-      await Supabase.instance.client.auth.signOut();
-    }
+  Future<void> _completeOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('seenOnboarding', true);
     if (!mounted) return;
-
-    final session = Supabase.instance.client.auth.currentSession;
-    if (!mounted) return;
-
-    if (session == null) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.auth);
-    } else {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
-    }
+    setState(() => _hasSeenOnboarding = true);
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
+    final session = readSupabaseSessionIfReady();
+
+    if (!_hasSeenOnboarding) {
+      return WelcomeOnboardingPage(onFinished: _completeOnboarding);
+    }
+
+    if (session == null) {
+      return const LoginPage();
+    }
+
+    return const MainShellPage();
   }
 }
