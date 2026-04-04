@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../utils/supabase_list.dart';
+
 /// Updates user's online presence (last_seen).
 class OnlinePresenceService {
   OnlinePresenceService._();
@@ -21,8 +23,8 @@ class OnlinePresenceService {
   }
 
   /// Fetches online users.
-  static Future<List<dynamic>> fetchOnlineUsers() async {
+  static Future<List<Map<String, dynamic>>> fetchOnlineUsers() async {
     final users = await Supabase.instance.client.from('online_users').select();
-    return users as List;
+    return mapListFrom(users);
   }
 }

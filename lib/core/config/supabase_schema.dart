@@ -28,7 +28,8 @@
 /// - id (uuid, PK)
 /// - user_id (uuid, reviewer — auth.users)
 /// - artist_id (uuid — profiles.id of tattoo artist)
-/// - rating (int 1–5 or smallint)
+/// - rating (int 1–5): overall experience (quality, communication, result)
+/// - cleanliness (int 1–5): hygiene, safety, studio cleanliness
 /// - comment (text)
 /// - created_at (timestamptz, default now) — used for sort newest first
 ///
@@ -153,6 +154,7 @@ abstract final class SupabaseReviews {
   static const String userId = 'user_id';
   static const String artistId = 'artist_id';
   static const String rating = 'rating';
+  static const String cleanliness = 'cleanliness';
   static const String comment = 'comment';
   static const String createdAt = 'created_at';
 }

@@ -17,6 +17,7 @@ import '../core/services/payment_status_service.dart';
 import '../core/services/contact_unlock_service.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
+import 'public_artist_profile_page.dart';
 
 /// Detail page for a tattoo request. Shows image and description.
 /// Opened when artist or customer taps a request card in Explore.
@@ -336,6 +337,24 @@ class _BidDetailPageState extends State<BidDetailPage>
       }
     }
     return best?.id;
+  }
+
+  void _openBidderProfile(Bid bid) {
+    final uid = bid.bidderId ?? bid.artistId;
+    if (uid == null || uid.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open this profile.')),
+      );
+      return;
+    }
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PublicArtistProfilePage(
+          userId: uid,
+          fromArtistsDirectory: false,
+        ),
+      ),
+    );
   }
 
   Future<void> _selectWinner(Bid bid) async {
@@ -1003,14 +1022,30 @@ class _BidDetailPageState extends State<BidDetailPage>
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              bid.bidderName ?? 'Artist',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 16,
+                                            InkWell(
+                                              onTap: () =>
+                                                  _openBidderProfile(bid),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  vertical: 2,
+                                                ),
+                                                child: Text(
+                                                  bid.bidderName ?? 'Artist',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 16,
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .primary,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
                                               ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
                                             ),
                                             if (subtitleParts.isNotEmpty) ...[
                                               const SizedBox(height: 4),

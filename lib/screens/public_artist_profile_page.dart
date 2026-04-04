@@ -6,6 +6,8 @@ import '../core/models/user_profile.dart';
 import '../core/services/chat_service.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/review_service.dart';
+import '../widgets/clean_hands_icon.dart';
+import '../widgets/tattoo_review_rating_widgets.dart';
 import 'chat_page.dart';
 
 /// Read-only profile for another user (e.g. opened from Artists directory).
@@ -36,7 +38,14 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
   List<ArtistReview> _reviews = [];
   final TextEditingController _reviewCommentController =
       TextEditingController();
+
+  /// Own controller, not primary; [keepScrollOffset] false avoids PageStorage
+  /// restoring a bad scroll value (can throw `bool` vs `double?` in
+  /// [ScrollPosition.restoreScrollOffset]) when nested under [ExpansionTile].
+  final ScrollController _reviewsListScrollController =
+      ScrollController(keepScrollOffset: false);
   int _draftRating = 0;
+  int _draftCleanliness = 0;
   bool _submittingReview = false;
 
   /// Chat + email/phone only after customer has paid (completed request with this artist).
@@ -51,6 +60,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
   @override
   void dispose() {
     _reviewCommentController.dispose();
+    _reviewsListScrollController.dispose();
     super.dispose();
   }
 
@@ -98,9 +108,11 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
         _reviews = reviews;
         if (mine != null &&
             _reviewCommentController.text.trim().isEmpty &&
-            _draftRating == 0) {
+            _draftRating == 0 &&
+            _draftCleanliness == 0) {
           _reviewCommentController.text = mine.comment;
           _draftRating = mine.rating;
+          _draftCleanliness = mine.cleanliness;
         }
         _showContactAndChat = allowContact;
         _loading = false;
@@ -174,9 +186,11 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
         final mine = _myExistingReview;
         if (mine != null &&
             _reviewCommentController.text.trim().isEmpty &&
-            _draftRating == 0) {
+            _draftRating == 0 &&
+            _draftCleanliness == 0) {
           _reviewCommentController.text = mine.comment;
           _draftRating = mine.rating;
+          _draftCleanliness = mine.cleanliness;
         }
       });
     } catch (_) {
@@ -186,9 +200,16 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
 
   Future<void> _submitReview() async {
     final comment = _reviewCommentController.text.trim();
-    if (_draftRating < 1 || _draftRating > 5) {
+    if (_draftRating < 1 ||
+        _draftRating > 5 ||
+        _draftCleanliness < 1 ||
+        _draftCleanliness > 5) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a star rating.')),
+        const SnackBar(
+          content: Text(
+            'Please select both Rating and Cleanliness (1–5 stars each).',
+          ),
+        ),
       );
       return;
     }
@@ -203,12 +224,14 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
       final result = await ReviewService.submitReview(
         artistId: widget.userId,
         rating: _draftRating,
+        cleanliness: _draftCleanliness,
         comment: comment,
       );
       if (!mounted) return;
       _reviewCommentController.clear();
       setState(() {
         _draftRating = 0;
+        _draftCleanliness = 0;
         _submittingReview = false;
       });
       await _refreshReviewsOnly();
@@ -359,46 +382,112 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                     ),
               )
             else ...[
-              Text(
-                '${ReviewService.averageRating(_reviews).toStringAsFixed(1)} average',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+              TattooDualRatingAveragesHeader(
+                experienceAverage: ReviewService.averageExperience(_reviews),
+                cleanlinessAverage: ReviewService.averageCleanliness(_reviews),
               ),
-              const SizedBox(height: 6),
-              Center(
-                child: _ReviewStarRow(
-                  rating:
-                      ReviewService.averageRating(_reviews).round().clamp(1, 5),
-                  size: 22,
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            ..._reviews.map(
-              (r) => Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ReviewStarRow(rating: r.rating, size: 18),
-                    const SizedBox(height: 6),
-                    Text(
-                      r.comment,
-                      style: Theme.of(context).textTheme.bodyMedium,
+              const SizedBox(height: 8),
+              Material(
+                color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(12),
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    dividerColor: Colors.transparent,
+                  ),
+                  child:                   ExpansionTile(
+                    // ValueKey: avoid PageStorageKey colliding with nested scroll
+                    // offset buckets (same class of bool/double restore bugs).
+                    key: ValueKey<String>('reviews_tile_${widget.userId}'),
+                    initiallyExpanded: false,
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _formatReviewDate(r.createdAt),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    collapsedShape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    leading: Icon(
+                      Icons.rate_review_outlined,
+                      color: scheme.primary,
+                    ),
+                    title: Text(
+                      'Previous reviews',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    subtitle: Text(
+                      '${_reviews.length} review${_reviews.length == 1 ? '' : 's'} · tap to expand',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: scheme.outline,
                           ),
                     ),
-                  ],
+                    childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                    children: [
+                      SizedBox(
+                        height: ((MediaQuery.sizeOf(context).height * 0.38)
+                                .clamp(220.0, 400.0))
+                            .toDouble(),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: scheme.surfaceContainerHighest
+                                .withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color:
+                                  scheme.outlineVariant.withValues(alpha: 0.45),
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Scrollbar(
+                              controller: _reviewsListScrollController,
+                              thumbVisibility: _reviews.length > 2,
+                              child: ListView.separated(
+                                controller: _reviewsListScrollController,
+                                primary: false,
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  12,
+                                  12,
+                                  12,
+                                ),
+                                physics: const BouncingScrollPhysics(
+                                  parent: AlwaysScrollableScrollPhysics(),
+                                ),
+                                itemCount: _reviews.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final review = _reviews[index];
+                                  final rating =
+                                      (review['rating'] as num?)?.toDouble() ??
+                                          0.0;
+                                  final cleanliness =
+                                      (review['cleanliness'] as num?)
+                                              ?.toDouble() ??
+                                          0.0;
+                                  return _buildReviewListCard(
+                                    context,
+                                    review,
+                                    rating: rating,
+                                    cleanliness: cleanliness,
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
+            if (_reviews.isNotEmpty) const SizedBox(height: 16),
             if (Supabase.instance.client.auth.currentUser != null &&
                 !_isOwnProfile) ...[
               const SizedBox(height: 8),
@@ -411,27 +500,18 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                     ),
               ),
               const SizedBox(height: 8),
-              Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(5, (i) {
-                    final value = i + 1;
-                    final filled = value <= _draftRating;
-                    return IconButton(
-                      onPressed: _submittingReview
-                          ? null
-                          : () => setState(() => _draftRating = value),
-                      icon: Icon(
-                        Icons.star_rounded,
-                        color: filled
-                            ? const Color(0xFFFFC107)
-                            : scheme.outline.withValues(alpha: 0.45),
-                        size: 36,
-                      ),
-                    );
-                  }),
-                ),
+              TattooExperienceStarPicker(
+                value: _draftRating,
+                enabled: !_submittingReview,
+                onChanged: (v) => setState(() => _draftRating = v),
               ),
+              const SizedBox(height: 8),
+              TattooCleanlinessStarPicker(
+                value: _draftCleanliness,
+                enabled: !_submittingReview,
+                onChanged: (v) => setState(() => _draftCleanliness = v),
+              ),
+              const SizedBox(height: 4),
               TextField(
                 controller: _reviewCommentController,
                 enabled: !_submittingReview,
@@ -540,40 +620,113 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
     );
   }
 
+  /// One review entry inside the scrollable reviews list (plain rows, no field chrome).
+  /// [rating] / [cleanliness] must come from Step 3:
+  /// `(value as num?)?.toDouble() ?? 0.0` (see list [itemBuilder]).
+  Widget _buildReviewListCard(
+    BuildContext context,
+    ArtistReview r, {
+    required double rating,
+    required double cleanliness,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final int ratingStars = rating.round().clamp(1, 5);
+    final int cleanlinessStars = cleanliness.round().clamp(1, 5);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.star_rounded,
+                        color: Color(0xFFFFC107),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Rating',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFFFC107),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TattooExperienceStarBar(
+                      value: ratingStars,
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const CleanHandsIcon(size: 16),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Cleanliness',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2E7D32),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TattooCleanlinessStarBar(
+                      value: cleanlinessStars,
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          r.comment,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _formatReviewDate(r.createdAt),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: scheme.outline,
+              ),
+        ),
+      ],
+    );
+  }
+
   String _formatReviewDate(DateTime dt) {
     final y = dt.year.toString().padLeft(4, '0');
     final m = dt.month.toString().padLeft(2, '0');
     final d = dt.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
-  }
-}
-
-/// Non-interactive 1–5 star row for display.
-class _ReviewStarRow extends StatelessWidget {
-  const _ReviewStarRow({
-    required this.rating,
-    this.size = 20,
-  });
-
-  final int rating;
-  final double size;
-
-  static const Color _gold = Color(0xFFFFC107);
-
-  @override
-  Widget build(BuildContext context) {
-    final emptyColor =
-        Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(
-        5,
-        (i) => Icon(
-          Icons.star_rounded,
-          color: i < rating ? _gold : emptyColor,
-          size: size,
-        ),
-      ),
-    );
   }
 }

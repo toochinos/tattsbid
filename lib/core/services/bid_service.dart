@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_schema.dart';
+import '../utils/supabase_list.dart';
 import '../models/bid.dart';
 
 /// Fetches bids on tattoo requests. Only tattoo artists can place bids.
@@ -80,8 +81,7 @@ class BidService {
         .select('${SupabaseProfiles.id}, ${SupabaseProfiles.displayName}')
         .inFilter(SupabaseProfiles.id, userIds);
     final map = <String, String>{};
-    for (final row in res as List<dynamic>) {
-      final m = row as Map<String, dynamic>;
+    for (final m in mapListFrom(res)) {
       final id = m[SupabaseProfiles.id] as String?;
       final name = m[SupabaseProfiles.displayName] as String?;
       if (id != null && name != null && name.trim().isNotEmpty) {
@@ -99,17 +99,15 @@ class BidService {
         .eq('request_id', requestId)
         .order(SupabaseBids.amount);
 
-    final rows = res as List;
+    final rows = mapListFrom(res);
     final bidderIds = rows
-        .map((r) =>
-            (r as Map<String, dynamic>)[SupabaseBids.bidderId] as String?)
+        .map((r) => r[SupabaseBids.bidderId] as String?)
         .whereType<String>()
         .toSet()
         .toList();
     final names = await _fetchDisplayNames(bidderIds);
 
-    return rows.map((e) {
-      final m = e as Map<String, dynamic>;
+    return rows.map((m) {
       final bidderId = m[SupabaseBids.bidderId] as String?;
       return Bid.fromJson(
         m,

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_schema.dart';
+import '../utils/supabase_list.dart';
 import '../models/artist_directory_entry.dart';
 import '../models/user_profile.dart';
 
@@ -79,8 +80,7 @@ class ProfileService {
           .select('${SupabaseProfiles.id}, ${SupabaseProfiles.displayName}')
           .inFilter(SupabaseProfiles.id, unique);
       final map = <String, String>{};
-      for (final row in res as List<dynamic>) {
-        final m = row as Map<String, dynamic>;
+      for (final m in mapListFrom(res)) {
         final id = m[SupabaseProfiles.id] as String?;
         final dn = m[SupabaseProfiles.displayName] as String?;
         if (id != null) {
@@ -113,8 +113,7 @@ class ProfileService {
           .eq(SupabaseProfiles.userType, 'tattoo_artist');
 
       final out = <ArtistDirectoryEntry>[];
-      for (final raw in res as List) {
-        final m = raw as Map<String, dynamic>;
+      for (final m in mapListFrom(res)) {
         try {
           out.add(ArtistDirectoryEntry.fromSupabaseRow(m));
         } catch (_) {
@@ -156,7 +155,7 @@ class ProfileService {
       SupabaseProfiles.lastLocationUpdate,
       ascending: true,
     );
-    return List<Map<String, dynamic>>.from(res as List);
+    return mapListFrom(res);
   }
 
   /// Public profile fields for another user (e.g. bid winner). No auth email.

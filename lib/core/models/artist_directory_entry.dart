@@ -1,4 +1,5 @@
 import '../config/supabase_schema.dart';
+import '../utils/safe_double.dart' show doubleFromJsonNumNullable;
 
 /// Row for the Artists directory list (browse tattoo artists).
 ///
@@ -32,8 +33,8 @@ class ArtistDirectoryEntry {
   static double? _ratingFromRow(Map<String, dynamic> m) {
     final v = m['rating'];
     if (v == null) return null;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString());
+    if (v is String && v.trim().isEmpty) return null;
+    return doubleFromJsonNumNullable(v);
   }
 
   factory ArtistDirectoryEntry.fromSupabaseRow(Map<String, dynamic> m) {

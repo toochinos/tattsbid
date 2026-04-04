@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_schema.dart';
+import '../utils/supabase_list.dart';
 import '../models/tattoo_request.dart';
 
 /// Creates and manages tattoo requests (photo + description + starting bid).
@@ -19,8 +20,7 @@ class TattooRequestService {
             '${SupabaseProfiles.id}, ${SupabaseProfiles.displayName}, ${SupabaseProfiles.location}')
         .inFilter(SupabaseProfiles.id, userIds);
     final map = <String, ({String? name, String? location})>{};
-    for (final row in res as List<dynamic>) {
-      final m = row as Map<String, dynamic>;
+    for (final m in mapListFrom(res)) {
       final id = m[SupabaseProfiles.id] as String?;
       final name = m[SupabaseProfiles.displayName] as String?;
       final location = m[SupabaseProfiles.location] as String?;
@@ -40,8 +40,7 @@ class TattooRequestService {
         .select(SupabaseBids.requestId)
         .inFilter(SupabaseBids.requestId, requestIds);
     final counts = <String, int>{};
-    for (final row in res as List<dynamic>) {
-      final m = row as Map<String, dynamic>;
+    for (final m in mapListFrom(res)) {
       final rid = m[SupabaseBids.requestId] as String?;
       if (rid != null) {
         counts[rid] = (counts[rid] ?? 0) + 1;
@@ -110,7 +109,7 @@ class TattooRequestService {
         .eq(SupabaseTattooRequests.userId, user.id)
         .select();
 
-    final list = res as List;
+    final list = mapListFrom(res);
     if (list.isEmpty) {
       throw StateError('Delete failed: row not found or you are not the owner');
     }
@@ -153,7 +152,7 @@ class TattooRequestService {
         .eq(SupabaseTattooRequests.userId, user.id)
         .select();
 
-    final list = res as List;
+    final list = mapListFrom(res);
     if (list.isEmpty) {
       throw StateError(
         'Could not mark request completed: not found or not owner',
@@ -168,7 +167,7 @@ class TattooRequestService {
         .select()
         .order(SupabaseTattooRequests.createdAt, ascending: false);
 
-    return _withDisplayNames(res as List<dynamic>);
+    return _withDisplayNames(mapListFrom(res));
   }
 
   /// Fetches tattoo requests for the Explore page.
@@ -178,7 +177,7 @@ class TattooRequestService {
         .select()
         .order(SupabaseTattooRequests.createdAt, ascending: false);
 
-    return _withDisplayNames(res as List<dynamic>);
+    return _withDisplayNames(mapListFrom(res));
   }
 
   /// Latest row for one request (e.g. after payment — refresh status / winning_bid_id).
@@ -190,13 +189,13 @@ class TattooRequestService {
         .eq(SupabaseTattooRequests.id, requestId.trim())
         .maybeSingle();
     if (res == null) return null;
-    final list = await _withDisplayNames([res]);
+    final list = await _withDisplayNames(mapListFrom([res]));
     return list.isEmpty ? null : list.first;
   }
 
   static Future<List<TattooRequest>> _withDisplayNames(
-      List<dynamic> rows) async {
-    final requests = rows as List<Map<String, dynamic>>;
+      List<Map<String, dynamic>> rows) async {
+    final requests = rows;
     final userIds = requests
         .map((r) => r[SupabaseTattooRequests.userId] as String)
         .toSet()

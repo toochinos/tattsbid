@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_schema.dart';
+import '../utils/supabase_list.dart';
 import '../../screens/public_artist_profile_page.dart';
 
 /// Reads [bids.payment_status] for a request and navigates when paid.
@@ -77,8 +78,7 @@ class PaymentStatusService {
         .select()
         .eq(SupabaseBids.requestId, requestId)
         .eq(SupabaseBids.paymentStatus, 'paid');
-    for (final raw in rows as List<dynamic>) {
-      final m = raw as Map<String, dynamic>;
+    for (final m in mapListFrom(rows)) {
       final b = m[SupabaseBids.bidderId] as String?;
       if (b != null && b.isNotEmpty) return b;
     }
@@ -112,9 +112,8 @@ class PaymentStatusService {
             .from(SupabaseBids.table)
             .select()
             .eq(SupabaseBids.requestId, trimmed);
-        final list = rows as List<dynamic>;
-        for (final r in list) {
-          final m = r as Map<String, dynamic>;
+        final list = mapListFrom(rows);
+        for (final m in list) {
           if (m[SupabaseBids.paymentStatus] == 'paid') {
             row = m;
             break;

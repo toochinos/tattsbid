@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_schema.dart';
+import '../utils/supabase_list.dart';
 import '../models/chat_conversation_summary.dart';
 import '../models/chat_message.dart';
 import '../models/paid_artist_contact.dart';
@@ -36,14 +37,11 @@ class ChatService {
           .eq(SupabaseChatMessages.senderId, partnerId)
           .isFilter(SupabaseChatMessages.readAt, null);
 
-      final rows = pending as List;
+      final rows = mapListFrom(pending);
       if (rows.isEmpty) return;
 
       final ids = rows
-          .map(
-            (raw) => (raw as Map<String, dynamic>)[SupabaseChatMessages.id]
-                as String?,
-          )
+          .map((m) => m[SupabaseChatMessages.id] as String?)
           .whereType<String>()
           .toList();
       if (ids.isEmpty) return;
@@ -151,8 +149,7 @@ class ChatService {
 
       final requestIds = <String>[];
       final winIds = <String>[];
-      for (final raw in reqRes as List) {
-        final m = raw as Map<String, dynamic>;
+      for (final m in mapListFrom(reqRes)) {
         final rid = m[SupabaseTattooRequests.id] as String?;
         final wb = m[SupabaseTattooRequests.winningBidId] as String?;
         if (rid != null && rid.isNotEmpty) requestIds.add(rid);
@@ -165,8 +162,7 @@ class ChatService {
           .select()
           .inFilter(SupabaseBids.requestId, requestIds);
       final winSet = winIds.toSet();
-      final paidBids = (allForRequests as List)
-          .map((e) => e as Map<String, dynamic>)
+      final paidBids = mapListFrom(allForRequests)
           .where((m) => _paymentStatusIsPaid(m[SupabaseBids.paymentStatus]))
           .toList();
       paidBids.sort((a, b) {
@@ -197,8 +193,7 @@ class ChatService {
           .inFilter(SupabaseProfiles.id, artistIds.toList());
 
       final profileById = <String, Map<String, dynamic>>{};
-      for (final raw in profilesRes as List) {
-        final m = raw as Map<String, dynamic>;
+      for (final m in mapListFrom(profilesRes)) {
         final id = m[SupabaseProfiles.id] as String?;
         if (id != null) profileById[id] = m;
       }
@@ -272,7 +267,7 @@ class ChatService {
         .order(SupabaseChatMessages.createdAt, ascending: false)
         .limit(500);
 
-    final rows = res as List;
+    final rows = mapListFrom(res);
     final seenPartners = <String>{};
     final drafts = <({
       String partnerId,
@@ -281,8 +276,7 @@ class ChatService {
       String lastMessageSenderId,
     })>[];
 
-    for (final raw in rows) {
-      final row = raw as Map<String, dynamic>;
+    for (final row in rows) {
       final senderId = row[SupabaseChatMessages.senderId] as String?;
       final receiverId = row[SupabaseChatMessages.receiverId] as String?;
       if (senderId == null || receiverId == null) continue;
@@ -379,8 +373,7 @@ class ChatService {
           .select(SupabaseTattooRequests.winningBidId)
           .eq(SupabaseTattooRequests.userId, customerId);
       final bidIds = <String>[];
-      for (final raw in res as List) {
-        final m = raw as Map<String, dynamic>;
+      for (final m in mapListFrom(res)) {
         final bidId = m[SupabaseTattooRequests.winningBidId] as String?;
         if (bidId != null && bidId.isNotEmpty) bidIds.add(bidId);
       }
@@ -390,8 +383,7 @@ class ChatService {
           .select()
           .inFilter(SupabaseBids.id, bidIds);
       final out = <String>{};
-      for (final raw in bidsRes as List) {
-        final m = raw as Map<String, dynamic>;
+      for (final m in mapListFrom(bidsRes)) {
         if (!_paymentStatusIsPaid(m[SupabaseBids.paymentStatus])) continue;
         final b = m[SupabaseBids.bidderId] as String?;
         if (b != null) out.add(b);
@@ -425,8 +417,7 @@ class ChatService {
           .select()
           .eq(SupabaseBids.bidderId, artistId);
       final bidIds = <String>[];
-      for (final raw in bidRes as List) {
-        final m = raw as Map<String, dynamic>;
+      for (final m in mapListFrom(bidRes)) {
         if (!_paymentStatusIsPaid(m[SupabaseBids.paymentStatus])) continue;
         final id = m[SupabaseBids.id] as String?;
         if (id != null) bidIds.add(id);
@@ -437,8 +428,7 @@ class ChatService {
           .select(SupabaseTattooRequests.userId)
           .inFilter(SupabaseTattooRequests.winningBidId, bidIds);
       final out = <String>{};
-      for (final raw in reqRows as List) {
-        final m = raw as Map<String, dynamic>;
+      for (final m in mapListFrom(reqRows)) {
         final u = m[SupabaseTattooRequests.userId] as String?;
         if (u != null) out.add(u);
       }
@@ -505,8 +495,7 @@ class ChatService {
         .select('${SupabaseProfiles.id}, ${SupabaseProfiles.userType}')
         .inFilter(SupabaseProfiles.id, ids);
     final map = <String, String?>{};
-    for (final raw in res as List) {
-      final row = raw as Map<String, dynamic>;
+    for (final row in mapListFrom(res)) {
       final id = row[SupabaseProfiles.id] as String?;
       if (id != null) {
         map[id] = row[SupabaseProfiles.userType] as String?;
@@ -534,8 +523,7 @@ class ChatService {
           .select(SupabaseTattooRequests.userId)
           .inFilter(SupabaseTattooRequests.userId, unique);
       final owners = <String>{};
-      for (final row in tr as List) {
-        final m = row as Map<String, dynamic>;
+      for (final m in mapListFrom(tr)) {
         final u = m[SupabaseTattooRequests.userId] as String?;
         if (u != null) owners.add(u);
       }
@@ -552,8 +540,7 @@ class ChatService {
           .select(SupabaseBids.bidderId)
           .inFilter(SupabaseBids.bidderId, unique);
       final bidders = <String>{};
-      for (final row in bd as List) {
-        final m = row as Map<String, dynamic>;
+      for (final m in mapListFrom(bd)) {
         final b = m[SupabaseBids.bidderId] as String?;
         if (b != null) bidders.add(b);
       }
@@ -580,9 +567,9 @@ class ChatService {
         )
         .order(SupabaseChatMessages.createdAt, ascending: true)
         .limit(1);
-    final list = res as List;
+    final list = mapListFrom(res);
     if (list.isEmpty) return null;
-    final row = list.first as Map<String, dynamic>;
+    final row = list.first;
     return row[SupabaseChatMessages.senderId] as String?;
   }
 
@@ -603,9 +590,7 @@ class ChatService {
         )
         .order(SupabaseChatMessages.createdAt, ascending: true);
 
-    return (res as List)
-        .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return mapListFrom(res).map(ChatMessage.fromJson).toList();
   }
 
   /// Sends a direct message to [receiverId].

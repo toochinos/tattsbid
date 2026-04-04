@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/models/artist_directory_entry.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/review_service.dart';
+import '../widgets/clean_hands_icon.dart';
 import 'public_artist_profile_page.dart';
 
 /// Browse tattoo artists (directory + search).
@@ -18,8 +19,8 @@ class _ArtistsPageState extends State<ArtistsPage> {
 
   List<ArtistDirectoryEntry> _all = [];
 
-  /// Average from `reviews` table, keyed by artist profile id.
-  Map<String, double> _reviewAverages = {};
+  /// Separate means from `reviews` (rating + cleanliness), keyed by artist id.
+  Map<String, ArtistDualRatingAverages> _reviewAverages = {};
   bool _loading = true;
   String? _error;
 
@@ -43,9 +44,9 @@ class _ArtistsPageState extends State<ArtistsPage> {
     });
     try {
       final list = await ProfileService.fetchTattooArtistsForDirectory();
-      var averages = <String, double>{};
+      var averages = <String, ArtistDualRatingAverages>{};
       try {
-        averages = await ReviewService.fetchAverageRatingsForArtistIds(
+        averages = await ReviewService.fetchDualAveragesForArtistIds(
           list.map((a) => a.id),
         );
       } catch (_) {
@@ -217,8 +218,10 @@ class _ArtistsPageState extends State<ArtistsPage> {
           final artist = list[index];
           final hasLocation =
               artist.location != null && artist.location!.trim().isNotEmpty;
-          final displayRating = _reviewAverages[artist.id] ?? artist.rating;
-          final hasRating = displayRating != null && displayRating > 0;
+          final dual = _reviewAverages[artist.id];
+          final expMean = dual?.experienceMean ?? artist.rating ?? 0;
+          final cleanMean = dual?.cleanlinessMean ?? 0;
+          final hasRating = expMean > 0 || cleanMean > 0;
           return ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -270,8 +273,9 @@ class _ArtistsPageState extends State<ArtistsPage> {
                             padding: EdgeInsets.only(
                               top: hasLocation ? 6 : 0,
                             ),
-                            child: _DirectoryStarReviewRow(
-                              average: displayRating,
+                            child: _DirectoryDualRatingLines(
+                              experienceAverage: expMean,
+                              cleanlinessAverage: cleanMean,
                             ),
                           ),
                       ],
@@ -289,34 +293,78 @@ class _ArtistsPageState extends State<ArtistsPage> {
   }
 }
 
-/// Five-star display + numeric average (matches review UI styling).
-class _DirectoryStarReviewRow extends StatelessWidget {
-  const _DirectoryStarReviewRow({required this.average});
+/// Compact dual lines for directory list (no combined score).
+class _DirectoryDualRatingLines extends StatelessWidget {
+  const _DirectoryDualRatingLines({
+    required this.experienceAverage,
+    required this.cleanlinessAverage,
+  });
 
-  final double average;
+  final double experienceAverage;
+  final double cleanlinessAverage;
+
   static const Color _gold = Color(0xFFFFC107);
+  static const Color _green = Color(0xFF2E7D32);
 
   @override
   Widget build(BuildContext context) {
     final empty = Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
-    final filledCount = average.round().clamp(1, 5);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ...List.generate(
-          5,
-          (i) => Icon(
-            Icons.star_rounded,
-            size: 18,
-            color: i < filledCount ? _gold : empty,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          average.toStringAsFixed(1),
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+    final bodySmall = Theme.of(context).textTheme.bodySmall;
+
+    Widget line({
+      required Widget leading,
+      required Color starColor,
+      required String label,
+      required double average,
+    }) {
+      if (average <= 0) return const SizedBox.shrink();
+      final filled = average.round().clamp(1, 5);
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            leading,
+            const SizedBox(width: 4),
+            Text(
+              '$label: ',
+              style: bodySmall?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: starColor,
               ),
+            ),
+            ...List.generate(
+              5,
+              (i) => Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: i < filled ? starColor : empty,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              average.toStringAsFixed(1),
+              style: bodySmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        line(
+          leading: Icon(Icons.star_rounded, size: 16, color: _gold),
+          starColor: _gold,
+          label: 'Rating',
+          average: experienceAverage,
+        ),
+        line(
+          leading: const CleanHandsIcon(size: 14),
+          starColor: _green,
+          label: 'Cleanliness',
+          average: cleanlinessAverage,
         ),
       ],
     );
