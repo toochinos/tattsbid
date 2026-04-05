@@ -21,6 +21,22 @@ class ReviewService {
 
   static SupabaseClient get _client => Supabase.instance.client;
 
+  /// One [ArtistReview] per [ArtistReview.userId] (newest [createdAt] wins).
+  static List<ArtistReview> _dedupeReviewsNewestPerUser(
+    List<ArtistReview> rows,
+  ) {
+    final byUser = <String, ArtistReview>{};
+    for (final r in rows) {
+      final prev = byUser[r.userId];
+      if (prev == null || r.createdAt.isAfter(prev.createdAt)) {
+        byUser[r.userId] = r;
+      }
+    }
+    final list = byUser.values.toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list;
+  }
+
   /// Newest first.
   static Future<List<ArtistReview>> fetchForArtist(String artistId) async {
     if (artistId.trim().isEmpty) return [];
@@ -39,7 +55,7 @@ class ReviewService {
         // skip bad rows
       }
     }
-    return out;
+    return _dedupeReviewsNewestPerUser(out);
   }
 
   /// Mean overall experience (1–5 stars), or `0` if empty.
@@ -154,26 +170,23 @@ class ReviewService {
         .eq(SupabaseReviews.artistId, aid)
         .maybeSingle();
 
-    if (existing != null) {
-      if (!allowEdit) return ReviewSubmitResult.alreadyReviewed;
-      final id = existing[SupabaseReviews.id] as String?;
-      if (id == null || id.isEmpty) return ReviewSubmitResult.alreadyReviewed;
-      await _client.from(SupabaseReviews.table).update({
-        SupabaseReviews.rating: r,
-        SupabaseReviews.cleanliness: cl,
-        SupabaseReviews.comment: c,
-      }).eq(SupabaseReviews.id, id);
-      return ReviewSubmitResult.updated;
+    if (existing != null && !allowEdit) {
+      return ReviewSubmitResult.alreadyReviewed;
     }
 
-    await _client.from(SupabaseReviews.table).insert({
-      SupabaseReviews.userId: user.id,
-      SupabaseReviews.artistId: aid,
-      SupabaseReviews.rating: r,
-      SupabaseReviews.cleanliness: cl,
-      SupabaseReviews.comment: c,
-    });
-    return ReviewSubmitResult.created;
+    // Single row per (user_id, artist_id): DB UNIQUE + upsert avoids race duplicates.
+    final wasUpdate = existing != null;
+    await _client.from(SupabaseReviews.table).upsert(
+          {
+            SupabaseReviews.userId: user.id,
+            SupabaseReviews.artistId: aid,
+            SupabaseReviews.rating: r,
+            SupabaseReviews.cleanliness: cl,
+            SupabaseReviews.comment: c,
+          },
+          onConflict: '${SupabaseReviews.userId},${SupabaseReviews.artistId}',
+        );
+    return wasUpdate ? ReviewSubmitResult.updated : ReviewSubmitResult.created;
   }
 }
 

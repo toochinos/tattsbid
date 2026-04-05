@@ -96,22 +96,59 @@ class ProfileService {
     }
   }
 
-  /// All tattoo artists for the Artists directory (alphabetical sort is done in app).
-  /// Requires RLS to allow authenticated users to read artist profiles.
+  /// Escapes `%` / `_` for safe use inside PostgREST `ilike` patterns.
+  static String _escapeIlike(String raw) {
+    return raw
+        .replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
+  }
+
+  /// PostgREST `or(...)` clause: match text against name, location line, city, suburb, or country (not bio).
+  static String _directoryTextSearchOrClause(String escapedPattern) {
+    final p = '%$escapedPattern%';
+    return '${SupabaseProfiles.displayName}.ilike.$p,'
+        '${SupabaseProfiles.location}.ilike.$p,'
+        '${SupabaseProfiles.city}.ilike.$p,'
+        '${SupabaseProfiles.suburb}.ilike.$p,'
+        '${SupabaseProfiles.country}.ilike.$p';
+  }
+
+  /// Tattoo artists for the directory with optional Supabase filters.
+  ///
+  /// - [textSearch]: matches `display_name`, `location`, `city`, `suburb`, or `country` (OR).
+  /// - [locationFilter]: matches `location` (e.g. "Near me" using the user's saved area).
+  /// - When **both** are set: text matches the OR above **AND** `location ILIKE locationFilter`.
   ///
   /// Optional `rating` on [profiles] is read when present.
-  static Future<List<ArtistDirectoryEntry>>
-      fetchTattooArtistsForDirectory() async {
+  static Future<List<ArtistDirectoryEntry>> fetchArtistsForDirectory({
+    String? textSearch,
+    String? locationFilter,
+  }) async {
     final user = _client.auth.currentUser;
     if (user == null) {
       throw StateError('You must be signed in to browse artists');
     }
+    final t = _escapeIlike(textSearch?.trim() ?? '');
+    final loc = _escapeIlike(locationFilter?.trim() ?? '');
+
     try {
-      final res = await _client
+      var query = _client
           .from(SupabaseProfiles.table)
           .select()
           .eq(SupabaseProfiles.userType, 'tattoo_artist');
 
+      if (t.isNotEmpty && loc.isNotEmpty) {
+        query = query
+            .or(_directoryTextSearchOrClause(t))
+            .filter(SupabaseProfiles.location, 'ilike', '%$loc%');
+      } else if (t.isNotEmpty) {
+        query = query.or(_directoryTextSearchOrClause(t));
+      } else if (loc.isNotEmpty) {
+        query = query.filter(SupabaseProfiles.location, 'ilike', '%$loc%');
+      }
+
+      final res = await query;
       final out = <ArtistDirectoryEntry>[];
       for (final m in mapListFrom(res)) {
         try {
@@ -126,6 +163,10 @@ class ProfileService {
       throw Exception('Could not load artists: $e');
     }
   }
+
+  /// Loads all tattoo artists (no text / location filter).
+  static Future<List<ArtistDirectoryEntry>> fetchTattooArtistsForDirectory() =>
+      fetchArtistsForDirectory();
 
   /// Location-aware profile search within a selected country.
   ///

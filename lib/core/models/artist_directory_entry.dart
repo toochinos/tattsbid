@@ -10,6 +10,9 @@ class ArtistDirectoryEntry {
     required this.displayName,
     this.avatarUrl,
     this.location,
+    this.suburb,
+    this.city,
+    this.country,
     this.rating,
   });
 
@@ -17,9 +20,18 @@ class ArtistDirectoryEntry {
   final String displayName;
   final String? avatarUrl;
   final String? location;
+  final String? suburb;
+  final String? city;
+  final String? country;
 
   /// Average rating when stored on profile; null if unavailable.
   final double? rating;
+
+  /// True if any location field is non-empty (structured or legacy [location]).
+  bool get hasLocationDisplay {
+    bool nz(String? s) => s != null && s.trim().isNotEmpty;
+    return nz(suburb) || nz(city) || nz(country) || nz(location);
+  }
 
   /// Lowercase name for A–Z sorting.
   String get sortKey => displayName.trim().toLowerCase();
@@ -45,11 +57,19 @@ class ArtistDirectoryEntry {
     final locRaw = m[SupabaseProfiles.location] as String?;
     final location =
         (locRaw != null && locRaw.trim().isNotEmpty) ? locRaw.trim() : null;
+    String? nz(String? raw) {
+      final t = raw?.trim();
+      return (t != null && t.isNotEmpty) ? t : null;
+    }
+
     return ArtistDirectoryEntry(
       id: id,
       displayName: _nameFromRow(m),
       avatarUrl: m[SupabaseProfiles.avatarUrl] as String?,
       location: location,
+      suburb: nz(m[SupabaseProfiles.suburb] as String?),
+      city: nz(m[SupabaseProfiles.city] as String?),
+      country: nz(m[SupabaseProfiles.country] as String?),
       rating: _ratingFromRow(m),
     );
   }

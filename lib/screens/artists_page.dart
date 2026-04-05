@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/models/artist_directory_entry.dart';
+import '../core/models/user_profile.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/review_service.dart';
 import '../widgets/clean_hands_icon.dart';
@@ -17,6 +20,9 @@ class ArtistsPage extends StatefulWidget {
 class _ArtistsPageState extends State<ArtistsPage> {
   final TextEditingController _searchController = TextEditingController();
 
+  /// When set (e.g. via Near me), results must also match this `location` ILIKE.
+  String? _nearMeLocationFilter;
+
   List<ArtistDirectoryEntry> _all = [];
 
   /// Separate means from `reviews` (rating + cleanliness), keyed by artist id.
@@ -24,26 +30,55 @@ class _ArtistsPageState extends State<ArtistsPage> {
   bool _loading = true;
   String? _error;
 
+  Timer? _searchDebounce;
+
   @override
   void initState() {
     super.initState();
-    _load();
-    _searchController.addListener(() => setState(() {}));
+    _searchController.addListener(_onSearchTextChanged);
+    _loadInitial();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.removeListener(_onSearchTextChanged);
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
+  void _onSearchTextChanged() {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      _fetchArtists(showPageLoading: false);
     });
+  }
+
+  Future<void> _loadInitial() => _fetchArtists(showPageLoading: true);
+
+  /// Runs directory search immediately (keyboard search/enter) without waiting for debounce.
+  void _commitSearch() {
+    _searchDebounce?.cancel();
+    FocusScope.of(context).unfocus();
+    _fetchArtists(showPageLoading: false);
+  }
+
+  /// Loads artists from Supabase using optional text + optional Near me location filter.
+  Future<void> _fetchArtists({required bool showPageLoading}) async {
+    if (showPageLoading) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
-      final list = await ProfileService.fetchTattooArtistsForDirectory();
+      final text = _searchController.text.trim();
+      final list = await ProfileService.fetchArtistsForDirectory(
+        textSearch: text.isEmpty ? null : text,
+        locationFilter: _nearMeLocationFilter,
+      );
       var averages = <String, ArtistDualRatingAverages>{};
       try {
         averages = await ReviewService.fetchDualAveragesForArtistIds(
@@ -56,30 +91,61 @@ class _ArtistsPageState extends State<ArtistsPage> {
       setState(() {
         _all = list;
         _reviewAverages = averages;
-        _loading = false;
+        if (showPageLoading) _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _loading = false;
+        if (showPageLoading) _loading = false;
         _error = e.toString();
       });
     }
   }
 
-  List<ArtistDirectoryEntry> get _filtered {
-    final q = _searchController.text.trim().toLowerCase();
-    if (q.isEmpty) return _all;
-    return _all.where((a) {
-      final nameMatch = a.displayName.toLowerCase().contains(q);
-      final loc = (a.location ?? '').toLowerCase();
-      final locationMatch = loc.contains(q);
-      return nameMatch || locationMatch;
-    }).toList();
+  String? _savedLocationToken(UserProfile? p) {
+    if (p == null) return null;
+    final loc = p.location?.trim();
+    if (loc != null && loc.isNotEmpty) return loc;
+    final city = p.city?.trim();
+    if (city != null && city.isNotEmpty) return city;
+    final sub = p.suburb?.trim();
+    if (sub != null && sub.isNotEmpty) return sub;
+    return null;
+  }
+
+  Future<void> _onNearMePressed() async {
+    final profile = await ProfileService.getCurrentProfile();
+    final token = _savedLocationToken(profile);
+    if (!mounted) return;
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Add a location to your profile first (Profile → location).',
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _nearMeLocationFilter = token;
+      _searchController.text = token;
+    });
+    _searchDebounce?.cancel();
+    await _fetchArtists(showPageLoading: false);
+  }
+
+  void _clearSearch() {
+    _searchDebounce?.cancel();
+    setState(() {
+      _searchController.clear();
+      _nearMeLocationFilter = null;
+    });
+    _fetchArtists(showPageLoading: false);
   }
 
   void _openProfile(ArtistDirectoryEntry artist) {
-    Navigator.of(context).push<void>(
+    Navigator.of(context, rootNavigator: false).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => PublicArtistProfilePage(
           userId: artist.id,
@@ -89,8 +155,67 @@ class _ArtistsPageState extends State<ArtistsPage> {
     );
   }
 
+  /// Suburb, city, country (country bold); falls back to legacy [ArtistDirectoryEntry.location].
+  Widget _directoryLocationLine(ArtistDirectoryEntry artist) {
+    final scheme = Theme.of(context).colorScheme;
+    final baseStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: scheme.outline,
+        );
+    final countryStyle = baseStyle?.copyWith(fontWeight: FontWeight.w700);
+
+    final suburb = artist.suburb?.trim();
+    final city = artist.city?.trim();
+    final country = artist.country?.trim();
+    final legacy = artist.location?.trim();
+    final hasStructured = (suburb != null && suburb.isNotEmpty) ||
+        (city != null && city.isNotEmpty) ||
+        (country != null && country.isNotEmpty);
+
+    if (!hasStructured && (legacy == null || legacy.isEmpty)) {
+      return const SizedBox.shrink();
+    }
+
+    if (!hasStructured) {
+      return Text(
+        legacy!,
+        style: baseStyle,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    final spans = <InlineSpan>[];
+    var first = true;
+    void add(String text, {bool countryBold = false}) {
+      if (!first) {
+        spans.add(TextSpan(text: ', ', style: baseStyle));
+      }
+      first = false;
+      spans.add(
+        TextSpan(
+          text: text,
+          style: countryBold ? countryStyle : baseStyle,
+        ),
+      );
+    }
+
+    if (suburb != null && suburb.isNotEmpty) add(suburb);
+    if (city != null && city.isNotEmpty) add(city);
+    if (country != null && country.isNotEmpty) add(country, countryBold: true);
+
+    return Text.rich(
+      TextSpan(children: spans),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasQuery = _searchController.text.trim().isNotEmpty;
+    final showClear = hasQuery || _nearMeLocationFilter != null;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Artists'),
@@ -99,20 +224,66 @@ class _ArtistsPageState extends State<ArtistsPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: TextField(
               controller: _searchController,
               textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _commitSearch(),
               decoration: InputDecoration(
-                hintText: 'Search artist or location',
+                hintText: 'Name, city, suburb, or country',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.trim().isNotEmpty
-                    ? IconButton(
-                        onPressed: () => _searchController.clear(),
-                        icon: const Icon(Icons.close),
-                        tooltip: 'Clear search',
-                      )
-                    : null,
+                // Keep suffix intrinsic-width only — no [Flexible] here or it steals
+                // horizontal space from the editable text area beside the magnifying glass.
+                suffixIcon: Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: _onNearMePressed,
+                          icon: Icon(
+                            Icons.location_on_outlined,
+                            size: 18,
+                            color: scheme.primary,
+                          ),
+                          label: Text(
+                            'Artist near me',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.primary,
+                                ),
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      ),
+                      if (showClear)
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          tooltip: 'Clear search',
+                          onPressed: _clearSearch,
+                        ),
+                    ],
+                  ),
+                ),
+                suffixIconConstraints: const BoxConstraints(
+                  minHeight: 48,
+                  minWidth: 48,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -120,11 +291,26 @@ class _ArtistsPageState extends State<ArtistsPage> {
                 fillColor: Colors.white,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 12,
+                  vertical: 14,
                 ),
               ),
             ),
           ),
+          if (_nearMeLocationFilter != null) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Showing artists in ${_nearMeLocationFilter!}',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
           Expanded(
             child: _buildBody(context),
           ),
@@ -157,7 +343,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
               ),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: _load,
+                onPressed: _loadInitial,
                 child: const Text('Retry'),
               ),
             ],
@@ -166,7 +352,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
       );
     }
 
-    final list = _filtered;
+    final list = _all;
     if (list.isEmpty) {
       return Center(
         child: Padding(
@@ -181,7 +367,8 @@ class _ArtistsPageState extends State<ArtistsPage> {
               ),
               const SizedBox(height: 16),
               Text(
-                _all.isEmpty
+                _searchController.text.trim().isEmpty &&
+                        _nearMeLocationFilter == null
                     ? 'No artists found yet'
                     : 'No artists match your search',
                 style: Theme.of(context).textTheme.titleMedium,
@@ -189,7 +376,8 @@ class _ArtistsPageState extends State<ArtistsPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                _all.isEmpty
+                _searchController.text.trim().isEmpty &&
+                        _nearMeLocationFilter == null
                     ? 'Check back when tattoo artists join the platform.'
                     : 'Try a different name or location.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -204,7 +392,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
     }
 
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: () => _fetchArtists(showPageLoading: false),
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(0, 4, 0, 24),
         itemCount: list.length,
@@ -216,8 +404,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
         ),
         itemBuilder: (context, index) {
           final artist = list[index];
-          final hasLocation =
-              artist.location != null && artist.location!.trim().isNotEmpty;
+          final hasLocation = artist.hasLocationDisplay;
           final dual = _reviewAverages[artist.id];
           final expMean = dual?.experienceMean ?? artist.rating ?? 0;
           final cleanMean = dual?.cleanlinessMean ?? 0;
@@ -256,18 +443,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (hasLocation)
-                          Text(
-                            artist.location!.trim(),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(context).colorScheme.outline,
-                                ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        if (hasLocation) _directoryLocationLine(artist),
                         if (hasRating)
                           Padding(
                             padding: EdgeInsets.only(

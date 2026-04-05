@@ -374,6 +374,28 @@ class _BidDetailPageState extends State<BidDetailPage>
       );
       if (!mounted) return;
       setState(() => _winningBidId = bid.id);
+
+      final artistId = bid.bidderId ?? bid.artistId;
+      if (!AppConstants.isDepositPaymentEnabled &&
+          artistId != null &&
+          artistId.isNotEmpty) {
+        try {
+          await ContactUnlockService.recordUnlockAfterSuccessfulPayment(
+            requestId: _request.id,
+            artistId: artistId,
+            depositAmount: 0,
+          );
+        } catch (e, st) {
+          debugPrint('BidDetailPage free unlock: $e\n$st');
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not unlock contact: $e')),
+          );
+        }
+      }
+
+      // Stay on request details; [_loadUnlock] shows artist phone, email, and Chat.
+      await _loadBids(silent: true);
       await _loadUnlock();
     } catch (e) {
       if (!mounted) return;
@@ -384,6 +406,16 @@ class _BidDetailPageState extends State<BidDetailPage>
   }
 
   Future<void> _payWinningBid(Bid bid) async {
+    if (!AppConstants.isDepositPaymentEnabled) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Tap Choose artist on a bid to connect with your artist.'),
+        ),
+      );
+      return;
+    }
     if (_depositPaid) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -997,7 +1029,9 @@ class _BidDetailPageState extends State<BidDetailPage>
                               child: InkWell(
                                 onTap: _showArtistContactSection
                                     ? null
-                                    : (_canPayWinningBid && isSelectedForPayment
+                                    : (AppConstants.isDepositPaymentEnabled &&
+                                            _canPayWinningBid &&
+                                            isSelectedForPayment
                                         ? () => _payWinningBid(bid)
                                         : null),
                                 child: Padding(
@@ -1085,10 +1119,24 @@ class _BidDetailPageState extends State<BidDetailPage>
                                           ),
                                           if (_canPayWinningBid &&
                                               !isSelectedForPayment)
-                                            TextButton(
+                                            FilledButton.tonalIcon(
                                               onPressed: () =>
                                                   _selectWinner(bid),
-                                              child: const Text('Select'),
+                                              icon: const Icon(
+                                                Icons.person_add_alt_1,
+                                                size: 18,
+                                              ),
+                                              label:
+                                                  const Text('Choose artist'),
+                                              style: FilledButton.styleFrom(
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 10,
+                                                  vertical: 6,
+                                                ),
+                                              ),
                                             ),
                                           if (_canSelectWinner &&
                                               isSelectedForPayment) ...[
@@ -1111,7 +1159,9 @@ class _BidDetailPageState extends State<BidDetailPage>
                                                       ),
                                                 ),
                                               )
-                                            else if (!_showArtistContactSection)
+                                            else if (!_showArtistContactSection &&
+                                                AppConstants
+                                                    .isDepositPaymentEnabled)
                                               Padding(
                                                 padding: const EdgeInsets.only(
                                                   top: 4,
@@ -1141,7 +1191,9 @@ class _BidDetailPageState extends State<BidDetailPage>
                     Text(
                       (!_unlockLoading && _paidForContact)
                           ? 'Artist contact'
-                          : 'Deposit',
+                          : AppConstants.isDepositPaymentEnabled
+                              ? 'Deposit'
+                              : 'Connect',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
@@ -1231,7 +1283,9 @@ class _BidDetailPageState extends State<BidDetailPage>
     final rem = _remainingDollars;
     if (price == null || dep == null || rem == null) {
       return Text(
-        'Select a winning bid to see the deposit.',
+        AppConstants.isDepositPaymentEnabled
+            ? 'Choose a winning bid to see the deposit.'
+            : 'Choose a winning bid to connect with your artist.',
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: scheme.outline,
             ),
@@ -1239,6 +1293,15 @@ class _BidDetailPageState extends State<BidDetailPage>
     }
 
     final payBlocked = _winningBidModel == null;
+
+    if (!AppConstants.isDepositPaymentEnabled) {
+      return Text(
+        'Choose a winning bid above. You can chat with your artist right away.',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: scheme.outline,
+            ),
+      );
+    }
 
     return _DepositPayButton(
       totalPrice: price,

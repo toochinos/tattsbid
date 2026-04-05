@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../core/data/profile_location_suburbs.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
 import '../core/utils/pick_images.dart';
@@ -11,6 +12,7 @@ import '../core/utils/user_type_utils.dart';
 
 /// Contact details: display name, location, email, mobile, and user type.
 /// Email and mobile are required for everyone; artists’ contact may be shown after a winning bid.
+/// After sign-up ([fromSignUp]), a profile photo is required before Save is enabled.
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -193,6 +195,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     if (mobile.isEmpty || mobile.length > 40) return false;
 
+    if (widget.fromSignUp) {
+      final avatar = _avatarUrl?.trim() ?? '';
+      if (avatar.isEmpty) return false;
+    }
+
     return true;
   }
 
@@ -257,6 +264,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _onFieldChanged([_]) => setState(() {});
 
+  bool get _avatarMissingForSignUp =>
+      widget.fromSignUp && (_avatarUrl == null || _avatarUrl!.trim().isEmpty);
+
+  bool get _accountTypeMissing =>
+      !(_userType == 'tattoo_artist' || _userType == 'customer');
+
+  bool get _emailInvalidOrEmpty {
+    final s = _emailController.text.trim();
+    if (s.isEmpty) return true;
+    return !s.contains('@') || s.length > 254;
+  }
+
+  InputDecoration _outlinedFieldDecoration(
+    BuildContext context, {
+    required String labelText,
+    String? hintText,
+    String? helperText,
+    required bool showError,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    OutlineInputBorder border(Color color, {double width = 1}) =>
+        OutlineInputBorder(
+          borderSide: BorderSide(color: color, width: width),
+        );
+    final err = scheme.error;
+    final normal = scheme.outline;
+    final edge = showError ? err : normal;
+    final edgeW = showError ? 2.0 : 1.0;
+    return InputDecoration(
+      labelText: labelText,
+      hintText: hintText,
+      helperText: helperText,
+      border: border(edge, width: edgeW),
+      enabledBorder: border(edge, width: edgeW),
+      focusedBorder: border(showError ? err : scheme.primary, width: 2),
+      errorBorder: border(err, width: 2),
+      focusedErrorBorder: border(err, width: 2),
+    );
+  }
+
   bool get _hasPersistedAccountType =>
       _profileUserType == 'tattoo_artist' || _profileUserType == 'customer';
 
@@ -290,6 +337,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final theme = Theme.of(context);
     final selected = _userType == value;
     final bg = selected ? theme.colorScheme.primaryContainer : Colors.white;
+    final missingType = _accountTypeMissing;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
@@ -299,7 +347,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           side: selected
               ? BorderSide.none
               : BorderSide(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.35),
+                  color: missingType
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.outline.withValues(alpha: 0.35),
+                  width: missingType ? 2 : 1,
                 ),
         ),
         clipBehavior: Clip.antiAlias,
@@ -369,6 +420,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    if (widget.fromSignUp &&
+        (_avatarUrl == null || _avatarUrl!.trim().isEmpty)) {
+      setState(
+        () => _errorMessage = 'Please add a profile photo before saving.',
+      );
+      return;
+    }
+
     final displayName = _displayNameController.text.trim();
     final country = (_selectedCountry ?? '').trim();
     final city = (_selectedCity ?? '').trim();
@@ -421,73 +480,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Center(
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _uploadingAvatar
-                              ? null
-                              : () {
-                                  _showPhotoSourceSheet();
-                                },
-                          borderRadius: BorderRadius.circular(56),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            clipBehavior: Clip.none,
-                            children: [
-                              CircleAvatar(
-                                radius: 56,
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .primaryContainer,
-                                backgroundImage: _avatarUrl != null &&
-                                        _avatarUrl!.trim().isNotEmpty
-                                    ? NetworkImage(_avatarUrl!)
-                                    : null,
-                                child: _avatarUrl == null ||
-                                        _avatarUrl!.trim().isEmpty
-                                    ? Icon(
-                                        Icons.person,
-                                        size: 56,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onPrimaryContainer,
-                                      )
-                                    : null,
-                              ),
-                              if (_uploadingAvatar)
-                                Positioned.fill(
-                                  child: IgnorePointer(
-                                    child: Container(
-                                      decoration: const BoxDecoration(
-                                        color: Colors.black45,
-                                        shape: BoxShape.circle,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: _avatarMissingForSignUp
+                              ? Border.all(
+                                  color: Theme.of(context).colorScheme.error,
+                                  width: 2.5,
+                                )
+                              : Border.all(color: Colors.transparent, width: 0),
+                        ),
+                        padding: _avatarMissingForSignUp
+                            ? const EdgeInsets.all(3)
+                            : EdgeInsets.zero,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _uploadingAvatar
+                                ? null
+                                : () {
+                                    _showPhotoSourceSheet();
+                                  },
+                            borderRadius: BorderRadius.circular(56),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              clipBehavior: Clip.none,
+                              children: [
+                                CircleAvatar(
+                                  radius: 56,
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer,
+                                  backgroundImage: _avatarUrl != null &&
+                                          _avatarUrl!.trim().isNotEmpty
+                                      ? NetworkImage(_avatarUrl!)
+                                      : null,
+                                  child: _avatarUrl == null ||
+                                          _avatarUrl!.trim().isEmpty
+                                      ? Icon(
+                                          Icons.person,
+                                          size: 56,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onPrimaryContainer,
+                                        )
+                                      : null,
+                                ),
+                                if (_uploadingAvatar)
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      child: Container(
+                                        decoration: const BoxDecoration(
+                                          color: Colors.black45,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Center(
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                          ),
+                                        ),
                                       ),
-                                      child: const Center(
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
+                                    ),
+                                  )
+                                else
+                                  Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: IgnorePointer(
+                                      child: CircleAvatar(
+                                        backgroundColor: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        child: Icon(
+                                          Icons.camera_alt,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onPrimary,
                                         ),
                                       ),
                                     ),
                                   ),
-                                )
-                              else
-                                Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: IgnorePointer(
-                                    child: CircleAvatar(
-                                      backgroundColor:
-                                          Theme.of(context).colorScheme.primary,
-                                      child: Icon(
-                                        Icons.camera_alt,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -497,19 +571,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Text(
                         _uploadingAvatar
                             ? 'Uploading...'
-                            : 'Tap to change photo',
+                            : widget.fromSignUp &&
+                                    (_avatarUrl == null ||
+                                        _avatarUrl!.trim().isEmpty)
+                                ? 'Add a profile photo (required)'
+                                : 'Tap to change photo',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
+                              color: _avatarMissingForSignUp
+                                  ? Theme.of(context).colorScheme.error
+                                  : Theme.of(context).colorScheme.outline,
                             ),
                       ),
                     ),
                     const SizedBox(height: 24),
                     TextFormField(
                       controller: _displayNameController,
-                      decoration: const InputDecoration(
+                      decoration: _outlinedFieldDecoration(
+                        context,
                         labelText: 'Display name',
                         hintText: 'Your display name',
-                        border: OutlineInputBorder(),
+                        showError: _displayNameController.text.trim().isEmpty,
                       ),
                       textCapitalization: TextCapitalization.words,
                       validator: (v) {
@@ -524,15 +605,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       initialValue: _selectedCountry,
-                      decoration: const InputDecoration(
+                      decoration: _outlinedFieldDecoration(
+                        context,
                         labelText: 'Country',
-                        border: OutlineInputBorder(),
+                        showError: (_selectedCountry ?? '').trim().isEmpty,
                       ),
                       items: _countryOptions
                           .map(
                             (c) => DropdownMenuItem<String>(
                               value: c,
-                              child: Text(c),
+                              child: Text(
+                                c,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           )
                           .toList(),
@@ -544,6 +631,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           if (!nextCities.contains(_selectedCity)) {
                             _selectedCity = null;
                           }
+                          _suburbController.clear();
                         });
                       },
                       validator: (v) => (v == null || v.trim().isEmpty)
@@ -553,9 +641,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       initialValue: _selectedCity,
-                      decoration: const InputDecoration(
+                      decoration: _outlinedFieldDecoration(
+                        context,
                         labelText: 'City',
-                        border: OutlineInputBorder(),
+                        showError: (_selectedCity ?? '').trim().isEmpty,
                       ),
                       items: (() {
                         final cities =
@@ -577,7 +666,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             )
                             .toList();
                       })(),
-                      onChanged: (v) => setState(() => _selectedCity = v),
+                      onChanged: (v) {
+                        setState(() {
+                          _selectedCity = v;
+                          _suburbController.clear();
+                        });
+                      },
                       validator: (v) => (v == null || v.trim().isEmpty)
                           ? 'Select city'
                           : null,
@@ -585,10 +679,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _suburbController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Suburb (optional)',
                         hintText: 'Enter suburb',
-                        border: OutlineInputBorder(),
+                        helperText: _selectedCity != null &&
+                                ProfileLocationSuburbs.forCity(
+                                  _selectedCountry,
+                                  _selectedCity,
+                                ).isNotEmpty
+                            ? 'Or pick a suggestion below'
+                            : null,
+                        border: const OutlineInputBorder(),
                       ),
                       textCapitalization: TextCapitalization.words,
                       validator: (v) {
@@ -597,6 +698,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           return 'Suburb must be 100 characters or less';
                         }
                         return null;
+                      },
+                    ),
+                    Builder(
+                      builder: (context) {
+                        final suggestions = ProfileLocationSuburbs.forCity(
+                          _selectedCountry,
+                          _selectedCity,
+                        );
+                        if (suggestions.isEmpty || _selectedCity == null) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Suggested suburbs (optional)',
+                              border: OutlineInputBorder(),
+                              helperText:
+                                  'Tap to fill the suburb field above; you can edit it',
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                hint: const Text('Pick a suggested suburb'),
+                                items: suggestions
+                                    .map(
+                                      (s) => DropdownMenuItem<String>(
+                                        value: s,
+                                        child: Text(s),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v != null) {
+                                    setState(() => _suburbController.text = v);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        );
                       },
                     ),
                     const SizedBox(height: 24),
@@ -751,10 +893,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     TextFormField(
                       controller: _emailController,
-                      decoration: const InputDecoration(
+                      decoration: _outlinedFieldDecoration(
+                        context,
                         labelText: 'Email address',
                         hintText: 'your.email@example.com',
-                        border: OutlineInputBorder(),
+                        showError: _emailInvalidOrEmpty,
                       ),
                       keyboardType: TextInputType.emailAddress,
                       autocorrect: false,
@@ -770,10 +913,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _mobileController,
-                      decoration: const InputDecoration(
+                      decoration: _outlinedFieldDecoration(
+                        context,
                         labelText: 'Mobile number',
                         hintText: 'Your phone number',
-                        border: OutlineInputBorder(),
+                        showError: _mobileController.text.trim().isEmpty,
                       ),
                       keyboardType: TextInputType.phone,
                       validator: (v) {

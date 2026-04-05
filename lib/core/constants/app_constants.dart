@@ -33,6 +33,11 @@ class AppConstants {
 
   static Uri get verifyPaymentUrl => Uri.parse('$apiBaseUrl$verifyPaymentPath');
 
+  /// When `false`, selecting a winning bid unlocks contact/chat via
+  /// [ContactUnlockService.recordUnlockAfterSuccessfulPayment] without Stripe.
+  /// Set to `true` to restore the deposit checkout flow (all Stripe code stays in place).
+  static const bool isDepositPaymentEnabled = false;
+
   /// Deposit fee as a fraction of the winning bid (e.g. 0.10 = 10%).
   static const double platformFeeRate = 0.10;
 

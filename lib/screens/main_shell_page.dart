@@ -47,10 +47,16 @@ class MainShellPage extends StatefulWidget {
 class _MainShellPageState extends State<MainShellPage> {
   int _currentIndex = 0;
   final ValueNotifier<int> _exploreRefreshTrigger = ValueNotifier(0);
+  /// Bumped when the Message tab is tapped so [ChatPage] returns to the inbox list.
+  final ValueNotifier<int> _messageInboxResetTrigger = ValueNotifier(0);
   String? _userType;
   bool _profileLoaded = false;
   Timer? _presenceTimer;
   bool _didPushWinnerProfile = false;
+
+  /// Avoid rebuilding [Navigator] widgets every [setState] — keeps tab stacks stable.
+  List<Widget>? _memoTabPages;
+  bool? _memoIsCustomer;
 
   @override
   void initState() {
@@ -66,9 +72,14 @@ class _MainShellPageState extends State<MainShellPage> {
   Future<void> _loadProfile() async {
     final profile = await ProfileService.getCurrentProfile();
     if (!mounted) return;
+    final wasCustomer = _userType == 'customer';
     setState(() {
       _userType = profile?.userType;
       _profileLoaded = true;
+      if (_memoTabPages != null && wasCustomer != _isCustomer) {
+        _memoTabPages = null;
+        _memoIsCustomer = null;
+      }
       if (widget.openChatOnLaunch) {
         // Message tab: index 3 for customers (5 tabs), index 2 for artists (4 tabs).
         _currentIndex = _isCustomer ? 3 : 2;
@@ -102,7 +113,7 @@ class _MainShellPageState extends State<MainShellPage> {
 
   bool get _isCustomer => _userType == 'customer';
 
-  List<Widget> get _pages {
+  List<Widget> _buildTabPages() {
     final pages = <Widget>[
       Navigator(
         key: _navKeys[0],
@@ -132,27 +143,39 @@ class _MainShellPageState extends State<MainShellPage> {
         ),
       );
     }
+    final profileTabIndex = _isCustomer ? 4 : 3;
     pages.addAll([
       Navigator(
         key: _navKeys[_isCustomer ? 3 : 2],
         onGenerateRoute: (_) => MaterialPageRoute<void>(
-          builder: (_) =>
-              ChatPage(initialReceiverId: widget.initialChatReceiverId),
+          builder: (_) => ChatPage(
+            initialReceiverId: widget.initialChatReceiverId,
+            inboxResetTrigger: _messageInboxResetTrigger,
+          ),
         ),
       ),
       Navigator(
-        key: _navKeys[_isCustomer ? 4 : 3],
+        key: _navKeys[profileTabIndex],
         onGenerateRoute: (_) => MaterialPageRoute<void>(
           builder: (_) => ProfilePage(
             onProfileUpdated: () {
               _loadProfile();
-              setState(() => _currentIndex = _pages.length - 1);
+              setState(() => _currentIndex = profileTabIndex);
             },
           ),
         ),
       ),
     ]);
     return pages;
+  }
+
+  List<Widget> _tabPagesForIndexedStack() {
+    if (_memoTabPages != null && _memoIsCustomer == _isCustomer) {
+      return _memoTabPages!;
+    }
+    _memoIsCustomer = _isCustomer;
+    _memoTabPages = _buildTabPages();
+    return _memoTabPages!;
   }
 
   static final List<GlobalKey<NavigatorState>> _navKeys = [
@@ -218,6 +241,40 @@ class _MainShellPageState extends State<MainShellPage> {
     Navigator.of(context, rootNavigator: true).pushNamed(AppRoutes.settings);
   }
 
+  /// Bottom bar taps always show that tab’s root screen (pop nested routes).
+  void _popTabNavigatorToRoot(int tabIndex) {
+    void popNested() {
+      _navKeys[tabIndex].currentState?.popUntil((route) => route.isFirst);
+    }
+
+    popNested();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      popNested();
+    });
+  }
+
+  /// Tab taps: pop nested routes; Artists/Message also dismiss one root overlay.
+  /// Message: [ChatPage] uses in-page state for threads — [_messageInboxResetTrigger]
+  /// forces return to the inbox list (same as the in-chat back button).
+  void _onBottomNavTap(int index) {
+    setState(() => _currentIndex = index);
+    _popTabNavigatorToRoot(index);
+    final messageTabIndex = _isCustomer ? 3 : 2;
+    if (index == messageTabIndex) {
+      _messageInboxResetTrigger.value++;
+    }
+    if (index == 1 || index == messageTabIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final root = Navigator.of(context, rootNavigator: true);
+        if (root.canPop()) {
+          root.pop();
+        }
+      });
+    }
+  }
+
   Future<void> _openGlobe() async {
     await Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute<void>(
@@ -231,6 +288,7 @@ class _MainShellPageState extends State<MainShellPage> {
     MessageIndicatorService.stop();
     _presenceTimer?.cancel();
     _exploreRefreshTrigger.dispose();
+    _messageInboxResetTrigger.dispose();
     super.dispose();
   }
 
@@ -243,13 +301,14 @@ class _MainShellPageState extends State<MainShellPage> {
       );
     }
 
+    final tabPages = _tabPagesForIndexedStack();
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
           IndexedStack(
-            index: _currentIndex.clamp(0, _pages.length - 1),
-            children: _pages,
+            index: _currentIndex.clamp(0, tabPages.length - 1),
+            children: tabPages,
           ),
           Positioned(
             top: 0,
@@ -271,13 +330,11 @@ class _MainShellPageState extends State<MainShellPage> {
             final items = _navItems(showEnvelope);
             return BottomNavigationBar(
               currentIndex: _currentIndex.clamp(0, items.length - 1),
-              onTap: (index) {
-                setState(() => _currentIndex = index);
-                // Do not call [MessageIndicatorService.refresh] here — it would
-                // clear the green envelope as soon as the tab is opened, before
-                // the user reads or replies. Updates come from realtime, polling,
-                // and [ChatPage] after send/mark-read.
-              },
+              onTap: _onBottomNavTap,
+              // Do not call [MessageIndicatorService.refresh] here — it would
+              // clear the green envelope as soon as the tab is opened, before
+              // the user reads or replies. Updates come from realtime, polling,
+              // and [ChatPage] after send/mark-read.
               type: BottomNavigationBarType.fixed,
               items: items,
             );

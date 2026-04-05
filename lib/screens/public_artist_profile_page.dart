@@ -11,6 +11,7 @@ import '../widgets/tattoo_review_rating_widgets.dart';
 import 'chat_page.dart';
 
 /// Read-only profile for another user (e.g. opened from Artists directory).
+/// Product copy may refer to this screen as the artist profile page.
 class PublicArtistProfilePage extends StatefulWidget {
   const PublicArtistProfilePage({
     super.key,
@@ -20,9 +21,10 @@ class PublicArtistProfilePage extends StatefulWidget {
 
   final String userId;
 
-  /// When true (Artists tab list → profile), chat and contact are hidden (browse-only).
-  /// When false, email/phone/chat show only if the winning bid has [bids.payment_status]
-  /// `paid` for this customer (see [ChatService.customerHasPaidDepositWithArtist]).
+  /// When true (Artists tab list → profile), email/phone in the Contact block are hidden
+  /// (browse-only). The “Chat with Artist” button above Reviews still opens [ChatPage].
+  /// When false, Contact details also require a paid relationship for customers
+  /// (see [ChatService.customerHasPaidDepositWithArtist]).
   final bool fromArtistsDirectory;
 
   @override
@@ -48,7 +50,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
   int _draftCleanliness = 0;
   bool _submittingReview = false;
 
-  /// Chat + email/phone only after customer has paid (completed request with this artist).
+  /// Email/phone in Contact section (gated). Chat CTA above Reviews is always shown for artists.
   bool _showContactAndChat = true;
 
   @override
@@ -138,6 +140,119 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
       default:
         return 'Profile';
     }
+  }
+
+  static String? _trimNonEmpty(String? s) {
+    final t = s?.trim();
+    return (t != null && t.isNotEmpty) ? t : null;
+  }
+
+  /// Suburb, city, then country (country bold). Falls back to legacy [location] only.
+  Widget _buildLocationLine(BuildContext context, UserProfile profile) {
+    final scheme = Theme.of(context).colorScheme;
+    final baseStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: scheme.outline,
+        );
+    final boldCountryStyle = baseStyle?.copyWith(fontWeight: FontWeight.w700);
+
+    final suburb = _trimNonEmpty(profile.suburb);
+    final city = _trimNonEmpty(profile.city);
+    final country = _trimNonEmpty(profile.country);
+    final legacy = _trimNonEmpty(profile.location);
+
+    final hasStructured = suburb != null || city != null || country != null;
+    if (!hasStructured && legacy == null) {
+      return const SizedBox.shrink();
+    }
+
+    if (!hasStructured) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.location_on, size: 18, color: scheme.outline),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              legacy!,
+              style: baseStyle,
+              textAlign: TextAlign.center,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final spans = <InlineSpan>[];
+    var first = true;
+    void addSegment(String text, {required bool countryBold}) {
+      if (!first) {
+        spans.add(TextSpan(text: ', ', style: baseStyle));
+      }
+      first = false;
+      spans.add(
+        TextSpan(
+          text: text,
+          style: countryBold ? boldCountryStyle : baseStyle,
+        ),
+      );
+    }
+
+    if (suburb != null) addSegment(suburb, countryBold: false);
+    if (city != null) addSegment(city, countryBold: false);
+    if (country != null) addSegment(country, countryBold: true);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.location_on, size: 18, color: scheme.outline),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text.rich(
+            TextSpan(children: spans),
+            textAlign: TextAlign.center,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Line 1: role only (name is in the app bar). Line 2: location when set.
+  Widget _buildNameRoleLocationRow(
+    BuildContext context,
+    UserProfile profile,
+    ColorScheme scheme,
+  ) {
+    final roleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: scheme.outline,
+          fontWeight: FontWeight.w600,
+        );
+    final suburb = _trimNonEmpty(profile.suburb);
+    final city = _trimNonEmpty(profile.city);
+    final country = _trimNonEmpty(profile.country);
+    final legacy = _trimNonEmpty(profile.location);
+    final hasLoc =
+        suburb != null || city != null || country != null || legacy != null;
+    final role = _titleForType(profile.userType);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(role, style: roleStyle, textAlign: TextAlign.center),
+        if (hasLoc) ...[
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _buildLocationLine(context, profile),
+          ),
+        ],
+      ],
+    );
   }
 
   bool get _isOwnProfile {
@@ -323,47 +438,40 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
             ),
           ),
           const SizedBox(height: 24),
-          Text(
-            name,
-            style: Theme.of(context).textTheme.headlineSmall,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _titleForType(profile.userType),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: scheme.outline,
-                ),
-          ),
-          if (!_isOwnProfile && _showContactAndChat) ...[
+          _buildNameRoleLocationRow(context, profile, scheme),
+          if (!_isOwnProfile &&
+              _showContactAndChat &&
+              profile.userType != 'tattoo_artist') ...[
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: _openChat,
-              icon: const Icon(Icons.chat_bubble_outline),
+              icon: const Icon(Icons.phone_outlined),
               label: const Text('Chat'),
             ),
           ],
-          if (profile.location != null &&
-              profile.location!.trim().isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.location_on, size: 20, color: scheme.outline),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    profile.location!,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ),
-              ],
-            ),
-          ],
           if (profile.userType == 'tattoo_artist') ...[
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.center,
+              child: ElevatedButton.icon(
+                onPressed: _openChat,
+                icon: const Icon(Icons.phone_outlined, size: 22),
+                label: const Text('Chat with Artist'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF616161),
+                  foregroundColor: Colors.white,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
             Text(
               'Reviews',
               textAlign: TextAlign.center,
@@ -394,7 +502,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                   data: Theme.of(context).copyWith(
                     dividerColor: Colors.transparent,
                   ),
-                  child:                   ExpansionTile(
+                  child: ExpansionTile(
                     // ValueKey: avoid PageStorageKey colliding with nested scroll
                     // offset buckets (same class of bool/double restore bugs).
                     key: ValueKey<String>('reviews_tile_${widget.userId}'),

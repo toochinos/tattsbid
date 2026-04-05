@@ -132,7 +132,7 @@ class ChatService {
     });
   }
 
-  /// Winning artists on this customer’s requests where [bids.payment_status] is `paid`.
+  /// Winning artists: [bids.payment_status] `paid` or paid [contact_unlocks] row.
   /// Used on the Message tab when there are no threads yet.
   static Future<List<PaidArtistContact>>
       fetchPaidArtistContactsForCustomer() async {
@@ -155,7 +155,12 @@ class ChatService {
         if (rid != null && rid.isNotEmpty) requestIds.add(rid);
         if (wb != null && wb.isNotEmpty) winIds.add(wb);
       }
-      if (requestIds.isEmpty) return [];
+      if (requestIds.isEmpty) {
+        final out = <PaidArtistContact>[];
+        final seen = <String>{};
+        await _appendPaidArtistContactsFromUnlockRows(user.id, out, seen);
+        return out;
+      }
 
       final allForRequests = await _client
           .from(SupabaseBids.table)
@@ -181,7 +186,18 @@ class ChatService {
         final bidder = m[SupabaseBids.bidderId] as String?;
         if (bidder != null && bidder.isNotEmpty) artistIds.add(bidder);
       }
-      if (artistIds.isEmpty) return [];
+
+      final out = <PaidArtistContact>[];
+      final seenArtists = <String>{};
+
+      if (artistIds.isEmpty) {
+        await _appendPaidArtistContactsFromUnlockRows(
+          user.id,
+          out,
+          seenArtists,
+        );
+        return out;
+      }
 
       final profilesRes = await _client
           .from(SupabaseProfiles.table)
@@ -197,9 +213,6 @@ class ChatService {
         final id = m[SupabaseProfiles.id] as String?;
         if (id != null) profileById[id] = m;
       }
-
-      final out = <PaidArtistContact>[];
-      final seenArtists = <String>{};
 
       for (final m in bidsRes) {
         final bidId = m[SupabaseBids.id] as String?;
@@ -235,10 +248,101 @@ class ChatService {
         );
       }
 
+      await _appendPaidArtistContactsFromUnlockRows(
+        user.id,
+        out,
+        seenArtists,
+      );
       return out;
     } catch (e, st) {
       debugPrint('fetchPaidArtistContactsForCustomer: $e\n$st');
       return [];
+    }
+  }
+
+  /// Adds [PaidArtistContact] rows for [contact_unlocks] paid without a matching paid bid row.
+  static Future<void> _appendPaidArtistContactsFromUnlockRows(
+    String customerId,
+    List<PaidArtistContact> out,
+    Set<String> seenArtists,
+  ) async {
+    try {
+      final unlockRes = await _client
+          .from(SupabaseContactUnlocks.table)
+          .select()
+          .eq(SupabaseContactUnlocks.userId, customerId.trim())
+          .eq(SupabaseContactUnlocks.status, SupabaseContactUnlocks.statusPaid);
+
+      final pending = <({String artistId, String requestId})>[];
+      for (final m in mapListFrom(unlockRes)) {
+        final artistId = m[SupabaseContactUnlocks.artistId] as String?;
+        final requestId = m[SupabaseContactUnlocks.requestId] as String?;
+        if (artistId == null ||
+            artistId.isEmpty ||
+            requestId == null ||
+            requestId.isEmpty) {
+          continue;
+        }
+        if (seenArtists.contains(artistId)) continue;
+        pending.add((artistId: artistId, requestId: requestId));
+      }
+      if (pending.isEmpty) return;
+
+      final newArtistIds = pending.map((p) => p.artistId).toSet().toList();
+      final profilesRes = await _client
+          .from(SupabaseProfiles.table)
+          .select(
+            '${SupabaseProfiles.id},${SupabaseProfiles.displayName},'
+            '${SupabaseProfiles.contactEmail},${SupabaseProfiles.mobile},'
+            '${SupabaseProfiles.avatarUrl}',
+          )
+          .inFilter(SupabaseProfiles.id, newArtistIds);
+
+      final profileById = <String, Map<String, dynamic>>{};
+      for (final m in mapListFrom(profilesRes)) {
+        final id = m[SupabaseProfiles.id] as String?;
+        if (id != null) profileById[id] = m;
+      }
+
+      for (final p in pending) {
+        if (!seenArtists.add(p.artistId)) continue;
+
+        final req = await _client
+            .from(SupabaseTattooRequests.table)
+            .select(SupabaseTattooRequests.winningBidId)
+            .eq(SupabaseTattooRequests.id, p.requestId)
+            .maybeSingle();
+        final winBidId = req?[SupabaseTattooRequests.winningBidId] as String?;
+        if (winBidId == null || winBidId.isEmpty) continue;
+
+        final prof = profileById[p.artistId];
+        final name = prof?[SupabaseProfiles.displayName] as String?;
+        final displayName =
+            (name != null && name.trim().isNotEmpty) ? name.trim() : 'Artist';
+        final mobileRaw = prof?[SupabaseProfiles.mobile] as String?;
+        final emailRaw = prof?[SupabaseProfiles.contactEmail] as String?;
+        final avatarRaw = prof?[SupabaseProfiles.avatarUrl] as String?;
+
+        out.add(
+          PaidArtistContact(
+            artistUserId: p.artistId,
+            requestId: p.requestId,
+            bidId: winBidId,
+            displayName: displayName,
+            mobile: mobileRaw != null && mobileRaw.trim().isNotEmpty
+                ? mobileRaw.trim()
+                : null,
+            contactEmail: emailRaw != null && emailRaw.trim().isNotEmpty
+                ? emailRaw.trim()
+                : null,
+            avatarUrl: avatarRaw != null && avatarRaw.trim().isNotEmpty
+                ? avatarRaw.trim()
+                : null,
+          ),
+        );
+      }
+    } catch (e, st) {
+      debugPrint('_appendPaidArtistContactsFromUnlockRows: $e\n$st');
     }
   }
 
@@ -362,8 +466,49 @@ class ChatService {
     return filtered;
   }
 
-  /// Winning artists (user ids) where the customer's request has a winning bid with
-  /// [SupabaseBids.paymentStatus] `paid` (authoritative for contact + chat unlock).
+  /// Artists unlocked via [contact_unlocks] with status `paid` (Stripe or RPC).
+  static Future<Set<String>> _artistIdsFromPaidContactUnlocksForCustomer(
+    String customerId,
+  ) async {
+    try {
+      final res = await _client
+          .from(SupabaseContactUnlocks.table)
+          .select(SupabaseContactUnlocks.artistId)
+          .eq(SupabaseContactUnlocks.userId, customerId.trim())
+          .eq(SupabaseContactUnlocks.status, SupabaseContactUnlocks.statusPaid);
+      final out = <String>{};
+      for (final m in mapListFrom(res)) {
+        final a = m[SupabaseContactUnlocks.artistId] as String?;
+        if (a != null && a.isNotEmpty) out.add(a);
+      }
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Customer ids with a paid [contact_unlocks] row for this artist.
+  static Future<Set<String>> _customerIdsFromPaidContactUnlocksForArtist(
+    String artistId,
+  ) async {
+    try {
+      final res = await _client
+          .from(SupabaseContactUnlocks.table)
+          .select(SupabaseContactUnlocks.userId)
+          .eq(SupabaseContactUnlocks.artistId, artistId.trim())
+          .eq(SupabaseContactUnlocks.status, SupabaseContactUnlocks.statusPaid);
+      final out = <String>{};
+      for (final m in mapListFrom(res)) {
+        final u = m[SupabaseContactUnlocks.userId] as String?;
+        if (u != null && u.isNotEmpty) out.add(u);
+      }
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Winning artists: [bids.payment_status] `paid` **or** paid [contact_unlocks].
   static Future<Set<String>> _paidWinningArtistIdsForCustomer(
     String customerId,
   ) async {
@@ -377,18 +522,21 @@ class ChatService {
         final bidId = m[SupabaseTattooRequests.winningBidId] as String?;
         if (bidId != null && bidId.isNotEmpty) bidIds.add(bidId);
       }
-      if (bidIds.isEmpty) return {};
-      final bidsRes = await _client
-          .from(SupabaseBids.table)
-          .select()
-          .inFilter(SupabaseBids.id, bidIds);
-      final out = <String>{};
-      for (final m in mapListFrom(bidsRes)) {
-        if (!_paymentStatusIsPaid(m[SupabaseBids.paymentStatus])) continue;
-        final b = m[SupabaseBids.bidderId] as String?;
-        if (b != null) out.add(b);
+      final fromBids = <String>{};
+      if (bidIds.isNotEmpty) {
+        final bidsRes = await _client
+            .from(SupabaseBids.table)
+            .select()
+            .inFilter(SupabaseBids.id, bidIds);
+        for (final m in mapListFrom(bidsRes)) {
+          if (!_paymentStatusIsPaid(m[SupabaseBids.paymentStatus])) continue;
+          final b = m[SupabaseBids.bidderId] as String?;
+          if (b != null) fromBids.add(b);
+        }
       }
-      return out;
+      final fromUnlocks =
+          await _artistIdsFromPaidContactUnlocksForCustomer(customerId);
+      return {...fromBids, ...fromUnlocks};
     } catch (_) {
       return {};
     }
@@ -407,7 +555,7 @@ class ChatService {
     return paid.contains(id);
   }
 
-  /// Customers whose request lists this artist’s bid as winner with deposit paid.
+  /// Customers whose winning bid is paid **or** who have a paid [contact_unlocks] with this artist.
   static Future<Set<String>> _customerIdsForPaidWinsAsArtist(
     String artistId,
   ) async {
@@ -422,17 +570,20 @@ class ChatService {
         final id = m[SupabaseBids.id] as String?;
         if (id != null) bidIds.add(id);
       }
-      if (bidIds.isEmpty) return {};
-      final reqRows = await _client
-          .from(SupabaseTattooRequests.table)
-          .select(SupabaseTattooRequests.userId)
-          .inFilter(SupabaseTattooRequests.winningBidId, bidIds);
-      final out = <String>{};
-      for (final m in mapListFrom(reqRows)) {
-        final u = m[SupabaseTattooRequests.userId] as String?;
-        if (u != null) out.add(u);
+      final fromBids = <String>{};
+      if (bidIds.isNotEmpty) {
+        final reqRows = await _client
+            .from(SupabaseTattooRequests.table)
+            .select(SupabaseTattooRequests.userId)
+            .inFilter(SupabaseTattooRequests.winningBidId, bidIds);
+        for (final m in mapListFrom(reqRows)) {
+          final u = m[SupabaseTattooRequests.userId] as String?;
+          if (u != null) fromBids.add(u);
+        }
       }
-      return out;
+      final fromUnlocks =
+          await _customerIdsFromPaidContactUnlocksForArtist(artistId);
+      return {...fromBids, ...fromUnlocks};
     } catch (_) {
       return {};
     }

@@ -10,9 +10,16 @@ import '../core/services/message_indicator_service.dart';
 
 /// Private 1:1 chat room between a tattoo artist and a customer only.
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, this.initialReceiverId});
+  const ChatPage({
+    super.key,
+    this.initialReceiverId,
+    this.inboxResetTrigger,
+  });
 
   final String? initialReceiverId;
+
+  /// When incremented (e.g. Message tab re-tapped in [MainShellPage]), return to inbox list.
+  final ValueNotifier<int>? inboxResetTrigger;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -40,6 +47,7 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _receiverId = widget.initialReceiverId;
+    widget.inboxResetTrigger?.addListener(_onInboxResetSignal);
     _subscribeToRealtime();
     if (_receiverId != null) {
       _loadMessages();
@@ -47,6 +55,25 @@ class _ChatPageState extends State<ChatPage> {
       setState(() => _loading = false);
       _loadConversations();
     }
+  }
+
+  void _onInboxResetSignal() {
+    if (!mounted) return;
+    _backToInbox();
+  }
+
+  /// Conversation → inbox list (same as app bar back).
+  void _backToInbox() {
+    if (_receiverId == null) return;
+    setState(() {
+      _receiverId = null;
+      _partnerDisplayName = null;
+      _messages = [];
+      _error = null;
+      _receiverEmail = null;
+      _receiverMobile = null;
+    });
+    _loadConversations();
   }
 
   Future<void> _loadConversations() async {
@@ -99,6 +126,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
+    widget.inboxResetTrigger?.removeListener(_onInboxResetSignal);
     _controller.dispose();
     _scrollController.dispose();
     _realtimeChannel?.unsubscribe();
@@ -257,17 +285,7 @@ class _ChatPageState extends State<ChatPage> {
         leading: _receiverId != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  setState(() {
-                    _receiverId = null;
-                    _partnerDisplayName = null;
-                    _messages = [];
-                    _error = null;
-                    _receiverEmail = null;
-                    _receiverMobile = null;
-                  });
-                  _loadConversations();
-                },
+                onPressed: _backToInbox,
               )
             : null,
       ),

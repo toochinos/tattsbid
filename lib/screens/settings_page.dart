@@ -133,6 +133,42 @@ class _SettingsPageState extends State<SettingsPage> {
               style: TextStyle(color: Colors.white),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 40, 16, 24),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text.rich(
+                    TextSpan(
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: 'TattsBid ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const TextSpan(text: '\u00A9 2026'),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Version 2.0.0',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
