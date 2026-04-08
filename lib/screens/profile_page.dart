@@ -4,6 +4,7 @@ import '../core/models/user_profile.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
 import '../core/utils/user_type_utils.dart';
+import '../l10n/app_localizations.dart';
 
 /// Profile tab - shows user avatar, name, location, and Edit contact button.
 class ProfilePage extends StatefulWidget {
@@ -49,9 +50,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text(l10n.tabProfile),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -60,11 +62,11 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: _buildBody(l10n),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(AppLocalizations l10n) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -78,7 +80,7 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _loadProfile,
-              child: const Text('Retry'),
+              child: Text(l10n.retry),
             ),
           ],
         ),
@@ -86,7 +88,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
     final profile = _profile;
     if (profile == null) {
-      return const Center(child: Text('Not logged in'));
+      return Center(child: Text(l10n.profileNotLoggedIn));
     }
 
     return SingleChildScrollView(
@@ -151,8 +153,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: 8),
                 Text(
                   profile.userType == 'tattoo_artist'
-                      ? 'Tattoo Artist'
-                      : 'Customer',
+                      ? l10n.profileTattooArtistTitle
+                      : l10n.profileCustomerTitle,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Theme.of(context).colorScheme.outline,
                       ),
@@ -175,7 +177,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   widget.onProfileUpdated?.call();
                 },
                 icon: const Icon(Icons.edit),
-                label: const Text('Edit contact'),
+                label: Text(l10n.profileEditContact),
               ),
             ],
           ),

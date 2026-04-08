@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/routes/app_routes.dart';
 import '../core/services/auth_service.dart';
+import '../l10n/app_localizations.dart';
 
 /// Auth screen with Login and SignUp tabs.
 class AuthScreen extends StatelessWidget {
@@ -10,15 +11,16 @@ class AuthScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Account'),
-          bottom: const TabBar(
+          title: Text(l10n.authTitle),
+          bottom: TabBar(
             tabs: [
-              Tab(text: 'Login'),
-              Tab(text: 'Sign up'),
+              Tab(text: l10n.authTabLogin),
+              Tab(text: l10n.authTabSignUp),
             ],
           ),
         ),
@@ -82,6 +84,7 @@ class _LoginTabState extends State<_LoginTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Form(
@@ -93,23 +96,23 @@ class _LoginTabState extends State<_LoginTab> {
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.authEmailLabel,
+                border: const OutlineInputBorder(),
               ),
               validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Enter your email' : null,
+                  (v == null || v.trim().isEmpty) ? l10n.authEnterEmail : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _passwordController,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Password',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.authPasswordLabel,
+                border: const OutlineInputBorder(),
               ),
               validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Enter your password' : null,
+                  (v == null || v.isEmpty) ? l10n.authEnterPassword : null,
             ),
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),
@@ -127,7 +130,7 @@ class _LoginTabState extends State<_LoginTab> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Sign in'),
+                  : Text(l10n.authSignIn),
             ),
           ],
         ),
@@ -193,6 +196,7 @@ class _SignUpTabState extends State<_SignUpTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Form(
@@ -204,25 +208,25 @@ class _SignUpTabState extends State<_SignUpTab> {
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.authEmailLabel,
+                border: const OutlineInputBorder(),
               ),
               validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Enter your email' : null,
+                  (v == null || v.trim().isEmpty) ? l10n.authEnterEmail : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _passwordController,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Password',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.authPasswordLabel,
+                border: const OutlineInputBorder(),
               ),
               validator: (v) {
-                if (v == null || v.isEmpty) return 'Enter a password';
+                if (v == null || v.isEmpty) return l10n.authEnterPasswordSignUp;
                 if (v.length < 6) {
-                  return 'Password must be at least 6 characters';
+                  return l10n.authPasswordMinLength;
                 }
                 return null;
               },
@@ -231,14 +235,16 @@ class _SignUpTabState extends State<_SignUpTab> {
             TextFormField(
               controller: _confirmPasswordController,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Re-enter Password',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.authReenterPasswordLabel,
+                border: const OutlineInputBorder(),
               ),
               validator: (v) {
-                if (v == null || v.isEmpty) return 'Re-enter your password';
+                if (v == null || v.isEmpty) {
+                  return l10n.authReenterPasswordError;
+                }
                 if (v != _passwordController.text) {
-                  return 'Passwords do not match';
+                  return l10n.authPasswordsDoNotMatch;
                 }
                 return null;
               },
@@ -259,7 +265,7 @@ class _SignUpTabState extends State<_SignUpTab> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Create account'),
+                  : Text(l10n.authCreateAccount),
             ),
           ],
         ),

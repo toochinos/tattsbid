@@ -8,6 +8,7 @@ import '../core/models/tattoo_request.dart';
 import '../core/services/message_indicator_service.dart';
 import '../core/services/online_presence_service.dart';
 import '../core/services/profile_service.dart';
+import '../l10n/app_localizations.dart';
 import 'artists_page.dart';
 import 'bid_detail_page.dart';
 import 'explore_page.dart';
@@ -47,6 +48,7 @@ class MainShellPage extends StatefulWidget {
 class _MainShellPageState extends State<MainShellPage> {
   int _currentIndex = 0;
   final ValueNotifier<int> _exploreRefreshTrigger = ValueNotifier(0);
+
   /// Bumped when the Message tab is tapped so [ChatPage] returns to the inbox list.
   final ValueNotifier<int> _messageInboxResetTrigger = ValueNotifier(0);
   String? _userType;
@@ -186,29 +188,33 @@ class _MainShellPageState extends State<MainShellPage> {
     GlobalKey<NavigatorState>(),
   ];
 
-  List<BottomNavigationBarItem> _navItems(bool showEnvelope) {
+  List<BottomNavigationBarItem> _navItems(
+    BuildContext context,
+    bool showEnvelope,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
     return <BottomNavigationBarItem>[
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.search),
-        label: 'Explore',
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.search),
+        label: l10n.tabExplore,
       ),
-      const BottomNavigationBarItem(
-        icon: _ArtistsTabIcon(selected: false),
-        activeIcon: _ArtistsTabIcon(selected: true),
-        label: 'Artists',
+      BottomNavigationBarItem(
+        icon: const _ArtistsTabIcon(selected: false),
+        activeIcon: const _ArtistsTabIcon(selected: true),
+        label: l10n.tabArtists,
       ),
       if (_isCustomer)
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.add_circle, size: 36),
-          label: 'Upload',
+        BottomNavigationBarItem(
+          icon: const Icon(Icons.add_circle, size: 36),
+          label: l10n.tabUpload,
         ),
       BottomNavigationBarItem(
         icon: _MessageTabIconWithEnvelope(showEnvelope: showEnvelope),
-        label: 'Message',
+        label: l10n.tabMessage,
       ),
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.person),
-        label: 'Profile',
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.person),
+        label: l10n.tabProfile,
       ),
     ];
   }
@@ -316,6 +322,7 @@ class _MainShellPageState extends State<MainShellPage> {
             child: SafeArea(
               minimum: const EdgeInsets.only(top: 6, right: 8),
               child: _GlobalTopRightActions(
+                l10n: AppLocalizations.of(context)!,
                 onGlobeTap: _openGlobe,
                 onSettingsTap: _openSettings,
               ),
@@ -327,7 +334,7 @@ class _MainShellPageState extends State<MainShellPage> {
         child: ValueListenableBuilder<bool>(
           valueListenable: MessageIndicatorService.hasUnread,
           builder: (context, showEnvelope, _) {
-            final items = _navItems(showEnvelope);
+            final items = _navItems(context, showEnvelope);
             return BottomNavigationBar(
               currentIndex: _currentIndex.clamp(0, items.length - 1),
               onTap: _onBottomNavTap,
@@ -347,10 +354,12 @@ class _MainShellPageState extends State<MainShellPage> {
 
 class _GlobalTopRightActions extends StatelessWidget {
   const _GlobalTopRightActions({
+    required this.l10n,
     required this.onGlobeTap,
     required this.onSettingsTap,
   });
 
+  final AppLocalizations l10n;
   final VoidCallback onGlobeTap;
   final VoidCallback onSettingsTap;
 
@@ -361,14 +370,14 @@ class _GlobalTopRightActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _TopActionButton(
-          tooltip: 'Explore',
+          tooltip: l10n.actionTooltipExplore,
           icon: Icons.public,
           onTap: onGlobeTap,
           background: scheme.surface,
         ),
         const SizedBox(width: 8),
         _TopActionButton(
-          tooltip: 'Settings',
+          tooltip: l10n.actionTooltipSettings,
           icon: Icons.settings,
           onTap: onSettingsTap,
           background: scheme.surface,

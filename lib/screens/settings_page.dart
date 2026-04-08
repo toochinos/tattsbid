@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/locale/app_locale_controller.dart';
 import '../core/navigation/link_handler.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/auth_service.dart';
 import '../core/theme/app_theme.dart';
+import '../l10n/app_localizations.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -14,6 +17,70 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  String _languageDisplayName(AppLocalizations l10n, String code) {
+    switch (code) {
+      case 'km':
+        return l10n.languageKhmer;
+      case 'id':
+        return l10n.languageIndonesian;
+      default:
+        return l10n.languageEnglish;
+    }
+  }
+
+  Future<void> _pickLanguage(BuildContext context) async {
+    final controller = context.read<AppLocaleController>();
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final d = AppLocalizations.of(dialogContext)!;
+        final scheme = Theme.of(dialogContext).colorScheme;
+        final cur = controller.locale.languageCode;
+        return AlertDialog(
+          title: Text(d.languagePickerTitle),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: Text(d.languageEnglish),
+                  trailing: cur == 'en'
+                      ? Icon(Icons.check, color: scheme.primary)
+                      : null,
+                  onTap: () => Navigator.pop(dialogContext, 'en'),
+                ),
+                ListTile(
+                  title: Text(d.languageKhmer),
+                  trailing: cur == 'km'
+                      ? Icon(Icons.check, color: scheme.primary)
+                      : null,
+                  onTap: () => Navigator.pop(dialogContext, 'km'),
+                ),
+                ListTile(
+                  title: Text(d.languageIndonesian),
+                  trailing: cur == 'id'
+                      ? Icon(Icons.check, color: scheme.primary)
+                      : null,
+                  onTap: () => Navigator.pop(dialogContext, 'id'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                MaterialLocalizations.of(dialogContext).cancelButtonLabel,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (!context.mounted || chosen == null) return;
+    await controller.setLanguage(chosen);
+  }
+
   Future<void> _logout(BuildContext context) async {
     await AuthService.signOut();
     if (!context.mounted) return;
@@ -62,8 +129,10 @@ class _SettingsPageState extends State<SettingsPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final root = LinkHandler.navigatorKey.currentContext;
         if (root != null && root.mounted) {
+          final msg = AppLocalizations.of(root)?.settingsAccountDeleted ??
+              'Account deleted';
           ScaffoldMessenger.of(root).showSnackBar(
-            const SnackBar(content: Text('Account deleted')),
+            SnackBar(content: Text(msg)),
           );
         }
       });
@@ -86,34 +155,63 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    final localeController = context.watch<AppLocaleController>();
     final isDark = AppTheme.themeModeNotifier.value == ThemeMode.dark;
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           SwitchListTile(
             value: isDark,
             secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
-            title: Text(isDark ? 'Dark mode' : 'Light mode'),
-            subtitle: const Text('Toggle app theme'),
+            title: Text(
+              isDark ? l10n.settingsDarkMode : l10n.settingsLightMode,
+            ),
+            subtitle: Text(l10n.settingsToggleTheme),
             onChanged: (enabled) {
               AppTheme.themeModeNotifier.value =
                   enabled ? ThemeMode.dark : ThemeMode.light;
               setState(() {});
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.language),
+            title: Text(l10n.settingsLanguage),
+            subtitle: Text(l10n.settingsLanguageSubtitle),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _languageDisplayName(
+                    l10n,
+                    localeController.locale.languageCode,
+                  ),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: theme.colorScheme.outline,
+                ),
+              ],
+            ),
+            onTap: () => _pickLanguage(context),
+          ),
           const SizedBox(height: 12),
           ListTile(
             leading: const Icon(Icons.logout),
-            title: const Text('Sign out'),
+            title: Text(l10n.settingsSignOut),
             onTap: () => _logout(context),
           ),
           const Divider(height: 32),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             child: Text(
-              'Danger zone',
+              l10n.settingsDangerZone,
               style: theme.textTheme.titleSmall?.copyWith(
                 color: theme.colorScheme.error,
                 fontWeight: FontWeight.w600,
@@ -128,9 +226,9 @@ class _SettingsPageState extends State<SettingsPage> {
             onPressed: () async {
               await _confirmDeleteAccount();
             },
-            child: const Text(
-              'Delete Account',
-              style: TextStyle(color: Colors.white),
+            child: Text(
+              l10n.settingsDeleteAccount,
+              style: const TextStyle(color: Colors.white),
             ),
           ),
           Padding(
@@ -159,7 +257,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Version 2.0.0',
+                    l10n.appVersionLabel('2.0.0'),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.outline,
                     ),

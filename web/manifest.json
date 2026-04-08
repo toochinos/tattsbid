@@ -1,6 +1,6 @@
 {
-    "name": "saas_app",
-    "short_name": "saas_app",
+    "name": "TattsBid",
+    "short_name": "TattsBid",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

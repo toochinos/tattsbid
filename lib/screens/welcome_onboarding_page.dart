@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/locale/app_locale_controller.dart';
+import 'language_selection_screen.dart';
 import 'login_page.dart';
 
 /// Onboarding when `seenOnboarding` is false ([StartupRouter] reads same key).
@@ -12,8 +15,9 @@ import 'login_page.dart';
 /// Full-screen slides; copy is baked into images:
 /// 1. `welcome_hero.png` — 2. `find_the.png` — 3. `perfect.png` — 4. `artist.png` — 5. `at_the_right_price.png`
 ///
-/// From [StartupRouter]: [onFinished] persists `seenOnboarding` and swaps to [LoginPage] in parent.
-/// From `/welcome` only: prefs + [Navigator] to [LoginPage]. After sign-in → [AppRoutes.root] ([AuthGatePage]) → Explore.
+/// From [StartupRouter]: [onFinished] persists `seenOnboarding`; parent then shows
+/// [LanguageSelectionScreen] then [LoginPage].
+/// From `/welcome` only: same prefs, then language screen, then [LoginPage].
 class WelcomeOnboardingPage extends StatefulWidget {
   const WelcomeOnboardingPage({super.key, this.onFinished});
 
@@ -97,8 +101,18 @@ class _WelcomeOnboardingPageState extends State<WelcomeOnboardingPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('seenOnboarding', true);
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => const LoginPage()),
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (ctx) => LanguageSelectionScreen(
+          onLanguageSelected: (code) async {
+            await ctx.read<AppLocaleController>().setLocale(Locale(code.trim()));
+            if (!ctx.mounted) return;
+            await Navigator.of(ctx).pushReplacement(
+              MaterialPageRoute<void>(builder: (_) => const LoginPage()),
+            );
+          },
+        ),
+      ),
     );
   }
 

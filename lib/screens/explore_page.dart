@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/models/tattoo_request.dart';
 import '../core/services/tattoo_request_service.dart';
+import '../l10n/app_localizations.dart';
 
 /// Explore tab - displays open tattoo requests (photos from customers).
 class ExplorePage extends StatefulWidget {
@@ -140,8 +141,9 @@ class _ExplorePageState extends State<ExplorePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Explore')),
+      appBar: AppBar(title: Text(l10n.exploreTitle)),
       body: RefreshIndicator(onRefresh: _loadRequests, child: _buildBody()),
     );
   }
@@ -151,6 +153,7 @@ class _ExplorePageState extends State<ExplorePage> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_errorMessage != null && _requests.isEmpty) {
+      final l10n = AppLocalizations.of(context)!;
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -174,7 +177,7 @@ class _ExplorePageState extends State<ExplorePage> {
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: _loadRequests,
-                child: const Text('Retry'),
+                child: Text(l10n.retry),
               ),
             ],
           ),
@@ -182,6 +185,7 @@ class _ExplorePageState extends State<ExplorePage> {
       );
     }
     if (_requests.isEmpty) {
+      final l10n = AppLocalizations.of(context)!;
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
@@ -200,14 +204,14 @@ class _ExplorePageState extends State<ExplorePage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'No tattoo requests yet',
+                    l10n.noTattooRequestsYet,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: Theme.of(context).colorScheme.outline,
                         ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Add a request to see it here',
+                    l10n.addRequestToSeeHere,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.outline,
                         ),
@@ -255,10 +259,12 @@ class _ExplorePageState extends State<ExplorePage> {
   }
 }
 
-/// Localized short date for when the customer posted the request.
-String _formatPostedDate(BuildContext context, DateTime createdAt) {
+/// “Posted …” line using app strings + localized calendar date.
+String _formatPostedLine(BuildContext context, DateTime createdAt) {
+  final l10n = AppLocalizations.of(context)!;
   final local = createdAt.toLocal();
-  return MaterialLocalizations.of(context).formatShortDate(local);
+  final dateStr = MaterialLocalizations.of(context).formatShortDate(local);
+  return l10n.postedOnDate(dateStr);
 }
 
 class _RequestCard extends StatefulWidget {
@@ -294,6 +300,7 @@ class _RequestCardState extends State<_RequestCard> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       color: Colors.white,
       clipBehavior: Clip.antiAlias,
@@ -338,7 +345,7 @@ class _RequestCardState extends State<_RequestCard> {
                               vertical: 4,
                             ),
                             child: Text(
-                              'Bid closed',
+                              l10n.bidClosed,
                               style: Theme.of(context)
                                   .textTheme
                                   .labelMedium
@@ -430,7 +437,7 @@ class _RequestCardState extends State<_RequestCard> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'Posted ${_formatPostedDate(context, request.createdAt)}',
+                          _formatPostedLine(context, request.createdAt),
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -445,7 +452,7 @@ class _RequestCardState extends State<_RequestCard> {
                     ),
                   ),
                   Text(
-                    '${request.bidCount} bid${request.bidCount == 1 ? '' : 's'}',
+                    l10n.requestBidsCount(request.bidCount),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: request.bidCount >= 1
                               ? Colors.green

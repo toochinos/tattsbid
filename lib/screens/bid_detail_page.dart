@@ -18,6 +18,7 @@ import '../core/services/contact_unlock_service.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 import 'public_artist_profile_page.dart';
+import '../l10n/app_localizations.dart';
 
 /// Detail page for a tattoo request. Shows image and description.
 /// Opened when artist or customer taps a request card in Explore.
@@ -342,8 +343,9 @@ class _BidDetailPageState extends State<BidDetailPage>
   void _openBidderProfile(Bid bid) {
     final uid = bid.bidderId ?? bid.artistId;
     if (uid == null || uid.trim().isEmpty) {
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open this profile.')),
+        SnackBar(content: Text(l10n.bidDetailCouldNotOpenProfile)),
       );
       return;
     }
@@ -360,9 +362,10 @@ class _BidDetailPageState extends State<BidDetailPage>
   Future<void> _selectWinner(Bid bid) async {
     if (_depositPaid) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This request is already completed.'),
+        SnackBar(
+          content: Text(l10n.bidDetailRequestAlreadyCompleted),
         ),
       );
       return;
@@ -388,8 +391,11 @@ class _BidDetailPageState extends State<BidDetailPage>
         } catch (e, st) {
           debugPrint('BidDetailPage free unlock: $e\n$st');
           if (!mounted) return;
+          final l10n = AppLocalizations.of(context)!;
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not unlock contact: $e')),
+            SnackBar(
+              content: Text(l10n.bidDetailCouldNotUnlockContactDetails('$e')),
+            ),
           );
         }
       }
@@ -399,8 +405,9 @@ class _BidDetailPageState extends State<BidDetailPage>
       await _loadUnlock();
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not select bid: $e')),
+        SnackBar(content: Text(l10n.bidDetailCouldNotSelectBidDetails('$e'))),
       );
     }
   }
@@ -408,19 +415,20 @@ class _BidDetailPageState extends State<BidDetailPage>
   Future<void> _payWinningBid(Bid bid) async {
     if (!AppConstants.isDepositPaymentEnabled) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Tap Choose artist on a bid to connect with your artist.'),
+        SnackBar(
+          content: Text(l10n.bidDetailTapChooseArtistHint),
         ),
       );
       return;
     }
     if (_depositPaid) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Payment has already been completed for this request.'),
+        SnackBar(
+          content: Text(l10n.bidDetailPaymentAlreadyCompleted),
         ),
       );
       return;
@@ -428,8 +436,9 @@ class _BidDetailPageState extends State<BidDetailPage>
     final artistId = bid.bidderId ?? bid.artistId;
     if (artistId == null || artistId.isEmpty) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Missing artist for this bid.')),
+        SnackBar(content: Text(l10n.bidDetailMissingArtistForBid)),
       );
       return;
     }
@@ -456,8 +465,9 @@ class _BidDetailPageState extends State<BidDetailPage>
       if (mounted) await _loadUnlock();
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Payment failed: $e')),
+        SnackBar(content: Text(l10n.bidDetailPaymentFailedDetails('$e'))),
       );
     }
   }
@@ -472,8 +482,9 @@ class _BidDetailPageState extends State<BidDetailPage>
     }
     if (bid == null) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not find that bid to pay')),
+        SnackBar(content: Text(l10n.bidDetailCouldNotFindBidToPay)),
       );
       return;
     }
@@ -483,9 +494,10 @@ class _BidDetailPageState extends State<BidDetailPage>
   Future<void> startPaymentFlow(Bid bid) async {
     final isWinner = _winningBidId == bid.id || bid.isWinner == true;
     if (!_canSelectWinner || !isWinner) {
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Only the customer can pay'),
+        SnackBar(
+          content: Text(l10n.bidDetailOnlyCustomerCanPay),
         ),
       );
       return;
@@ -596,49 +608,53 @@ class _BidDetailPageState extends State<BidDetailPage>
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Artist tools',
-                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'More artist actions for this job will appear here. '
-                'This does not place a bid.',
-                style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(ctx).colorScheme.outline,
-                    ),
-              ),
-            ],
+      builder: (ctx) {
+        final l10n = AppLocalizations.of(ctx)!;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  l10n.bidDetailArtistToolsSheetTitle,
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.bidDetailArtistToolsSheetBody,
+                  style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(ctx).colorScheme.outline,
+                      ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   Future<void> _showPlaceBidDialog() async {
     if (!_canSubmitBid) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You can’t place a bid on this request.'),
+        SnackBar(
+          content: Text(l10n.bidDetailCannotPlaceBid),
         ),
       );
       return;
     }
     if (!_biddingOpen) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bidding is closed for this request.'),
+        SnackBar(
+          content: Text(l10n.bidDetailBiddingClosedSnackbar),
         ),
       );
       return;
@@ -646,7 +662,7 @@ class _BidDetailPageState extends State<BidDetailPage>
     final amount = await showDialog<double>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const _PlaceBidDialog(),
+      builder: (dialogContext) => const _PlaceBidDialog(),
     );
 
     if (amount != null && mounted) {
@@ -658,14 +674,16 @@ class _BidDetailPageState extends State<BidDetailPage>
         if (!mounted) return;
         await _loadBids(silent: true);
         if (!mounted) return;
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bid placed')),
+          SnackBar(content: Text(l10n.bidDetailBidPlaced)),
         );
       } catch (e) {
         if (!mounted) return;
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to place bid: $e'),
+            content: Text(l10n.bidDetailFailedPlaceBidDetails('$e')),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -675,6 +693,7 @@ class _BidDetailPageState extends State<BidDetailPage>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final request = _request;
     final hasDescription = request.description?.trim().isNotEmpty == true;
 
@@ -684,7 +703,7 @@ class _BidDetailPageState extends State<BidDetailPage>
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text('Request details'),
+        title: Text(l10n.bidDetailTitle),
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -724,7 +743,9 @@ class _BidDetailPageState extends State<BidDetailPage>
                       ),
                     ),
                   Text(
-                    '\$${request.startingBid.toStringAsFixed(2)} starting bid',
+                    l10n.bidDetailStartingBid(
+                      '\$${request.startingBid.toStringAsFixed(2)}',
+                    ),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -758,8 +779,8 @@ class _BidDetailPageState extends State<BidDetailPage>
                           const SizedBox(width: 8),
                           Text(
                             _descriptionExpanded
-                                ? 'Hide description'
-                                : 'What does the customer want?',
+                                ? l10n.bidDetailHideDescription
+                                : l10n.bidDetailWhatCustomerWants,
                             style: Theme.of(context)
                                 .textTheme
                                 .titleSmall
@@ -785,34 +806,34 @@ class _BidDetailPageState extends State<BidDetailPage>
                         request.placement!.trim().isNotEmpty)
                       _buildDetailRow(
                         context,
-                        'Placement',
+                        l10n.bidDetailPlacement,
                         request.placement!,
                       ),
                     if (request.size != null && request.size!.trim().isNotEmpty)
                       _buildDetailRow(
                         context,
-                        'Size',
+                        l10n.bidDetailSize,
                         request.size!,
                       ),
                     if (request.colourPreference != null &&
                         request.colourPreference!.trim().isNotEmpty)
                       _buildDetailRow(
                         context,
-                        'Colour',
+                        l10n.bidDetailColour,
                         request.colourPreference == 'colour'
-                            ? 'Colour'
-                            : 'Black and grey',
+                            ? l10n.bidDetailColourFull
+                            : l10n.bidDetailColourBlackGrey,
                       ),
                     if (request.timeframe != null &&
                         request.timeframe!.trim().isNotEmpty)
                       _buildDetailRow(
                         context,
-                        'Time frame',
+                        l10n.bidDetailTimeFrame,
                         request.timeframe == 'asap'
-                            ? 'ASAP'
+                            ? l10n.bidDetailTimeframeAsap
                             : (request.timeframe == 'during_the_week'
-                                ? 'During the week'
-                                : 'Whenever you can book me in'),
+                                ? l10n.bidDetailTimeframeWeek
+                                : l10n.bidDetailTimeframeFlexible),
                       ),
                     if (request.artistCreativeFreedom)
                       Padding(
@@ -826,7 +847,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Artist has creative freedom',
+                              l10n.bidDetailArtistCreativeFreedom,
                               style: Theme.of(context)
                                   .textTheme
                                   .bodyMedium
@@ -849,7 +870,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                             request.timeframe!.trim().isEmpty) &&
                         !request.artistCreativeFreedom)
                       Text(
-                        'No description provided.',
+                        l10n.bidDetailNoDescription,
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
                   ],
@@ -862,7 +883,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Bids',
+                              l10n.bidDetailBids,
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium
@@ -876,7 +897,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                                 !_isOwner) ...[
                               const SizedBox(height: 6),
                               Text(
-                                'Artist tools — bidding is not started from this button.',
+                                l10n.bidDetailArtistToolsNotBidHint,
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
@@ -892,7 +913,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                                 !_isOwner) ...[
                               const SizedBox(height: 6),
                               Text(
-                                'Only tattoo artists can place bids on requests.',
+                                l10n.bidDetailOnlyArtistsMayBid,
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
@@ -911,8 +932,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                                         _legacyTattooArtist))) ...[
                               const SizedBox(height: 6),
                               Text(
-                                'Bidding is closed. This request is no longer '
-                                'accepting new bids.',
+                                l10n.bidDetailBiddingClosedMessage,
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
@@ -938,7 +958,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                         FilledButton.tonalIcon(
                           onPressed: _onArtistToolsPressed,
                           icon: const Icon(Icons.palette_outlined, size: 18),
-                          label: const Text('View Artist Tools'),
+                          label: Text(l10n.bidDetailViewArtistTools),
                         ),
                       ],
                       if (_showBidButton) ...[
@@ -946,7 +966,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                         FilledButton.icon(
                           onPressed: _showPlaceBidDialog,
                           icon: const Icon(Icons.gavel, size: 18),
-                          label: const Text('Bid'),
+                          label: Text(l10n.bidDetailBid),
                         ),
                       ],
                     ],
@@ -964,7 +984,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'Could not load bids',
+                            l10n.bidDetailCouldNotLoadBids,
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
@@ -987,7 +1007,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                           const SizedBox(height: 8),
                           TextButton(
                             onPressed: () => _loadBids(),
-                            child: const Text('Retry'),
+                            child: Text(l10n.retry),
                           ),
                         ],
                       ),
@@ -996,7 +1016,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        'No bids yet',
+                        l10n.bidDetailNoBidsYet,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Theme.of(context).colorScheme.outline,
                             ),
@@ -1022,7 +1042,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                                 closestId != null && bid.id == closestId;
                             final subtitleParts = <String>[];
                             if (isClosestToCustomerPrice) {
-                              subtitleParts.add('Lowest');
+                              subtitleParts.add(l10n.bidDetailLowest);
                             }
                             return Material(
                               color: Colors.transparent,
@@ -1067,7 +1087,8 @@ class _BidDetailPageState extends State<BidDetailPage>
                                                   vertical: 2,
                                                 ),
                                                 child: Text(
-                                                  bid.bidderName ?? 'Artist',
+                                                  bid.bidderName ??
+                                                      l10n.bidDetailArtistNameFallback,
                                                   style: TextStyle(
                                                     fontWeight: FontWeight.w600,
                                                     fontSize: 16,
@@ -1126,8 +1147,8 @@ class _BidDetailPageState extends State<BidDetailPage>
                                                 Icons.person_add_alt_1,
                                                 size: 18,
                                               ),
-                                              label:
-                                                  const Text('Choose artist'),
+                                              label: Text(
+                                                  l10n.bidDetailChooseArtist),
                                               style: FilledButton.styleFrom(
                                                 visualDensity:
                                                     VisualDensity.compact,
@@ -1146,7 +1167,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                                                   top: 4,
                                                 ),
                                                 child: Text(
-                                                  'Paid',
+                                                  l10n.bidDetailPaid,
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .labelLarge
@@ -1169,8 +1190,8 @@ class _BidDetailPageState extends State<BidDetailPage>
                                                 child: FilledButton(
                                                   onPressed: () =>
                                                       _payWinningBid(bid),
-                                                  child: const Text(
-                                                    'Unlock Contact',
+                                                  child: Text(
+                                                    l10n.bidDetailUnlockContact,
                                                   ),
                                                 ),
                                               ),
@@ -1190,16 +1211,16 @@ class _BidDetailPageState extends State<BidDetailPage>
                     const SizedBox(height: 20),
                     Text(
                       (!_unlockLoading && _paidForContact)
-                          ? 'Artist contact'
+                          ? l10n.bidDetailSectionArtistContact
                           : AppConstants.isDepositPaymentEnabled
-                              ? 'Deposit'
-                              : 'Connect',
+                              ? l10n.bidDetailSectionDeposit
+                              : l10n.bidDetailSectionConnect,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                     ),
                     const SizedBox(height: 8),
-                    _buildArtistContactSection(context),
+                    _buildArtistContactSection(context, l10n),
                   ],
                 ],
               ),
@@ -1219,7 +1240,10 @@ class _BidDetailPageState extends State<BidDetailPage>
   }
 
   /// Loading / unlocked contact / 10% deposit lines + pay button — all inline on this page (no new screen).
-  Widget _buildArtistContactSection(BuildContext context) {
+  Widget _buildArtistContactSection(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) {
     final scheme = Theme.of(context).colorScheme;
 
     if (_unlockLoading) {
@@ -1240,8 +1264,7 @@ class _BidDetailPageState extends State<BidDetailPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Payment is marked complete. If contact is still locked, refresh — '
-            'your unlock is stored after Stripe confirms.',
+            l10n.bidDetailPaymentCompleteBody,
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 12),
@@ -1250,7 +1273,7 @@ class _BidDetailPageState extends State<BidDetailPage>
               await _refreshRequestAndUnlock();
             },
             icon: const Icon(Icons.refresh),
-            label: const Text('Refresh unlock status'),
+            label: Text(l10n.bidDetailRefreshUnlockStatus),
           ),
         ],
       );
@@ -1284,8 +1307,8 @@ class _BidDetailPageState extends State<BidDetailPage>
     if (price == null || dep == null || rem == null) {
       return Text(
         AppConstants.isDepositPaymentEnabled
-            ? 'Choose a winning bid to see the deposit.'
-            : 'Choose a winning bid to connect with your artist.',
+            ? l10n.bidDetailChooseWinningBidForDeposit
+            : l10n.bidDetailChooseWinningBidToConnect,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: scheme.outline,
             ),
@@ -1296,7 +1319,7 @@ class _BidDetailPageState extends State<BidDetailPage>
 
     if (!AppConstants.isDepositPaymentEnabled) {
       return Text(
-        'Choose a winning bid above. You can chat with your artist right away.',
+        l10n.bidDetailChooseWinningBidToChat,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: scheme.outline,
             ),
@@ -1307,6 +1330,7 @@ class _BidDetailPageState extends State<BidDetailPage>
       totalPrice: price,
       deposit: dep,
       remaining: rem,
+      remainingPercent: 100 - AppConstants.platformFeePercent,
       onPay: payBlocked ? null : () => _payWinningBid(_winningBidModel!),
     );
   }
@@ -1326,23 +1350,24 @@ class _ContactDetailsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Phone: $phone',
+          l10n.bidDetailPhoneLine(phone),
           style: Theme.of(context).textTheme.bodyLarge,
         ),
         const SizedBox(height: 6),
         Text(
-          'Email: $email',
+          l10n.bidDetailEmailLine(email),
           style: Theme.of(context).textTheme.bodyLarge,
         ),
         if (onChat != null) ...[
           const SizedBox(height: 12),
           FilledButton(
             onPressed: onChat,
-            child: const Text('Chat'),
+            child: Text(l10n.bidDetailChat),
           ),
         ],
       ],
@@ -1356,33 +1381,41 @@ class _DepositPayButton extends StatelessWidget {
     required this.totalPrice,
     required this.deposit,
     required this.remaining,
+    required this.remainingPercent,
     this.onPay,
   });
 
   final double totalPrice;
   final double deposit;
   final double remaining;
+  final int remainingPercent;
   final VoidCallback? onPay;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final totalStr = '\$${totalPrice.toStringAsFixed(2)}';
+    final depStr = '\$${deposit.toStringAsFixed(2)}';
+    final remStr = '\$${remaining.toStringAsFixed(2)}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Total price: \$${totalPrice.toStringAsFixed(2)}',
+          l10n.bidDetailTotalPriceLine(totalStr),
           style: Theme.of(context).textTheme.bodyLarge,
         ),
         const SizedBox(height: 8),
         Text(
-          'Deposit (${AppConstants.platformFeePercent}%): '
-          '\$${deposit.toStringAsFixed(2)}',
+          l10n.bidDetailDepositLine(
+            AppConstants.platformFeePercent,
+            depStr,
+          ),
           style: Theme.of(context).textTheme.bodyLarge,
         ),
         const SizedBox(height: 8),
         Text(
-          'Remaining (90%): \$${remaining.toStringAsFixed(2)}',
+          l10n.bidDetailRemainingLine(remainingPercent, remStr),
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: scheme.outline,
               ),
@@ -1390,7 +1423,9 @@ class _DepositPayButton extends StatelessWidget {
         const SizedBox(height: 16),
         FilledButton(
           onPressed: onPay,
-          child: const Text('Pay 10% Deposit & Unlock Artist'),
+          child: Text(
+            l10n.bidDetailPayDepositUnlock(AppConstants.platformFeePercent),
+          ),
         ),
       ],
     );
@@ -1423,17 +1458,18 @@ class _PlaceBidDialogState extends State<_PlaceBidDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AlertDialog(
-      title: const Text('Place bid'),
+      title: Text(l10n.bidDetailPlaceBidTitle),
       content: Form(
         key: _formKey,
         child: TextFormField(
           controller: _controller,
-          decoration: const InputDecoration(
-            labelText: 'Your price (\$)',
+          decoration: InputDecoration(
+            labelText: l10n.bidDetailYourPriceLabel,
             hintText: '0.00',
             prefixText: '\$ ',
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
@@ -1443,7 +1479,7 @@ class _PlaceBidDialogState extends State<_PlaceBidDialog> {
           validator: (v) {
             final n = double.tryParse(v?.trim() ?? '');
             if (n == null || n < 0) {
-              return 'Enter a valid amount (0 or more)';
+              return l10n.bidDetailEnterValidBidAmount;
             }
             return null;
           },
@@ -1452,7 +1488,7 @@ class _PlaceBidDialogState extends State<_PlaceBidDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.bidDetailCancel),
         ),
         FilledButton(
           onPressed: () {
@@ -1460,7 +1496,7 @@ class _PlaceBidDialogState extends State<_PlaceBidDialog> {
             final n = double.tryParse(_controller.text.trim()) ?? 0;
             Navigator.of(context).pop(n);
           },
-          child: const Text('Submit'),
+          child: Text(l10n.bidDetailSubmit),
         ),
       ],
     );

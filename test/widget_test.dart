@@ -9,13 +9,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:provider/provider.dart';
+
 import 'package:saas_app/app.dart';
+import 'package:saas_app/core/locale/app_locale_controller.dart';
 import 'package:saas_app/screens/startup_router.dart';
 
 void main() {
   setUpAll(() async {
     SharedPreferences.setMockInitialValues({
       'seenOnboarding': true,
+      'app_language': 'en',
     });
     await Supabase.initialize(
       url: 'https://ikkfdwjmqujgkokpqhez.supabase.co',
@@ -26,7 +30,14 @@ void main() {
   testWidgets('App routes to login when unauthenticated after startup',
       (WidgetTester tester) async {
     final snapshot = await StartupSnapshot.load();
-    await tester.pumpWidget(SaasApp(startupSnapshot: snapshot));
+    final localeController = AppLocaleController();
+    await localeController.hydrate();
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppLocaleController>.value(
+        value: localeController,
+        child: SaasApp(startupSnapshot: snapshot),
+      ),
+    );
     await tester.pump();
     await tester.pumpAndSettle(const Duration(seconds: 5));
 

@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'core/config/supabase_config.dart';
+import 'core/locale/app_locale_controller.dart';
 import 'core/navigation/link_handler.dart';
 import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
+import 'l10n/app_localizations.dart';
 import 'screens/startup_router.dart';
 
 class SaasApp extends StatefulWidget {
@@ -41,24 +44,35 @@ class _SaasAppState extends State<SaasApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: AppTheme.themeModeNotifier,
-      builder: (context, mode, _) => MaterialApp(
-        debugShowCheckedModeBanner: false,
-        navigatorKey: LinkHandler.navigatorKey,
-        title: 'SaaS App',
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        themeMode: mode,
-        home: StartupRouter(snapshot: widget.startupSnapshot),
-        routes: AppRoutes.routes,
-        onGenerateRoute: AppRoutes.onGenerateRoute,
-        builder: (context, child) => DefaultTextStyle(
-          textAlign: TextAlign.center,
-          style: DefaultTextStyle.of(context).style,
-          child: child!,
-        ),
-      ),
+    return Consumer<AppLocaleController>(
+      builder: (context, languageProvider, _) {
+        return ValueListenableBuilder<ThemeMode>(
+          valueListenable: AppTheme.themeModeNotifier,
+          builder: (context, mode, _) => MaterialApp(
+            debugShowCheckedModeBanner: false,
+            navigatorKey: LinkHandler.navigatorKey,
+            title: 'TattsBid',
+            locale: languageProvider.locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: const [
+              Locale('en'),
+              Locale('km'),
+              Locale('id'),
+            ],
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: mode,
+            home: StartupRouter(snapshot: widget.startupSnapshot),
+            routes: AppRoutes.routes,
+            onGenerateRoute: AppRoutes.onGenerateRoute,
+            builder: (context, child) => DefaultTextStyle(
+              textAlign: TextAlign.center,
+              style: DefaultTextStyle.of(context).style,
+              child: child!,
+            ),
+          ),
+        );
+      },
     );
   }
 }

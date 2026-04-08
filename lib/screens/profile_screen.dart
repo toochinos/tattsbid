@@ -9,6 +9,7 @@ import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
 import '../core/utils/pick_images.dart';
 import '../core/utils/user_type_utils.dart';
+import '../l10n/app_localizations.dart';
 
 /// Contact details: display name, location, email, mobile, and user type.
 /// Email and mobile are required for everyone; artists’ contact may be shown after a winning bid.
@@ -130,9 +131,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
         if (!mounted) return;
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Camera permission is required to take a photo.'),
+          SnackBar(
+            content: Text(l10n.profileCameraPermissionRequired),
           ),
         );
         return;
@@ -164,10 +166,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString();
+      final l10n = AppLocalizations.of(context)!;
       setState(() {
         _uploadingAvatar = false;
         _errorMessage = msg.contains('403') || msg.contains('Forbidden')
-            ? 'Avatar upload denied. Ensure the "avatars" bucket exists and is public in Supabase Dashboard → Storage.'
+            ? l10n.profileAvatarUploadDenied
             : msg;
       });
     }
@@ -229,11 +232,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _uploadingPortfolio = false;
       });
       if (mounted && files.length > remaining) {
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Only $remaining more image${remaining == 1 ? '' : 's'} allowed '
-              '(${ProfileService.maxPortfolioImages} max).',
+              l10n.profilePortfolioLimitSnackbar(
+                remaining,
+                ProfileService.maxPortfolioImages,
+              ),
             ),
           ),
         );
@@ -313,11 +319,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _onAccountTypeTap(String type) {
     if (!_canChangeUserType) {
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Your account type can’t be changed after it’s saved.',
-          ),
+        SnackBar(
+          content: Text(l10n.profileAccountTypeLockedSnackbar),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -412,18 +417,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     _errorMessage = null;
     if (!_formKey.currentState!.validate()) return;
 
     if (_userType == null || _userType!.isEmpty) {
-      setState(() => _errorMessage = 'Please select Tattoo Artist or Customer');
+      setState(() => _errorMessage = l10n.profileSelectUserTypeError);
       return;
     }
 
     if (widget.fromSignUp &&
         (_avatarUrl == null || _avatarUrl!.trim().isEmpty)) {
       setState(
-        () => _errorMessage = 'Please add a profile photo before saving.',
+        () => _errorMessage = l10n.profilePhotoRequiredError,
       );
       return;
     }
@@ -466,9 +472,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Contact details'),
+        title: Text(l10n.profileContactDetailsTitle),
       ),
       body: !_initialized
           ? const Center(child: CircularProgressIndicator())
@@ -570,12 +577,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Center(
                       child: Text(
                         _uploadingAvatar
-                            ? 'Uploading...'
+                            ? l10n.profileUploading
                             : widget.fromSignUp &&
                                     (_avatarUrl == null ||
                                         _avatarUrl!.trim().isEmpty)
-                                ? 'Add a profile photo (required)'
-                                : 'Tap to change photo',
+                                ? l10n.profileAddPhotoRequired
+                                : l10n.profileTapToChangePhoto,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: _avatarMissingForSignUp
                                   ? Theme.of(context).colorScheme.error
@@ -588,16 +595,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       controller: _displayNameController,
                       decoration: _outlinedFieldDecoration(
                         context,
-                        labelText: 'Display name',
-                        hintText: 'Your display name',
+                        labelText: l10n.profileDisplayNameLabel,
+                        hintText: l10n.profileDisplayNameHint,
                         showError: _displayNameController.text.trim().isEmpty,
                       ),
                       textCapitalization: TextCapitalization.words,
                       validator: (v) {
                         final s = v?.trim() ?? '';
-                        if (s.isEmpty) return 'Enter your display name';
+                        if (s.isEmpty) return l10n.profileEnterDisplayName;
                         if (s.length > 100) {
-                          return 'Name must be 100 characters or less';
+                          return l10n.profileNameMaxLength;
                         }
                         return null;
                       },
@@ -607,7 +614,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       initialValue: _selectedCountry,
                       decoration: _outlinedFieldDecoration(
                         context,
-                        labelText: 'Country',
+                        labelText: l10n.profileCountryLabel,
                         showError: (_selectedCountry ?? '').trim().isEmpty,
                       ),
                       items: _countryOptions
@@ -635,7 +642,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         });
                       },
                       validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Select country'
+                          ? l10n.profileSelectCountry
                           : null,
                     ),
                     const SizedBox(height: 16),
@@ -643,7 +650,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       initialValue: _selectedCity,
                       decoration: _outlinedFieldDecoration(
                         context,
-                        labelText: 'City',
+                        labelText: l10n.profileCityLabel,
                         showError: (_selectedCity ?? '').trim().isEmpty,
                       ),
                       items: (() {
@@ -673,21 +680,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         });
                       },
                       validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Select city'
+                          ? l10n.profileSelectCity
                           : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _suburbController,
                       decoration: InputDecoration(
-                        labelText: 'Suburb (optional)',
-                        hintText: 'Enter suburb',
+                        labelText: l10n.profileSuburbOptionalLabel,
+                        hintText: l10n.profileSuburbHint,
                         helperText: _selectedCity != null &&
                                 ProfileLocationSuburbs.forCity(
                                   _selectedCountry,
                                   _selectedCity,
                                 ).isNotEmpty
-                            ? 'Or pick a suggestion below'
+                            ? l10n.profileSuburbPickSuggestion
                             : null,
                         border: const OutlineInputBorder(),
                       ),
@@ -695,13 +702,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       validator: (v) {
                         final s = v?.trim() ?? '';
                         if (s.length > 100) {
-                          return 'Suburb must be 100 characters or less';
+                          return l10n.profileSuburbMaxLength;
                         }
                         return null;
                       },
                     ),
                     Builder(
-                      builder: (context) {
+                      builder: (ctx) {
                         final suggestions = ProfileLocationSuburbs.forCity(
                           _selectedCountry,
                           _selectedCity,
@@ -712,16 +719,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         return Padding(
                           padding: const EdgeInsets.only(top: 12),
                           child: InputDecorator(
-                            decoration: const InputDecoration(
-                              labelText: 'Suggested suburbs (optional)',
-                              border: OutlineInputBorder(),
-                              helperText:
-                                  'Tap to fill the suburb field above; you can edit it',
+                            decoration: InputDecoration(
+                              labelText: l10n.profileSuggestedSuburbsLabel,
+                              border: const OutlineInputBorder(),
+                              helperText: l10n.profileSuggestedSuburbsHelper,
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
                                 isExpanded: true,
-                                hint: const Text('Pick a suggested suburb'),
+                                hint: Text(l10n.profilePickSuggestedSuburb),
                                 items: suggestions
                                     .map(
                                       (s) => DropdownMenuItem<String>(
@@ -743,7 +749,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      'Choose your account type',
+                      l10n.profileChooseAccountType,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
@@ -752,8 +758,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.only(top: 4, bottom: 8),
                       child: Text(
                         _canChangeUserType
-                            ? 'Tap Tattoo artist or Customer below. You can switch your choice until you tap Save — after that, your account type is permanent and cannot be changed.'
-                            : 'Your account type is set and cannot be changed.',
+                            ? l10n.profileAccountTypeCanChange
+                            : l10n.profileAccountTypeLocked,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: _canChangeUserType
                                   ? Theme.of(context).colorScheme.outline
@@ -763,20 +769,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     _accountTypeTile(
                       value: 'tattoo_artist',
-                      title: 'Tattoo artist',
-                      subtitle: 'Bid on jobs and connect with customers',
+                      title: l10n.profileTattooArtistTitle,
+                      subtitle: l10n.profileTattooArtistSubtitle,
                       icon: Icons.brush,
                     ),
                     _accountTypeTile(
                       value: 'customer',
-                      title: 'Customer',
-                      subtitle: 'Post tattoo jobs and hire artists',
+                      title: l10n.profileCustomerTitle,
+                      subtitle: l10n.profileCustomerSubtitle,
                       icon: Icons.person,
                     ),
                     if (_isTattooArtist) ...[
                       const SizedBox(height: 24),
                       Text(
-                        'Portfolio',
+                        l10n.profilePortfolioTitle,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
@@ -784,8 +790,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Padding(
                         padding: const EdgeInsets.only(top: 4, bottom: 8),
                         child: Text(
-                          'Add up to ${ProfileService.maxPortfolioImages} images '
-                          'for your public artist profile.',
+                          l10n.profilePortfolioBlurb(
+                            ProfileService.maxPortfolioImages,
+                          ),
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -865,15 +872,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     Icons.add_photo_alternate_outlined),
                             label: Text(
                               _uploadingPortfolio
-                                  ? 'Uploading...'
-                                  : 'Add image (${_portfolioUrls.length}/${ProfileService.maxPortfolioImages})',
+                                  ? l10n.profileUploading
+                                  : l10n.profileAddImageButton(
+                                      _portfolioUrls.length,
+                                      ProfileService.maxPortfolioImages,
+                                    ),
                             ),
                           ),
                         ),
                     ],
                     const SizedBox(height: 16),
                     Text(
-                      'Contact',
+                      l10n.profileContactSectionTitle,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
@@ -882,10 +892,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.only(top: 4, bottom: 8),
                       child: Text(
                         _userType == 'tattoo_artist'
-                            ? 'Email and mobile are required. Shown to customers after a winning bid.'
+                            ? l10n.profileContactHelpArtist
                             : _userType == 'customer'
-                                ? 'Email and mobile are required.'
-                                : 'Email and mobile are required. Choose your account type above first.',
+                                ? l10n.profileContactHelpCustomer
+                                : l10n.profileContactHelpNone,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Theme.of(context).colorScheme.outline,
                             ),
@@ -895,17 +905,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       controller: _emailController,
                       decoration: _outlinedFieldDecoration(
                         context,
-                        labelText: 'Email address',
-                        hintText: 'your.email@example.com',
+                        labelText: l10n.profileEmailLabel,
+                        hintText: l10n.profileEmailHint,
                         showError: _emailInvalidOrEmpty,
                       ),
                       keyboardType: TextInputType.emailAddress,
                       autocorrect: false,
                       validator: (v) {
                         final s = v?.trim() ?? '';
-                        if (s.isEmpty) return 'Enter your email address';
+                        if (s.isEmpty) return l10n.profileEnterEmail;
                         if (!s.contains('@') || s.length > 254) {
-                          return 'Enter a valid email address';
+                          return l10n.profileEnterValidEmail;
                         }
                         return null;
                       },
@@ -915,16 +925,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       controller: _mobileController,
                       decoration: _outlinedFieldDecoration(
                         context,
-                        labelText: 'Mobile number',
-                        hintText: 'Your phone number',
+                        labelText: l10n.profileMobileLabel,
+                        hintText: l10n.profileMobileHint,
                         showError: _mobileController.text.trim().isEmpty,
                       ),
                       keyboardType: TextInputType.phone,
                       validator: (v) {
                         final s = v?.trim() ?? '';
-                        if (s.isEmpty) return 'Enter your mobile number';
+                        if (s.isEmpty) return l10n.profileEnterMobile;
                         if (s.length > 40) {
-                          return 'Max 40 characters';
+                          return l10n.profileMobileMaxLength;
                         }
                         return null;
                       },
@@ -946,7 +956,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Save'),
+                          : Text(l10n.profileSave),
                     ),
                   ],
                 ),

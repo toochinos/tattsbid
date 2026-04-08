@@ -1,0 +1,292 @@
+{
+  "@@locale": "en",
+  "tabExplore": "Explore",
+  "tabArtists": "Artists",
+  "tabUpload": "Upload",
+  "tabMessage": "Message",
+  "tabProfile": "Profile",
+  "exploreTitle": "Explore",
+  "postedOnDate": "Posted {date}",
+  "@postedOnDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "requestBidsCount": "{count, plural, zero{{count} bids} one{{count} bid} other{{count} bids}}",
+  "@requestBidsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "bidClosed": "Bid closed",
+  "noTattooRequestsYet": "No tattoo requests yet",
+  "addRequestToSeeHere": "Add a request to see it here",
+  "retry": "Retry",
+  "actionTooltipExplore": "Explore",
+  "actionTooltipSettings": "Settings",
+  "languagePickerTitle": "Choose Language",
+  "languagePickerSubtitle": "Select a language to continue",
+  "languageEnglish": "English",
+  "languageKhmer": "Khmer",
+  "languageIndonesian": "Indonesian",
+  "settingsTitle": "Settings",
+  "settingsLightMode": "Light mode",
+  "settingsDarkMode": "Dark mode",
+  "settingsToggleTheme": "Toggle app theme",
+  "settingsLanguage": "Language",
+  "settingsLanguageSubtitle": "Change app language",
+  "settingsSignOut": "Sign out",
+  "settingsDangerZone": "Danger zone",
+  "settingsDeleteAccount": "Delete Account",
+  "settingsAccountDeleted": "Account deleted",
+  "appVersionLabel": "Version {version}",
+  "@appVersionLabel": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "authTitle": "Account",
+  "authTabLogin": "Login",
+  "authTabSignUp": "Sign up",
+  "authEmailLabel": "Email",
+  "authPasswordLabel": "Password",
+  "authReenterPasswordLabel": "Re-enter Password",
+  "authSignIn": "Sign in",
+  "authCreateAccount": "Create account",
+  "authEnterEmail": "Enter your email",
+  "authEnterPassword": "Enter your password",
+  "authEnterPasswordSignUp": "Enter a password",
+  "authPasswordMinLength": "Password must be at least 6 characters",
+  "authReenterPasswordError": "Re-enter your password",
+  "authPasswordsDoNotMatch": "Passwords do not match",
+  "profileContactDetailsTitle": "Contact details",
+  "profileTapToChangePhoto": "Tap to change photo",
+  "profileAddPhotoRequired": "Add a profile photo (required)",
+  "profileUploading": "Uploading...",
+  "profileDisplayNameLabel": "Display name",
+  "profileDisplayNameHint": "Your display name",
+  "profileEnterDisplayName": "Enter your display name",
+  "profileNameMaxLength": "Name must be 100 characters or less",
+  "profileCountryLabel": "Country",
+  "profileSelectCountry": "Select country",
+  "profileCityLabel": "City",
+  "profileSelectCity": "Select city",
+  "profileSuburbOptionalLabel": "Suburb (optional)",
+  "profileSuburbHint": "Enter suburb",
+  "profileSuburbPickSuggestion": "Or pick a suggestion below",
+  "profileSuburbMaxLength": "Suburb must be 100 characters or less",
+  "profileSuggestedSuburbsLabel": "Suggested suburbs (optional)",
+  "profileSuggestedSuburbsHelper": "Tap to fill the suburb field above; you can edit it",
+  "profilePickSuggestedSuburb": "Pick a suggested suburb",
+  "profileChooseAccountType": "Choose your account type",
+  "profileAccountTypeCanChange": "Tap Tattoo artist or Customer below. You can switch your choice until you tap Save — after that, your account type is permanent and cannot be changed.",
+  "profileAccountTypeLocked": "Your account type is set and cannot be changed.",
+  "profileTattooArtistTitle": "Tattoo artist",
+  "profileTattooArtistSubtitle": "Bid on jobs and connect with customers",
+  "profileCustomerTitle": "Customer",
+  "profileCustomerSubtitle": "Post tattoo jobs and hire artists",
+  "profilePortfolioTitle": "Portfolio",
+  "profilePortfolioBlurb": "Add up to {max} images for your public artist profile.",
+  "@profilePortfolioBlurb": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "profileAddImageButton": "Add image ({current}/{max})",
+  "@profileAddImageButton": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "profilePortfolioLimitSnackbar": "Only {remaining} more image(s) allowed ({max} max).",
+  "@profilePortfolioLimitSnackbar": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "profileContactSectionTitle": "Contact",
+  "profileContactHelpArtist": "Email and mobile are required. Shown to customers after a winning bid.",
+  "profileContactHelpCustomer": "Email and mobile are required.",
+  "profileContactHelpNone": "Email and mobile are required. Choose your account type above first.",
+  "profileEmailLabel": "Email address",
+  "profileEmailHint": "your.email@example.com",
+  "profileEnterEmail": "Enter your email address",
+  "profileEnterValidEmail": "Enter a valid email address",
+  "profileMobileLabel": "Mobile number",
+  "profileMobileHint": "Your phone number",
+  "profileEnterMobile": "Enter your mobile number",
+  "profileMobileMaxLength": "Max 40 characters",
+  "profileSave": "Save",
+  "profileSelectUserTypeError": "Please select Tattoo Artist or Customer",
+  "profilePhotoRequiredError": "Please add a profile photo before saving.",
+  "profileCameraPermissionRequired": "Camera permission is required to take a photo.",
+  "profileAvatarUploadDenied": "Avatar upload denied. Ensure the \"avatars\" bucket exists and is public in Supabase Dashboard → Storage.",
+  "profileAccountTypeLockedSnackbar": "Your account type can't be changed after it's saved.",
+  "profileEditContact": "Edit contact",
+  "profileNotLoggedIn": "Not logged in",
+  "bidDetailTitle": "Request details",
+  "bidDetailStartingBid": "{amount} starting bid",
+  "@bidDetailStartingBid": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "bidDetailHideDescription": "Hide description",
+  "bidDetailWhatCustomerWants": "What does the customer want?",
+  "bidDetailPlacement": "Placement",
+  "bidDetailSize": "Size",
+  "bidDetailColour": "Colour",
+  "bidDetailColourFull": "Colour",
+  "bidDetailColourBlackGrey": "Black and grey",
+  "bidDetailTimeFrame": "Time frame",
+  "bidDetailTimeframeAsap": "ASAP",
+  "bidDetailTimeframeWeek": "During the week",
+  "bidDetailTimeframeFlexible": "Whenever you can book me in",
+  "bidDetailArtistCreativeFreedom": "Artist has creative freedom",
+  "bidDetailNoDescription": "No description provided.",
+  "bidDetailBids": "Bids",
+  "bidDetailArtistToolsNotBidHint": "Artist tools — bidding is not started from this button.",
+  "bidDetailOnlyArtistsMayBid": "Only tattoo artists can place bids on requests.",
+  "bidDetailBiddingClosedMessage": "Bidding is closed. This request is no longer accepting new bids.",
+  "bidDetailViewArtistTools": "View Artist Tools",
+  "bidDetailBid": "Bid",
+  "bidDetailCouldNotLoadBids": "Could not load bids",
+  "bidDetailNoBidsYet": "No bids yet",
+  "bidDetailLowest": "Lowest",
+  "bidDetailArtistNameFallback": "Artist",
+  "bidDetailChooseArtist": "Choose artist",
+  "bidDetailPaid": "Paid",
+  "bidDetailUnlockContact": "Unlock Contact",
+  "bidDetailSectionArtistContact": "Artist contact",
+  "bidDetailSectionDeposit": "Deposit",
+  "bidDetailSectionConnect": "Connect",
+  "bidDetailPaymentCompleteBody": "Payment is marked complete. If contact is still locked, refresh — your unlock is stored after Stripe confirms.",
+  "bidDetailRefreshUnlockStatus": "Refresh unlock status",
+  "bidDetailChooseWinningBidForDeposit": "Choose a winning bid to see the deposit.",
+  "bidDetailChooseWinningBidToConnect": "Choose a winning bid to connect with your artist.",
+  "bidDetailChooseWinningBidToChat": "Choose a winning bid above. You can chat with your artist right away.",
+  "bidDetailPhoneLine": "Phone: {phone}",
+  "@bidDetailPhoneLine": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "bidDetailEmailLine": "Email: {email}",
+  "@bidDetailEmailLine": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "bidDetailChat": "Chat",
+  "bidDetailTotalPriceLine": "Total price: {amount}",
+  "@bidDetailTotalPriceLine": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "bidDetailDepositLine": "Deposit ({percent}%): {amount}",
+  "@bidDetailDepositLine": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "bidDetailRemainingLine": "Remaining ({percent}%): {amount}",
+  "@bidDetailRemainingLine": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "bidDetailPayDepositUnlock": "Pay {percent}% Deposit & Unlock Artist",
+  "@bidDetailPayDepositUnlock": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "bidDetailPlaceBidTitle": "Place bid",
+  "bidDetailYourPriceLabel": "Your price ($)",
+  "bidDetailEnterValidBidAmount": "Enter a valid amount (0 or more)",
+  "bidDetailCancel": "Cancel",
+  "bidDetailSubmit": "Submit",
+  "bidDetailArtistToolsSheetTitle": "Artist tools",
+  "bidDetailArtistToolsSheetBody": "More artist actions for this job will appear here. This does not place a bid.",
+  "bidDetailCouldNotOpenProfile": "Could not open this profile.",
+  "bidDetailRequestAlreadyCompleted": "This request is already completed.",
+  "bidDetailCouldNotUnlockContactDetails": "Could not unlock contact: {details}",
+  "@bidDetailCouldNotUnlockContactDetails": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "bidDetailCouldNotSelectBidDetails": "Could not select bid: {details}",
+  "@bidDetailCouldNotSelectBidDetails": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "bidDetailTapChooseArtistHint": "Tap Choose artist on a bid to connect with your artist.",
+  "bidDetailPaymentAlreadyCompleted": "Payment has already been completed for this request.",
+  "bidDetailMissingArtistForBid": "Missing artist for this bid.",
+  "bidDetailPaymentFailedDetails": "Payment failed: {details}",
+  "@bidDetailPaymentFailedDetails": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "bidDetailCouldNotFindBidToPay": "Could not find that bid to pay",
+  "bidDetailOnlyCustomerCanPay": "Only the customer can pay",
+  "bidDetailCannotPlaceBid": "You can't place a bid on this request.",
+  "bidDetailBiddingClosedSnackbar": "Bidding is closed for this request.",
+  "bidDetailBidPlaced": "Bid placed",
+  "bidDetailFailedPlaceBidDetails": "Failed to place bid: {details}",
+  "@bidDetailFailedPlaceBidDetails": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  }
+}
