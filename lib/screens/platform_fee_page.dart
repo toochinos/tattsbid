@@ -5,6 +5,7 @@ import '../core/constants/app_constants.dart';
 import '../core/payment/pending_deposit_payment.dart';
 import '../core/services/payment_service.dart';
 import '../core/services/payment_status_service.dart';
+import '../l10n/app_localizations.dart';
 
 class PlatformFeePage extends StatelessWidget {
   final String requestId;
@@ -46,8 +47,9 @@ class PlatformFeePage extends StatelessWidget {
       );
     } catch (e) {
       if (context.mounted) {
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Payment failed: $e')),
+          SnackBar(content: Text(l10n.platformFeePaymentFailed(e.toString()))),
         );
       }
     }
@@ -55,18 +57,25 @@ class PlatformFeePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final artistPayout = total - platformFee;
+    final totalStr = '\$${total.toStringAsFixed(2)}';
+    final feeStr = '\$${platformFee.toStringAsFixed(2)}';
+    final payoutStr = '\$${artistPayout.toStringAsFixed(2)}';
     return Scaffold(
-      appBar: AppBar(title: const Text("Deposit summary")),
+      appBar: AppBar(title: Text(l10n.depositSummaryTitle)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Text("Total cost: \$${total.toStringAsFixed(2)}"),
+            Text(l10n.depositTotalCostLine(totalStr)),
             Text(
-              "Deposit fee ${AppConstants.platformFeePercent}%: \$${platformFee.toStringAsFixed(2)}",
+              l10n.depositFeePercentLine(
+                AppConstants.platformFeePercent,
+                feeStr,
+              ),
             ),
-            Text("Artist receives: \$${artistPayout.toStringAsFixed(2)}"),
+            Text(l10n.depositArtistReceivesLine(payoutStr)),
             const Spacer(),
             SizedBox(
               width: double.infinity,
@@ -75,7 +84,7 @@ class PlatformFeePage extends StatelessWidget {
                   print("🔥 BUTTON CLICKED");
                   await _startStripeCheckout(context);
                 },
-                child: const Text("Pay"),
+                child: Text(l10n.depositPayButton),
               ),
             ),
           ],

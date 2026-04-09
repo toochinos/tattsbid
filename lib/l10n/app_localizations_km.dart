@@ -24,7 +24,31 @@ class AppLocalizationsKm extends AppLocalizations {
   String get tabProfile => 'ប្រវត្តិរូប';
 
   @override
+  String get dashboardTitle => 'ផ្ទាំងគ្រប់គ្រង';
+
+  @override
+  String get dashboardPlaceholderBody => 'ទំព័រផ្ទាំងគ្រប់គ្រង';
+
+  @override
   String get exploreTitle => 'រុករក';
+
+  @override
+  String get exploreSearchHint => 'ឈ្មោះ ទីក្រុង សង្កាត់...';
+
+  @override
+  String get exploreBidsNearMe => 'ដេញថ្លៃនៅក្បែរខ្ញុំ';
+
+  @override
+  String get exploreNearMeNeedProfile =>
+      'បន្ថែមទីក្រុង ឬសង្កាត់ក្នុងប្រវត្តិរូបដើម្បីប្រើដេញថ្លៃនៅក្បែរខ្ញុំ។';
+
+  @override
+  String get exploreNoSearchResults => 'គ្មានប្រកាសដែលត្រូវគ្នា';
+
+  @override
+  String exploreTitleWithCountry(String country) {
+    return 'រុករក - $country';
+  }
 
   @override
   String postedOnDate(String date) {
@@ -51,6 +75,31 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get addRequestToSeeHere => 'បន្ថែមសំណើដើម្បីមើលនៅទីនេះ';
+
+  @override
+  String get addPostCountryMismatchTitle => 'មិនអាចប្រកាសនៅទីនេះ';
+
+  @override
+  String addPostCountryMismatchBody(String targetCountry) {
+    return 'អ្នកប្រកាសបានតែសម្រាប់ប្រទេសដែលអ្នករស់នៅប៉ុណ្ណោះ។ ប្រទេសក្នុងប្រវត្តិរូបរបស់អ្នកមិនត្រូវនឹង $targetCountry ទេ។ សូមធ្វើបច្ចុប្បន្នភាពកន្លែងរស់នៅក្នុងប្រវត្តិរូប។';
+  }
+
+  @override
+  String get addPostCountryMissingTitle => 'ត្រូវការប្រទេស';
+
+  @override
+  String get addPostCountryMissingBody =>
+      'បន្ថែមប្រទេសដែលអ្នករស់នៅក្នុងប្រវត្តិរូបមុនពេលប្រកាសសំណើ។';
+
+  @override
+  String get addPostCountryMismatchOk => 'យល់ព្រម';
+
+  @override
+  String get addPostNeedDestinationTitle => 'ជ្រើសប្រទេសជាមុន';
+
+  @override
+  String get addPostNeedDestinationBody =>
+      'ជ្រើសប្រទេសពីរូបភពនៅទំព័ររុករកមុនពេលប្រកាស។';
 
   @override
   String get retry => 'ព្យាយាមម្តងទៀត';
@@ -379,6 +428,20 @@ class AppLocalizationsKm extends AppLocalizations {
       'មានតែសិល្បករសាក់ប៉ុណ្ណោះដែលអាចដេញថ្លៃលើស្នើសុំ។';
 
   @override
+  String get bidDetailBidCountryRequestMissingHint =>
+      'សំណើនេះមិនមានប្រទេស។ អ្នកមិនអាចដាក់ការដេញថ្លៃបានទេ។';
+
+  @override
+  String get bidDetailBidCountryProfileMissingHint =>
+      'បន្ថែមប្រទេសដែលអ្នករស់នៅ ឬធ្វើការក្នុងប្រវត្តិរូប ដើម្បីដេញថ្លៃលើសំណើនៅប្រទេសនោះ។';
+
+  @override
+  String bidDetailBidCountryMismatchHint(
+      String requestCountry, String profileCountry) {
+    return 'អ្នកដេញថ្លៃបានតែលើសំណើនៅប្រទេសរបស់អ្នកប៉ុណ្ណោះ។ ការងានេះនៅ $requestCountry; ប្រទេសក្នុងប្រវត្តិរូបរបស់អ្នកគឺ $profileCountry។';
+  }
+
+  @override
   String get bidDetailBiddingClosedMessage =>
       'ការដេញថ្លៃបានបិទ។ ស្នើសុំនេះមិនទទួលការដេញថ្លៃថ្មីទៀតទេ។';
 
@@ -547,4 +610,414 @@ class AppLocalizationsKm extends AppLocalizations {
   String bidDetailFailedPlaceBidDetails(String details) {
     return 'ដាក់ការដេញថ្លៃបរាជ័យ៖ $details';
   }
+
+  @override
+  String get photoTakePhoto => 'ថតរូប';
+
+  @override
+  String get photoFromGallery => 'ផ្ទុកពីវិចិត្រសាល';
+
+  @override
+  String get destinationChooseTitle => 'ជ្រើសគោលដៅ';
+
+  @override
+  String get destinationComingSoon => 'មកដល់ឆាប់ៗ';
+
+  @override
+  String get addTabTitle => 'បន្ថែម';
+
+  @override
+  String get addUploading => 'កំពុងផ្ទុក...';
+
+  @override
+  String get addPhotoButton => 'បន្ថែមរូប';
+
+  @override
+  String get addHappyAddDetails => 'ខ្ញុំពេញចិត្ត — បន្ថែមព័ត៌មានលម្អិត';
+
+  @override
+  String get addChooseDifferentPhoto => 'ជ្រើសរូបផ្សេង';
+
+  @override
+  String get addDescriptionHint => 'ពណ៌នាការចង់បានរបស់អ្នក...';
+
+  @override
+  String get addPlacementHint => 'នៅផ្នែកណារបស់ខ្លួន? (ឧ. ដៃ ខ្នង ជើង)';
+
+  @override
+  String get addSizeHint => 'តូច មធ្យម ធំ ឬទំហំ';
+
+  @override
+  String get addColourChip => 'ពណ៌';
+
+  @override
+  String get addBlackGreyChip => 'ខ្មៅ និងប្រផេះ';
+
+  @override
+  String get addTimeAsap => 'ឆាប់ៗ';
+
+  @override
+  String get addTimeWeek => 'ក្នុងសប្តាហ៍';
+
+  @override
+  String get addTimeBookWhen => 'នៅពេលអាចកក់ខ្ញុំបាន';
+
+  @override
+  String get addBidAmountHint => '0';
+
+  @override
+  String get addSubmitRequest => 'ដាក់ស្នើសំណើ';
+
+  @override
+  String get addBackButton => 'ត្រឡប់';
+
+  @override
+  String get addAnotherRequest => 'បន្ថែមសំណើផ្សេង';
+
+  @override
+  String get artistsDirectorySearchHint => 'ឈ្មោះ ទីក្រុង សង្កាត់ ឬប្រទេស';
+
+  @override
+  String get artistsFilterRating => 'ពិន្ទុ';
+
+  @override
+  String get artistsFilterCleanliness => 'អនាម័យ';
+
+  @override
+  String exploreDeleteFailedDetails(String details) {
+    return 'លុបបរាជ័យ៖ $details';
+  }
+
+  @override
+  String get checkoutTitle => 'Checkout';
+
+  @override
+  String get checkoutContinue => 'បន្ត';
+
+  @override
+  String get checkoutCancelledMessage => 'Checkout ត្រូវបានលុបចោល។';
+
+  @override
+  String get checkoutTryAgain => 'ព្យាយាមម្តងទៀត';
+
+  @override
+  String get checkoutBackToDashboard => 'ត្រឡប់ទៅផ្ទាំងគ្រប់គ្រង';
+
+  @override
+  String get depositSummaryTitle => 'សង្ខេបកក់ប្រាក់';
+
+  @override
+  String depositTotalCostLine(String amount) {
+    return 'ថ្លៃសរុប៖ $amount';
+  }
+
+  @override
+  String depositArtistReceivesLine(String amount) {
+    return 'សិល្បករទទួល៖ $amount';
+  }
+
+  @override
+  String get depositPayButton => 'បង់';
+
+  @override
+  String depositFeePercentLine(int percent, String amount) {
+    return 'ថ្លៃកក់ ($percent%): $amount';
+  }
+
+  @override
+  String platformFeePaymentFailed(String error) {
+    return 'ការទូទាត់បរាជ័យ៖ $error';
+  }
+
+  @override
+  String get cameraTitle => 'កាមេរ៉ា';
+
+  @override
+  String cameraSwitchError(String error) {
+    return 'មិនអាចប្តូរកាមេរ៉ា៖ $error';
+  }
+
+  @override
+  String cameraCaptureError(String error) {
+    return 'ថតរូបបរាជ័យ៖ $error';
+  }
+
+  @override
+  String get cameraNoDeviceAvailable => 'មិនមានកាមេរ៉ានៅលើឧបករណ៍នេះទេ។';
+
+  @override
+  String cameraInitFailed(String error) {
+    return 'ចាប់ផ្តើមកាមេរ៉ាបរាជ័យ៖ $error';
+  }
+
+  @override
+  String get bidPageTitle => 'ដេញថ្លៃ';
+
+  @override
+  String get paywallSubscribeTitle => 'ជាវ';
+
+  @override
+  String get paywallSubscribeMonthly => 'ជាវប្រចាំខែ';
+
+  @override
+  String get paywallFreePlanTitle => 'កំណែឥតគិតថ្លៃ';
+
+  @override
+  String get paywallProPlanTitle => 'កំណែ Pro';
+
+  @override
+  String get paywallProMaxPlanTitle => 'Pro Max';
+
+  @override
+  String get paywallProPlanSubtitle => '99¢ AUD ក្នុងមួយខែ';
+
+  @override
+  String get paywallProMaxPlanSubtitle => '\$1.00 AUD ក្នុងមួយខែ';
+
+  @override
+  String get welcomeGetStarted => 'ចាប់ផ្តើម';
+
+  @override
+  String get welcomeSkip => 'រំលង';
+
+  @override
+  String get editContactEmailHint => 'អ៊ីមែលទំនាក់ទំនងរបស់អ្នក';
+
+  @override
+  String get editContactPhoneHint => 'លេខទូរស័ព្ទរបស់អ្នក';
+
+  @override
+  String get publicProfileCantChatSelf => 'អ្នកមិនអាចជជែកជាមួយខ្លួនឯងបានទេ។';
+
+  @override
+  String get publicProfileReviewCommentRequired => 'សូមសរសេរមតិ។';
+
+  @override
+  String get publicProfileReviewSubmitError =>
+      'មិនអាចដាក់ស្នើការវាយតម្លៃឥឡូវនេះ។ សូមព្យាយាមម្តងទៀត។';
+
+  @override
+  String get publicProfileChatButton => 'ជជែក';
+
+  @override
+  String get publicProfileChatWithArtist => 'ជជែកជាមួយសិល្បករ';
+
+  @override
+  String get publicProfileReviewHint => 'ចែករំលែកបទពិសោធន៍របស់អ្នក…';
+
+  @override
+  String get publicProfileSubmitReview => 'ដាក់ស្នើការវាយតម្លៃ';
+
+  @override
+  String get publicProfileEmailTitle => 'អ៊ីមែល';
+
+  @override
+  String get publicProfileMobileTitle => 'ទូរស័ព្ទ';
+
+  @override
+  String get publicProfileTitleFallback => 'ប្រូហ្វាល់';
+
+  @override
+  String get publicProfileReviewSelectBoth =>
+      'សូមជ្រើសពិន្ទុ និងអនាម័យ (ផ្កាយ ១–៥ ម្យ៉ាងៗ)។';
+
+  @override
+  String get publicProfileReviewPostedThanks =>
+      'អរគុណ — ការវាយតម្លៃរបស់អ្នកត្រូវបានបង្ហោះ។';
+
+  @override
+  String get publicProfileReviewUpdated =>
+      'អ្នកបានវាយតម្លៃសិល្បករនេះរួចហើយ។ ការវាយតម្លៃត្រូវបានធ្វើបច្ចុប្បន្នភាព។';
+
+  @override
+  String get publicProfileReviewAlreadyReviewedShort =>
+      'អ្នកបានវាយតម្លៃសិល្បករនេះរួចហើយ';
+
+  @override
+  String get publicProfileReviewsHeading => 'ការវាយតម្លៃ';
+
+  @override
+  String get publicProfileNoReviewsYet => 'មិនទាន់មានការវាយតម្លៃ។';
+
+  @override
+  String get publicProfilePreviousReviews => 'ការវាយតម្លៃមុន';
+
+  @override
+  String publicProfileReviewsTileSubtitle(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ការវាយតម្លៃ · ចុចដើម្បីពង្រីក',
+      one: '$count ការវាយតម្លៃ · ចុចដើម្បីពង្រីក',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get publicProfileWriteReview => 'សរសេរការវាយតម្លៃ';
+
+  @override
+  String get publicProfileEditReview => 'កែការវាយតម្លៃរបស់អ្នក';
+
+  @override
+  String get publicProfileNoContactOnFile => 'មិនមានព័ត៌មានទំនាក់ទំនង។';
+
+  @override
+  String chatSendFailed(String error) {
+    return 'ផ្ញើបរាជ័យ៖ $error';
+  }
+
+  @override
+  String get chatMessageHint => 'សារ (ឯកជន)';
+
+  @override
+  String get chatMessageArtist => 'សារសិល្បករ';
+
+  @override
+  String chatMobileLine(String phone) {
+    return 'ទូរស័ព្ទ៖ $phone';
+  }
+
+  @override
+  String chatEmailLine(String email) {
+    return 'អ៊ីមែល៖ $email';
+  }
+
+  @override
+  String get chatInboxTitle => 'សារ';
+
+  @override
+  String get chatPartnerFallbackTitle => 'ជជែក';
+
+  @override
+  String get chatPrivacyNotice =>
+      'សាររវាងសិល្បករសាក់ និងអតិថិជនប៉ុណ្ណោះ។ មានតែអ្នក និងមនុស្សនេះទេដែលឃើញសារទាំងនេះ។';
+
+  @override
+  String get chatContactSectionTitle => 'ទំនាក់ទំនង';
+
+  @override
+  String get chatSetupRequired =>
+      'ត្រូវការដំឡើងជជែក។ ដំណើរការ migration នៅ supabase/apply_chat_messages.sql ក្នុង Supabase Dashboard (SQL Editor) រួចចុចព្យាយាមម្តងទៀត។';
+
+  @override
+  String get chatEmptyConversation =>
+      'មិនទាន់មានសារ។ សួស្តី — ការសន្ទនានេះមានតែអ្នក និងភាគីម្ខាងទៀតឃើញ។';
+
+  @override
+  String get chatYourArtist => 'សិល្បកររបស់អ្នក';
+
+  @override
+  String chatPhoneLine(String phone) {
+    return 'ទូរស័ព្ទ៖ $phone';
+  }
+
+  @override
+  String get chatNoContactYet => 'មិនទាន់មានទូរស័ព្ទ ឬអ៊ីមែល។';
+
+  @override
+  String get chatUnknownUser => 'អ្នកប្រើ';
+
+  @override
+  String get chatInboxEmptyTitle => 'មិនទាន់មានការសន្ទនា';
+
+  @override
+  String get chatInboxEmptyBody =>
+      'ការជជែកពី Explore (អតិថិជនផ្ញើសារដំបូង) នឹងបង្ហាញនៅទីនេះ។ បន្ទាប់ពីអ្នកបង់ប្រាក់កក់សម្រាប់ការដេញថ្លៃឈ្នះ អេក្រង់នេះបង្ហាញព័ត៌មានទំនាក់ទំនងសិល្បករ និងប៊ូតុងចាប់ផ្តើមសារ។';
+
+  @override
+  String get chatInboxUnlockTitle => 'បង់ដើម្បីដោះសោការផ្ញើសារ';
+
+  @override
+  String get chatInboxUnlockBody =>
+      'បញ្ចប់ការកក់ប្រាក់ពីការដេញថ្លៃឈ្នះនៃសំណើរបស់អ្នក ដើម្បីដោះសោទំនាក់ទំនងសិល្បករ និងការជជែក។';
+
+  @override
+  String get chatPaidArtistBlurbLong =>
+      'បានបង់ប្រាក់កក់ — អ្នកអាចសារសិល្បករ ឬប្រើព័ត៌មានទំនាក់ទំនងរបស់ពួកគេខាងក្រោម។';
+
+  @override
+  String get chatPaidArtistBlurbShort =>
+      'បានបង់ប្រាក់កក់ — សារសិល្បករ ឬប្រើព័ត៌មានទំនាក់ទំនងរបស់ពួកគេ។';
+
+  @override
+  String get chatConversationsSection => 'ការសន្ទនា';
+
+  @override
+  String get reviewRatingLabel => 'ពិន្ទុ';
+
+  @override
+  String get reviewCleanlinessLabel => 'អនាម័យ';
+
+  @override
+  String get userAgreementTitle => 'កិច្ចព្រមព្រៀងអ្នកប្រើ TattsBid';
+
+  @override
+  String get userAgreementAcceptTerms => 'ខ្ញុំយល់ព្រមតាមលក្ខខណ្ឌ TattsBid';
+
+  @override
+  String get userAgreementContinue => 'បន្ត';
+
+  @override
+  String userAgreementSaveError(String error) {
+    return 'មិនអាចរក្សាកិច្ចព្រមព្រៀង៖ $error';
+  }
+
+  @override
+  String get addReferencePhotoTitle => 'បន្ថែមរូបយោង';
+
+  @override
+  String get addReferencePhotoSubtitle => 'ថតរូប ឬជ្រើសពីវិចិត្រសាល';
+
+  @override
+  String get addPhotoUploadedTitle => 'ផ្ទុករូបដោយជោគជ័យ';
+
+  @override
+  String get addPhotoUploadedSubtitle =>
+      'ពេញចិត្តរូបនេះទេ? បន្ថែមពិពណ៌នានិងការដេញថ្លៃដំបូង។';
+
+  @override
+  String get addDescriptionSectionTitle => 'ពិពណ៌នា';
+
+  @override
+  String get addFieldDescriptionLabel => 'តើអ្នកចង់បានអ្វីសម្រាប់សាក់?';
+
+  @override
+  String get addFieldPlacementLabel => 'ទីតាំង';
+
+  @override
+  String get addFieldSizeLabel => 'ទំហំ';
+
+  @override
+  String get addSectionColourTitle => 'ពណ៌ ឬខ្មៅ និងប្រផេះ';
+
+  @override
+  String get addSectionTimeframeTitle => 'រយៈពេល';
+
+  @override
+  String get addCreativeFreedomTitle => 'អនុញ្ញាតឲ្យសិល្បករបង្កើតដោយសេរី';
+
+  @override
+  String get addStartingBidLabel => 'ការដេញថ្លៃដំបូង (\$)';
+
+  @override
+  String get addInvalidBidAmount => 'បញ្ចូលចំនួនត្រឹមត្រូវ (០ ឬច្រើនជាង)';
+
+  @override
+  String get addSubmittedTitle => 'បានដាក់ស្នើសំណើ!';
+
+  @override
+  String get addSubmittedSubtitle =>
+      'សិល្បករអាចមើលសំណើរបស់អ្នក និងដាក់ការដេញថ្លៃ។';
+
+  @override
+  String get artistsNearMeButton => 'សិល្បករនៅក្បែរខ្ញុំ';
+
+  @override
+  String artistsShowingInLocation(String location) {
+    return 'បង្ហាញសិល្បករនៅ $location';
+  }
+
+  @override
+  String get artistsClearSearchTooltip => 'លុបការស្វែងរក';
 }

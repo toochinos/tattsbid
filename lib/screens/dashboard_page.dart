@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../core/routes/app_routes.dart';
+import '../l10n/app_localizations.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        title: Text(l10n.dashboardTitle),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pushNamed(AppRoutes.paywall),
-            child: const Text('Subscribe'),
+            child: Text(l10n.paywallSubscribeTitle),
           ),
           IconButton(
             icon: const Icon(Icons.settings, color: Colors.red),
@@ -22,7 +24,7 @@ class DashboardPage extends StatelessWidget {
           ),
         ],
       ),
-      body: const Center(child: Text('Dashboard Page')),
+      body: Center(child: Text(l10n.dashboardPlaceholderBody)),
     );
   }
 }

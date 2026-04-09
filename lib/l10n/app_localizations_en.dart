@@ -24,7 +24,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tabProfile => 'Profile';
 
   @override
+  String get dashboardTitle => 'Dashboard';
+
+  @override
+  String get dashboardPlaceholderBody => 'Dashboard page';
+
+  @override
   String get exploreTitle => 'Explore';
+
+  @override
+  String get exploreSearchHint => 'Name, city, suburb...';
+
+  @override
+  String get exploreBidsNearMe => 'Bids near me';
+
+  @override
+  String get exploreNearMeNeedProfile =>
+      'Add your city or suburb in your profile to use Bids near me.';
+
+  @override
+  String get exploreNoSearchResults => 'No posts match your search';
+
+  @override
+  String exploreTitleWithCountry(String country) {
+    return 'Explore - $country';
+  }
 
   @override
   String postedOnDate(String date) {
@@ -51,6 +75,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addRequestToSeeHere => 'Add a request to see it here';
+
+  @override
+  String get addPostCountryMismatchTitle => 'You can\'t post here';
+
+  @override
+  String addPostCountryMismatchBody(String targetCountry) {
+    return 'You can only post requests for the country where you live or stay. Your profile country does not match $targetCountry. Update where you are staying or living in your profile.';
+  }
+
+  @override
+  String get addPostCountryMissingTitle => 'Country required';
+
+  @override
+  String get addPostCountryMissingBody =>
+      'Add the country where you live or stay in your profile before you can post a request.';
+
+  @override
+  String get addPostCountryMismatchOk => 'OK';
+
+  @override
+  String get addPostNeedDestinationTitle => 'Select a country first';
+
+  @override
+  String get addPostNeedDestinationBody =>
+      'Select a country from the globe on Explore before posting.';
 
   @override
   String get retry => 'Retry';
@@ -379,6 +428,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only tattoo artists can place bids on requests.';
 
   @override
+  String get bidDetailBidCountryRequestMissingHint =>
+      'This request has no country set. You can’t place a bid.';
+
+  @override
+  String get bidDetailBidCountryProfileMissingHint =>
+      'Add the country where you live or work in your profile to bid on requests in that country.';
+
+  @override
+  String bidDetailBidCountryMismatchHint(
+      String requestCountry, String profileCountry) {
+    return 'You can only bid on requests in your country. This job is in $requestCountry; your profile country is $profileCountry.';
+  }
+
+  @override
   String get bidDetailBiddingClosedMessage =>
       'Bidding is closed. This request is no longer accepting new bids.';
 
@@ -546,4 +609,416 @@ class AppLocalizationsEn extends AppLocalizations {
   String bidDetailFailedPlaceBidDetails(String details) {
     return 'Failed to place bid: $details';
   }
+
+  @override
+  String get photoTakePhoto => 'Take a photo';
+
+  @override
+  String get photoFromGallery => 'Upload from gallery';
+
+  @override
+  String get destinationChooseTitle => 'Choose destination';
+
+  @override
+  String get destinationComingSoon => 'Coming soon';
+
+  @override
+  String get addTabTitle => 'Add';
+
+  @override
+  String get addUploading => 'Uploading...';
+
+  @override
+  String get addPhotoButton => 'Add photo';
+
+  @override
+  String get addHappyAddDetails => 'I\'m happy — add details';
+
+  @override
+  String get addChooseDifferentPhoto => 'Choose different photo';
+
+  @override
+  String get addDescriptionHint => 'Describe your vision...';
+
+  @override
+  String get addPlacementHint => 'Where on the body? (e.g. arm, back, leg)';
+
+  @override
+  String get addSizeHint => 'Small, medium, large, or dimensions';
+
+  @override
+  String get addColourChip => 'Colour';
+
+  @override
+  String get addBlackGreyChip => 'Black and grey';
+
+  @override
+  String get addTimeAsap => 'ASAP';
+
+  @override
+  String get addTimeWeek => 'During the week';
+
+  @override
+  String get addTimeBookWhen => 'Whenever you can book me in';
+
+  @override
+  String get addBidAmountHint => '0';
+
+  @override
+  String get addSubmitRequest => 'Submit request';
+
+  @override
+  String get addBackButton => 'Back';
+
+  @override
+  String get addAnotherRequest => 'Add another request';
+
+  @override
+  String get artistsDirectorySearchHint => 'Name, city, suburb, or country';
+
+  @override
+  String get artistsFilterRating => 'Rating';
+
+  @override
+  String get artistsFilterCleanliness => 'Cleanliness';
+
+  @override
+  String exploreDeleteFailedDetails(String details) {
+    return 'Delete failed: $details';
+  }
+
+  @override
+  String get checkoutTitle => 'Checkout';
+
+  @override
+  String get checkoutContinue => 'Continue';
+
+  @override
+  String get checkoutCancelledMessage => 'Checkout was cancelled.';
+
+  @override
+  String get checkoutTryAgain => 'Try again';
+
+  @override
+  String get checkoutBackToDashboard => 'Back to dashboard';
+
+  @override
+  String get depositSummaryTitle => 'Deposit summary';
+
+  @override
+  String depositTotalCostLine(String amount) {
+    return 'Total cost: $amount';
+  }
+
+  @override
+  String depositArtistReceivesLine(String amount) {
+    return 'Artist receives: $amount';
+  }
+
+  @override
+  String get depositPayButton => 'Pay';
+
+  @override
+  String depositFeePercentLine(int percent, String amount) {
+    return 'Deposit fee ($percent%): $amount';
+  }
+
+  @override
+  String platformFeePaymentFailed(String error) {
+    return 'Payment failed: $error';
+  }
+
+  @override
+  String get cameraTitle => 'Camera';
+
+  @override
+  String cameraSwitchError(String error) {
+    return 'Could not switch camera: $error';
+  }
+
+  @override
+  String cameraCaptureError(String error) {
+    return 'Failed to capture image: $error';
+  }
+
+  @override
+  String get cameraNoDeviceAvailable => 'No camera available on this device.';
+
+  @override
+  String cameraInitFailed(String error) {
+    return 'Failed to initialize camera: $error';
+  }
+
+  @override
+  String get bidPageTitle => 'Bid';
+
+  @override
+  String get paywallSubscribeTitle => 'Subscribe';
+
+  @override
+  String get paywallSubscribeMonthly => 'Subscribe monthly';
+
+  @override
+  String get paywallFreePlanTitle => 'Free version';
+
+  @override
+  String get paywallProPlanTitle => 'Pro version';
+
+  @override
+  String get paywallProMaxPlanTitle => 'Pro Max';
+
+  @override
+  String get paywallProPlanSubtitle => '99¢ AUD monthly';
+
+  @override
+  String get paywallProMaxPlanSubtitle => '\$1.00 AUD monthly';
+
+  @override
+  String get welcomeGetStarted => 'Get started';
+
+  @override
+  String get welcomeSkip => 'Skip';
+
+  @override
+  String get editContactEmailHint => 'Your contact email';
+
+  @override
+  String get editContactPhoneHint => 'Your phone number';
+
+  @override
+  String get publicProfileCantChatSelf => 'You can\'t chat with yourself.';
+
+  @override
+  String get publicProfileReviewCommentRequired => 'Please write a comment.';
+
+  @override
+  String get publicProfileReviewSubmitError =>
+      'Could not submit review right now. Please try again.';
+
+  @override
+  String get publicProfileChatButton => 'Chat';
+
+  @override
+  String get publicProfileChatWithArtist => 'Chat with artist';
+
+  @override
+  String get publicProfileReviewHint => 'Share your experience…';
+
+  @override
+  String get publicProfileSubmitReview => 'Submit review';
+
+  @override
+  String get publicProfileEmailTitle => 'Email';
+
+  @override
+  String get publicProfileMobileTitle => 'Mobile';
+
+  @override
+  String get publicProfileTitleFallback => 'Profile';
+
+  @override
+  String get publicProfileReviewSelectBoth =>
+      'Please select both Rating and Cleanliness (1–5 stars each).';
+
+  @override
+  String get publicProfileReviewPostedThanks =>
+      'Thanks — your review was posted.';
+
+  @override
+  String get publicProfileReviewUpdated =>
+      'You have already reviewed this artist. Your review was updated.';
+
+  @override
+  String get publicProfileReviewAlreadyReviewedShort =>
+      'You have already reviewed this artist';
+
+  @override
+  String get publicProfileReviewsHeading => 'Reviews';
+
+  @override
+  String get publicProfileNoReviewsYet => 'No reviews yet.';
+
+  @override
+  String get publicProfilePreviousReviews => 'Previous reviews';
+
+  @override
+  String publicProfileReviewsTileSubtitle(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count reviews · tap to expand',
+      one: '$count review · tap to expand',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get publicProfileWriteReview => 'Write a review';
+
+  @override
+  String get publicProfileEditReview => 'Edit your review';
+
+  @override
+  String get publicProfileNoContactOnFile => 'No contact details on file.';
+
+  @override
+  String chatSendFailed(String error) {
+    return 'Failed to send: $error';
+  }
+
+  @override
+  String get chatMessageHint => 'Message (private)';
+
+  @override
+  String get chatMessageArtist => 'Message artist';
+
+  @override
+  String chatMobileLine(String phone) {
+    return 'Mobile: $phone';
+  }
+
+  @override
+  String chatEmailLine(String email) {
+    return 'Email: $email';
+  }
+
+  @override
+  String get chatInboxTitle => 'Message';
+
+  @override
+  String get chatPartnerFallbackTitle => 'Chat';
+
+  @override
+  String get chatPrivacyNotice =>
+      'Messages between tattoo artists and customers only. Only you and this person can see these messages.';
+
+  @override
+  String get chatContactSectionTitle => 'Contact';
+
+  @override
+  String get chatSetupRequired =>
+      'Chat setup required. Run the migration in supabase/apply_chat_messages.sql in your Supabase Dashboard (SQL Editor), then tap Retry.';
+
+  @override
+  String get chatEmptyConversation =>
+      'No messages yet. Say hello — this conversation is only visible to you and the other person.';
+
+  @override
+  String get chatYourArtist => 'Your artist';
+
+  @override
+  String chatPhoneLine(String phone) {
+    return 'Phone: $phone';
+  }
+
+  @override
+  String get chatNoContactYet => 'No phone or email on file yet.';
+
+  @override
+  String get chatUnknownUser => 'User';
+
+  @override
+  String get chatInboxEmptyTitle => 'No conversations yet';
+
+  @override
+  String get chatInboxEmptyBody =>
+      'Chats from Explore (customer messages first) appear here. After you pay the deposit on your winning bid, this screen shows your artist’s contact details and a button to start messaging.';
+
+  @override
+  String get chatInboxUnlockTitle => 'Pay to unlock messaging';
+
+  @override
+  String get chatInboxUnlockBody =>
+      'Complete the deposit from your request’s winning bid to unlock artist contact and chat.';
+
+  @override
+  String get chatPaidArtistBlurbLong =>
+      'Deposit paid — you can message your artist or use their contact details below.';
+
+  @override
+  String get chatPaidArtistBlurbShort =>
+      'Deposit paid — message your artist or use their contact details.';
+
+  @override
+  String get chatConversationsSection => 'Conversations';
+
+  @override
+  String get reviewRatingLabel => 'Rating';
+
+  @override
+  String get reviewCleanlinessLabel => 'Cleanliness';
+
+  @override
+  String get userAgreementTitle => 'TattsBid user agreement';
+
+  @override
+  String get userAgreementAcceptTerms => 'I agree to the TattsBid terms';
+
+  @override
+  String get userAgreementContinue => 'Continue';
+
+  @override
+  String userAgreementSaveError(String error) {
+    return 'Could not save agreement: $error';
+  }
+
+  @override
+  String get addReferencePhotoTitle => 'Add a reference photo';
+
+  @override
+  String get addReferencePhotoSubtitle =>
+      'Take a photo or choose from your gallery';
+
+  @override
+  String get addPhotoUploadedTitle => 'Photo uploaded successfully';
+
+  @override
+  String get addPhotoUploadedSubtitle =>
+      'Happy with this photo? Add a description and starting bid.';
+
+  @override
+  String get addDescriptionSectionTitle => 'Description';
+
+  @override
+  String get addFieldDescriptionLabel => 'What do you want for your tattoo?';
+
+  @override
+  String get addFieldPlacementLabel => 'Placement';
+
+  @override
+  String get addFieldSizeLabel => 'Size';
+
+  @override
+  String get addSectionColourTitle => 'Colour or black and grey';
+
+  @override
+  String get addSectionTimeframeTitle => 'Time frame';
+
+  @override
+  String get addCreativeFreedomTitle =>
+      'Allow the artist to have creative freedom';
+
+  @override
+  String get addStartingBidLabel => 'Starting bid (\$)';
+
+  @override
+  String get addInvalidBidAmount => 'Enter a valid amount (0 or more)';
+
+  @override
+  String get addSubmittedTitle => 'Request submitted!';
+
+  @override
+  String get addSubmittedSubtitle =>
+      'Artists can now view your request and place bids.';
+
+  @override
+  String get artistsNearMeButton => 'Artist near me';
+
+  @override
+  String artistsShowingInLocation(String location) {
+    return 'Showing artists in $location';
+  }
+
+  @override
+  String get artistsClearSearchTooltip => 'Clear search';
 }

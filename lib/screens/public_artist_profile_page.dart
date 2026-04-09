@@ -6,6 +6,7 @@ import '../core/models/user_profile.dart';
 import '../core/services/chat_service.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/review_service.dart';
+import '../l10n/app_localizations.dart';
 import '../widgets/clean_hands_icon.dart';
 import '../widgets/tattoo_review_rating_widgets.dart';
 import 'chat_page.dart';
@@ -271,8 +272,9 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
 
   void _openChat() {
     if (_isOwnProfile) {
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You can’t chat with yourself.')),
+        SnackBar(content: Text(l10n.publicProfileCantChatSelf)),
       );
       return;
     }
@@ -283,13 +285,13 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
     );
   }
 
-  String get _appBarTitle {
-    if (_loading) return 'Profile';
+  String _appBarTitle(AppLocalizations l10n) {
+    if (_loading) return l10n.publicProfileTitleFallback;
     final p = _profile;
-    if (p == null) return 'Profile';
+    if (p == null) return l10n.publicProfileTitleFallback;
     final n = p.displayName?.trim();
     if (n != null && n.isNotEmpty) return n;
-    return 'Profile';
+    return l10n.publicProfileTitleFallback;
   }
 
   Future<void> _refreshReviewsOnly() async {
@@ -314,23 +316,22 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
   }
 
   Future<void> _submitReview() async {
+    final l10n = AppLocalizations.of(context)!;
     final comment = _reviewCommentController.text.trim();
     if (_draftRating < 1 ||
         _draftRating > 5 ||
         _draftCleanliness < 1 ||
         _draftCleanliness > 5) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please select both Rating and Cleanliness (1–5 stars each).',
-          ),
+        SnackBar(
+          content: Text(l10n.publicProfileReviewSelectBoth),
         ),
       );
       return;
     }
     if (comment.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please write a comment.')),
+        SnackBar(content: Text(l10n.publicProfileReviewCommentRequired)),
       );
       return;
     }
@@ -352,19 +353,18 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
       await _refreshReviewsOnly();
       if (!mounted) return;
       final msg = switch (result) {
-        ReviewSubmitResult.created => 'Thanks — your review was posted.',
-        ReviewSubmitResult.updated =>
-          'You have already reviewed this artist. Your review was updated.',
+        ReviewSubmitResult.created => l10n.publicProfileReviewPostedThanks,
+        ReviewSubmitResult.updated => l10n.publicProfileReviewUpdated,
         ReviewSubmitResult.alreadyReviewed =>
-          'You have already reviewed this artist',
+          l10n.publicProfileReviewAlreadyReviewedShort,
       };
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (_) {
       if (!mounted) return;
       setState(() => _submittingReview = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not submit review right now. Please try again.'),
+        SnackBar(
+          content: Text(l10n.publicProfileReviewSubmitError),
         ),
       );
     }
@@ -372,10 +372,11 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: Text(_appBarTitle),
+        title: Text(_appBarTitle(l10n)),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -396,20 +397,24 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                         const SizedBox(height: 16),
                         FilledButton(
                           onPressed: _load,
-                          child: const Text('Retry'),
+                          child: Text(l10n.retry),
                         ),
                       ],
                     ),
                   ),
                 )
-              : _buildContent(context, _profile!),
+              : _buildContent(context, _profile!, l10n),
     );
   }
 
-  Widget _buildContent(BuildContext context, UserProfile profile) {
+  Widget _buildContent(
+    BuildContext context,
+    UserProfile profile,
+    AppLocalizations l10n,
+  ) {
     final name = profile.displayName?.trim().isNotEmpty == true
         ? profile.displayName!
-        : 'Artist';
+        : l10n.bidDetailArtistNameFallback;
     final scheme = Theme.of(context).colorScheme;
 
     return SingleChildScrollView(
@@ -446,7 +451,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
             FilledButton.icon(
               onPressed: _openChat,
               icon: const Icon(Icons.phone_outlined),
-              label: const Text('Chat'),
+              label: Text(l10n.publicProfileChatButton),
             ),
           ],
           if (profile.userType == 'tattoo_artist') ...[
@@ -456,7 +461,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
               child: ElevatedButton.icon(
                 onPressed: _openChat,
                 icon: const Icon(Icons.phone_outlined, size: 22),
-                label: const Text('Chat with Artist'),
+                label: Text(l10n.publicProfileChatWithArtist),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF616161),
                   foregroundColor: Colors.white,
@@ -473,7 +478,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Reviews',
+              l10n.publicProfileReviewsHeading,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w700,
@@ -483,7 +488,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
             const SizedBox(height: 12),
             if (_reviews.isEmpty)
               Text(
-                'No reviews yet.',
+                l10n.publicProfileNoReviewsYet,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: scheme.outline,
@@ -522,13 +527,13 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                       color: scheme.primary,
                     ),
                     title: Text(
-                      'Previous reviews',
+                      l10n.publicProfilePreviousReviews,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                     ),
                     subtitle: Text(
-                      '${_reviews.length} review${_reviews.length == 1 ? '' : 's'} · tap to expand',
+                      l10n.publicProfileReviewsTileSubtitle(_reviews.length),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: scheme.outline,
                           ),
@@ -601,8 +606,8 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
               const SizedBox(height: 8),
               Text(
                 _myExistingReview == null
-                    ? 'Write a review'
-                    : 'Edit your review',
+                    ? l10n.publicProfileWriteReview
+                    : l10n.publicProfileEditReview,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -627,7 +632,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                 maxLines: 4,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  hintText: 'Share your experience…',
+                  hintText: l10n.publicProfileReviewHint,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -648,12 +653,12 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                           color: Theme.of(context).colorScheme.onPrimary,
                         ),
                       )
-                    : const Text('Submit review'),
+                    : Text(l10n.publicProfileSubmitReview),
               ),
             ],
             const SizedBox(height: 16),
             Text(
-              'Portfolio',
+              l10n.profilePortfolioTitle,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w700,
@@ -692,7 +697,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
           if (profile.userType == 'tattoo_artist' && _showContactAndChat) ...[
             const SizedBox(height: 32),
             Text(
-              'Contact',
+              l10n.profileContactSectionTitle,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -703,21 +708,21 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.email_outlined),
-                title: const Text('Email'),
+                title: Text(l10n.publicProfileEmailTitle),
                 subtitle: SelectableText(profile.contactEmail!),
               ),
             if (profile.mobile != null && profile.mobile!.trim().isNotEmpty)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.phone_outlined),
-                title: const Text('Mobile'),
+                title: Text(l10n.publicProfileMobileTitle),
                 subtitle: SelectableText(profile.mobile!),
               ),
             if ((profile.contactEmail == null ||
                     profile.contactEmail!.trim().isEmpty) &&
                 (profile.mobile == null || profile.mobile!.trim().isEmpty))
               Text(
-                'No contact details on file.',
+                l10n.publicProfileNoContactOnFile,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: scheme.outline,
                     ),

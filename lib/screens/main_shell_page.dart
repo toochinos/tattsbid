@@ -22,6 +22,8 @@ import 'public_artist_profile_page.dart';
 /// Bidding is opened from Explore → request detail ([BidDetailPage]), not a root tab.
 /// Message tab is 1:1 between tattoo artists and customers only.
 /// Add (plus) is only for customers; tattoo artists cannot upload.
+/// Upload appears only when the customer is on Explore scoped to Australia, Cambodia, or
+/// Indonesia (not worldwide or other destinations), or while they are on the Add tab.
 class MainShellPage extends StatefulWidget {
   const MainShellPage({
     super.key,
@@ -46,6 +48,21 @@ class MainShellPage extends StatefulWidget {
 }
 
 class _MainShellPageState extends State<MainShellPage> {
+  static const Set<String> _exploreCountryNames = {
+    'Australia',
+    'Cambodia',
+    'Indonesia',
+    'Thailand',
+    'Vietnam',
+  };
+
+  /// Explore feeds where customers may upload (globe scope must match exactly).
+  static const Set<String> _uploadAllowedExploreCountries = {
+    'Australia',
+    'Cambodia',
+    'Indonesia',
+  };
+
   int _currentIndex = 0;
   final ValueNotifier<int> _exploreRefreshTrigger = ValueNotifier(0);
 
@@ -55,6 +72,15 @@ class _MainShellPageState extends State<MainShellPage> {
   bool _profileLoaded = false;
   Timer? _presenceTimer;
   bool _didPushWinnerProfile = false;
+
+  /// Country tag for new posts (profile + globe). Not the same as the Explore list scope.
+  final ValueNotifier<String> _postCountryNotifier =
+      ValueNotifier<String>('Indonesia');
+
+  /// Null = main Explore (all countries, title "Explore"). Non-null = globe destination feed.
+  final ValueNotifier<String?> _exploreFeedScopeNotifier =
+      ValueNotifier<String?>(null);
+  bool _exploreCountryLockedByPicker = false;
 
   /// Avoid rebuilding [Navigator] widgets every [setState] — keeps tab stacks stable.
   List<Widget>? _memoTabPages;
@@ -78,6 +104,12 @@ class _MainShellPageState extends State<MainShellPage> {
     setState(() {
       _userType = profile?.userType;
       _profileLoaded = true;
+      if (!_exploreCountryLockedByPicker) {
+        final c = profile?.country?.trim();
+        if (c != null && c.isNotEmpty && _exploreCountryNames.contains(c)) {
+          _postCountryNotifier.value = c;
+        }
+      }
       if (_memoTabPages != null && wasCustomer != _isCustomer) {
         _memoTabPages = null;
         _memoIsCustomer = null;
@@ -115,6 +147,47 @@ class _MainShellPageState extends State<MainShellPage> {
 
   bool get _isCustomer => _userType == 'customer';
 
+  bool get _exploreScopeAllowsCustomerUpload {
+    final scope = _exploreFeedScopeNotifier.value;
+    return scope != null && _uploadAllowedExploreCountries.contains(scope);
+  }
+
+  /// Upload tab: customers only, and only for AU/KH/ID Explore (or while on Add stack).
+  bool get _showCustomerUploadInBar =>
+      _isCustomer &&
+      ((_currentIndex == 0 && _exploreScopeAllowsCustomerUpload) ||
+          _currentIndex == 2);
+
+  /// Bottom bar index → [IndexedStack] index (skips Add when upload tab is omitted).
+  int _stackIndexFromBarIndex(int barIndex) {
+    if (!_isCustomer) return barIndex;
+    if (!_showCustomerUploadInBar) {
+      return switch (barIndex) {
+        0 => 0,
+        1 => 1,
+        2 => 3,
+        3 => 4,
+        _ => barIndex.clamp(0, 4),
+      };
+    }
+    return barIndex;
+  }
+
+  /// [IndexedStack] index → bottom bar selected index (inverse of [_stackIndexFromBarIndex]).
+  int _barIndexFromStack(int stackIndex) {
+    if (!_isCustomer) return stackIndex;
+    if (!_showCustomerUploadInBar) {
+      return switch (stackIndex) {
+        0 => 0,
+        1 => 1,
+        3 => 2,
+        4 => 3,
+        _ => stackIndex.clamp(0, 3),
+      };
+    }
+    return stackIndex;
+  }
+
   List<Widget> _buildTabPages() {
     final pages = <Widget>[
       Navigator(
@@ -123,6 +196,7 @@ class _MainShellPageState extends State<MainShellPage> {
           builder: (_) => ExplorePage(
             refreshTrigger: _exploreRefreshTrigger,
             userType: _userType,
+            exploreFeedScopeNotifier: _exploreFeedScopeNotifier,
             onRequestSelectedForBid: _navigateToBidTab,
           ),
         ),
@@ -139,8 +213,10 @@ class _MainShellPageState extends State<MainShellPage> {
         Navigator(
           key: _navKeys[2],
           onGenerateRoute: (_) => MaterialPageRoute<void>(
-            builder: (_) =>
-                AddPage(onRequestSubmitted: switchToExploreAndRefresh),
+            builder: (_) => AddPage(
+              selectedExploreCountryNotifier: _postCountryNotifier,
+              onRequestSubmitted: switchToExploreAndRefresh,
+            ),
           ),
         ),
       );
@@ -193,7 +269,7 @@ class _MainShellPageState extends State<MainShellPage> {
     bool showEnvelope,
   ) {
     final l10n = AppLocalizations.of(context)!;
-    return <BottomNavigationBarItem>[
+    final items = <BottomNavigationBarItem>[
       BottomNavigationBarItem(
         icon: const Icon(Icons.search),
         label: l10n.tabExplore,
@@ -203,7 +279,7 @@ class _MainShellPageState extends State<MainShellPage> {
         activeIcon: const _ArtistsTabIcon(selected: true),
         label: l10n.tabArtists,
       ),
-      if (_isCustomer)
+      if (_showCustomerUploadInBar)
         BottomNavigationBarItem(
           icon: const Icon(Icons.add_circle, size: 36),
           label: l10n.tabUpload,
@@ -217,11 +293,14 @@ class _MainShellPageState extends State<MainShellPage> {
         label: l10n.tabProfile,
       ),
     ];
+    return items;
   }
 
-  /// Switches to Explore tab and triggers a refresh (e.g. after submitting a request).
+  /// Switches to main Explore (all countries) and refreshes (e.g. after submitting).
   void switchToExploreAndRefresh() {
+    _exploreFeedScopeNotifier.value = null;
     setState(() => _currentIndex = 0);
+    _popTabNavigatorToRoot(0);
     _exploreRefreshTrigger.value++;
   }
 
@@ -264,6 +343,9 @@ class _MainShellPageState extends State<MainShellPage> {
   /// Message: [ChatPage] uses in-page state for threads — [_messageInboxResetTrigger]
   /// forces return to the inbox list (same as the in-chat back button).
   void _onBottomNavTap(int index) {
+    if (index == 0) {
+      _exploreFeedScopeNotifier.value = null;
+    }
     setState(() => _currentIndex = index);
     _popTabNavigatorToRoot(index);
     final messageTabIndex = _isCustomer ? 3 : 2;
@@ -282,17 +364,27 @@ class _MainShellPageState extends State<MainShellPage> {
   }
 
   Future<void> _openGlobe() async {
-    await Navigator.of(context, rootNavigator: true).push<void>(
-      MaterialPageRoute<void>(
+    final selected =
+        await Navigator.of(context, rootNavigator: true).push<String?>(
+      MaterialPageRoute<String?>(
         builder: (_) => const DestinationPage(),
       ),
     );
+    if (!mounted || selected == null || selected.isEmpty) return;
+    _postCountryNotifier.value = selected;
+    _exploreFeedScopeNotifier.value = selected;
+    _exploreCountryLockedByPicker = true;
+    setState(() => _currentIndex = 0);
+    _popTabNavigatorToRoot(0);
+    _exploreRefreshTrigger.value++;
   }
 
   @override
   void dispose() {
     MessageIndicatorService.stop();
     _presenceTimer?.cancel();
+    _postCountryNotifier.dispose();
+    _exploreFeedScopeNotifier.dispose();
     _exploreRefreshTrigger.dispose();
     _messageInboxResetTrigger.dispose();
     super.dispose();
@@ -331,19 +423,30 @@ class _MainShellPageState extends State<MainShellPage> {
         ],
       ),
       bottomNavigationBar: SafeArea(
-        child: ValueListenableBuilder<bool>(
-          valueListenable: MessageIndicatorService.hasUnread,
-          builder: (context, showEnvelope, _) {
-            final items = _navItems(context, showEnvelope);
-            return BottomNavigationBar(
-              currentIndex: _currentIndex.clamp(0, items.length - 1),
-              onTap: _onBottomNavTap,
-              // Do not call [MessageIndicatorService.refresh] here — it would
-              // clear the green envelope as soon as the tab is opened, before
-              // the user reads or replies. Updates come from realtime, polling,
-              // and [ChatPage] after send/mark-read.
-              type: BottomNavigationBarType.fixed,
-              items: items,
+        child: ValueListenableBuilder<String?>(
+          valueListenable: _exploreFeedScopeNotifier,
+          builder: (context, _, __) {
+            return ValueListenableBuilder<bool>(
+              valueListenable: MessageIndicatorService.hasUnread,
+              builder: (context, showEnvelope, _) {
+                final items = _navItems(context, showEnvelope);
+                final stackIndex = _currentIndex.clamp(0, tabPages.length - 1);
+                final barIndex =
+                    _barIndexFromStack(stackIndex).clamp(0, items.length - 1);
+                return BottomNavigationBar(
+                  currentIndex: barIndex,
+                  onTap: (barIndex) {
+                    final stack = _stackIndexFromBarIndex(barIndex);
+                    _onBottomNavTap(stack);
+                  },
+                  // Do not call [MessageIndicatorService.refresh] here — it would
+                  // clear the green envelope as soon as the tab is opened, before
+                  // the user reads or replies. Updates come from realtime, polling,
+                  // and [ChatPage] after send/mark-read.
+                  type: BottomNavigationBarType.fixed,
+                  items: items,
+                );
+              },
             );
           },
         ),

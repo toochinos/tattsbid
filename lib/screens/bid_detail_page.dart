@@ -60,6 +60,9 @@ class _BidDetailPageState extends State<BidDetailPage>
   /// [profiles.user_type] for the signed-in user (for customer-only contact unlock UI).
   String? _viewerUserType;
 
+  /// [profiles.country] for country match when placing bids as a tattoo artist.
+  String? _viewerProfileCountry;
+
   /// From [ContactUnlockService.checkIfUnlocked] — paid contact unlock for this request.
   bool _hasUnlocked = false;
 
@@ -118,6 +121,7 @@ class _BidDetailPageState extends State<BidDetailPage>
         _userRole = null;
         _legacyTattooArtist = false;
         _viewerUserType = null;
+        _viewerProfileCountry = null;
       });
       return;
     }
@@ -126,7 +130,7 @@ class _BidDetailPageState extends State<BidDetailPage>
       final row = await client
           .from(SupabaseProfiles.table)
           .select(
-            '${SupabaseProfiles.role}, ${SupabaseProfiles.userType}',
+            '${SupabaseProfiles.role}, ${SupabaseProfiles.userType}, ${SupabaseProfiles.country}',
           )
           .eq(SupabaseProfiles.id, user.id)
           .maybeSingle();
@@ -143,6 +147,11 @@ class _BidDetailPageState extends State<BidDetailPage>
 
       final ut = row?[SupabaseProfiles.userType] as String?;
       final viewerUt = ut?.trim();
+      final rawCountry = row?[SupabaseProfiles.country] as String?;
+      final trimmedCountry = rawCountry?.trim();
+      final viewerCountry = trimmedCountry != null && trimmedCountry.isNotEmpty
+          ? trimmedCountry
+          : null;
 
       if (!mounted) return;
       setState(() {
@@ -150,6 +159,7 @@ class _BidDetailPageState extends State<BidDetailPage>
         _userRole = normalizedRole;
         _legacyTattooArtist = legacy;
         _viewerUserType = viewerUt?.isEmpty == true ? null : viewerUt;
+        _viewerProfileCountry = viewerCountry;
       });
       await _loadUnlock();
     } catch (e, st) {
@@ -161,6 +171,7 @@ class _BidDetailPageState extends State<BidDetailPage>
         _userRole = null;
         _legacyTattooArtist = legacy;
         _viewerUserType = null;
+        _viewerProfileCountry = null;
       });
       await _loadUnlock();
     }
@@ -280,12 +291,33 @@ class _BidDetailPageState extends State<BidDetailPage>
   /// Bidding only while the request is [open]. Closed after winner / payment.
   bool get _biddingOpen => _request.status == 'open';
 
-  /// Role `customer` from [profiles.role], or legacy tattoo artist when role unset.
-  bool get _showBidButton =>
+  /// Same visibility rules as the Bid button before country gating.
+  bool get _bidButtonBaseEligible =>
       !_profileRoleLoading &&
       _biddingOpen &&
       !_isOwner &&
       (_userRole == 'customer' || (_userRole == null && _legacyTattooArtist));
+
+  bool get _isTattooArtistViewer =>
+      _viewerUserType == 'tattoo_artist' || _legacyTattooArtist;
+
+  /// Tattoo artists may only bid when [TattooRequest.country] matches profile country.
+  bool get _countriesAllowArtistBid {
+    if (!_isTattooArtistViewer) return true;
+    final req = _request.country?.trim();
+    final prof = _viewerProfileCountry?.trim();
+    if (req == null || req.isEmpty) return false;
+    if (prof == null || prof.isEmpty) return false;
+    return req.toLowerCase() == prof.toLowerCase();
+  }
+
+  /// Role `customer` from [profiles.role], or legacy tattoo artist when role unset.
+  bool get _showBidButton => _bidButtonBaseEligible && _countriesAllowArtistBid;
+
+  bool get _showBidCountryBlockedHint =>
+      _bidButtonBaseEligible &&
+      _isTattooArtistViewer &&
+      !_countriesAllowArtistBid;
 
   /// Role `artist`: show tools entry — does not open the bid dialog.
   bool get _showArtistToolsButton =>
@@ -678,6 +710,26 @@ class _BidDetailPageState extends State<BidDetailPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.bidDetailBidPlaced)),
         );
+      } on BidCountryBlockedException catch (e) {
+        if (!mounted) return;
+        final l10n = AppLocalizations.of(context)!;
+        final message = switch (e.kind) {
+          BidCountryBlockedKind.requestCountryMissing =>
+            l10n.bidDetailBidCountryRequestMissingHint,
+          BidCountryBlockedKind.profileCountryMissing =>
+            l10n.bidDetailBidCountryProfileMissingHint,
+          BidCountryBlockedKind.mismatch =>
+            l10n.bidDetailBidCountryMismatchHint(
+              e.requestCountry ?? '',
+              e.profileCountry ?? '',
+            ),
+        };
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
       } catch (e) {
         if (!mounted) return;
         final l10n = AppLocalizations.of(context)!;
@@ -914,6 +966,28 @@ class _BidDetailPageState extends State<BidDetailPage>
                               const SizedBox(height: 6),
                               Text(
                                 l10n.bidDetailOnlyArtistsMayBid,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color:
+                                          Theme.of(context).colorScheme.outline,
+                                    ),
+                              ),
+                            ],
+                            if (_showBidCountryBlockedHint) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                _request.country?.trim().isEmpty ?? true
+                                    ? l10n.bidDetailBidCountryRequestMissingHint
+                                    : (_viewerProfileCountry?.trim().isEmpty ??
+                                            true)
+                                        ? l10n
+                                            .bidDetailBidCountryProfileMissingHint
+                                        : l10n.bidDetailBidCountryMismatchHint(
+                                            _request.country!.trim(),
+                                            _viewerProfileCountry!.trim(),
+                                          ),
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall

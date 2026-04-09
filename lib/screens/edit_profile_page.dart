@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
+import '../l10n/app_localizations.dart';
 
 /// Contact details: email and mobile (no separate “profile” name/location here).
 class EditProfilePage extends StatefulWidget {
@@ -83,8 +84,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Contact details')),
+      appBar: AppBar(title: Text(l10n.profileContactDetailsTitle)),
       body: !_initialized
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -96,20 +98,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   children: [
                     TextFormField(
                       controller: _emailController,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        hintText: 'Your contact email',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: l10n.authEmailLabel,
+                        hintText: l10n.editContactEmailHint,
+                        border: const OutlineInputBorder(),
                       ),
                       keyboardType: TextInputType.emailAddress,
                       autocorrect: false,
                       validator: (v) {
                         final s = v?.trim() ?? '';
                         if (s.isEmpty) {
-                          return 'Enter an email';
+                          return l10n.profileEnterEmail;
                         }
                         if (!s.contains('@') || s.length > 254) {
-                          return 'Enter a valid email';
+                          return l10n.profileEnterValidEmail;
                         }
                         return null;
                       },
@@ -117,16 +119,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _mobileController,
-                      decoration: const InputDecoration(
-                        labelText: 'Mobile number',
-                        hintText: 'Your phone number',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: l10n.profileMobileLabel,
+                        hintText: l10n.editContactPhoneHint,
+                        border: const OutlineInputBorder(),
                       ),
                       keyboardType: TextInputType.phone,
                       validator: (v) {
                         final s = v?.trim() ?? '';
                         if (s.length > 40) {
-                          return 'Max 40 characters';
+                          return l10n.profileMobileMaxLength;
                         }
                         return null;
                       },
@@ -149,7 +151,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Save'),
+                          : Text(l10n.profileSave),
                     ),
                   ],
                 ),

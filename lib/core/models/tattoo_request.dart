@@ -18,6 +18,7 @@ class TattooRequest {
     this.colourPreference,
     this.artistCreativeFreedom = true,
     this.timeframe,
+    this.country,
   });
 
   final String id;
@@ -32,6 +33,7 @@ class TattooRequest {
   final String? colourPreference;
   final bool artistCreativeFreedom;
   final String? timeframe;
+  final String? country;
   final double startingBid;
   final String status;
   final String? winningBidId;
@@ -57,6 +59,7 @@ class TattooRequest {
       colourPreference: json['colour_preference'] as String?,
       artistCreativeFreedom: json['artist_creative_freedom'] as bool? ?? true,
       timeframe: json['timeframe'] as String?,
+      country: json['country'] as String?,
       startingBid: (json['starting_bid'] as num).toDouble(),
       status: json['status'] as String? ?? 'open',
       winningBidId: json['winning_bid_id'] as String?,

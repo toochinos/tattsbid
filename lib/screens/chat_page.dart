@@ -7,6 +7,7 @@ import '../core/models/chat_message.dart';
 import '../core/models/paid_artist_contact.dart';
 import '../core/services/chat_service.dart';
 import '../core/services/message_indicator_service.dart';
+import '../l10n/app_localizations.dart';
 
 /// Private 1:1 chat room between a tattoo artist and a customer only.
 class ChatPage extends StatefulWidget {
@@ -213,9 +214,10 @@ class _ChatPageState extends State<ChatPage> {
       await _loadMessages();
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to send: $e'),
+          content: Text(l10n.chatSendFailed(e.toString())),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -224,7 +226,7 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<String> _getDisplayName(String userId) async {
+  Future<String> _getDisplayName(String userId, String unknownUserLabel) async {
     if (_displayNames.containsKey(userId)) {
       return _displayNames[userId]!;
     }
@@ -235,11 +237,12 @@ class _ChatPageState extends State<ChatPage> {
           .eq('id', userId)
           .maybeSingle();
       final name = res?['display_name'] as String?;
-      final display = name?.trim().isNotEmpty == true ? name! : 'User';
+      final display =
+          name?.trim().isNotEmpty == true ? name! : unknownUserLabel;
       _displayNames[userId] = display;
       return display;
     } catch (_) {
-      return 'User';
+      return unknownUserLabel;
     }
   }
 
@@ -278,10 +281,14 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
         title: Text(
-            _receiverId == null ? 'Message' : (_partnerDisplayName ?? 'Chat')),
+          _receiverId == null
+              ? l10n.chatInboxTitle
+              : (_partnerDisplayName ?? l10n.chatPartnerFallbackTitle),
+        ),
         leading: _receiverId != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -295,8 +302,7 @@ class _ChatPageState extends State<ChatPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Text(
-                'Messages between tattoo artists and customers only. '
-                'Only you and this person can see these messages.',
+                l10n.chatPrivacyNotice,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
@@ -322,26 +328,26 @@ class _ChatPageState extends State<ChatPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Contact',
+                    l10n.chatContactSectionTitle,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                   ),
                   if (_receiverMobile != null) ...[
                     const SizedBox(height: 6),
-                    Text('Mobile: $_receiverMobile'),
+                    Text(l10n.chatMobileLine(_receiverMobile!)),
                   ],
                   if (_receiverEmail != null) ...[
                     const SizedBox(height: 4),
-                    Text('Email: $_receiverEmail'),
+                    Text(l10n.chatEmailLine(_receiverEmail!)),
                   ],
                 ],
               ),
             ),
           Expanded(
-            child: _buildMessageList(),
+            child: _buildMessageList(l10n),
           ),
-          if (_receiverId != null) _buildInputBar(),
+          if (_receiverId != null) _buildInputBar(l10n),
         ],
       ),
     );
@@ -359,7 +365,7 @@ class _ChatPageState extends State<ChatPage> {
     return MaterialLocalizations.of(context).formatShortDate(local);
   }
 
-  Widget _buildInbox() {
+  Widget _buildInbox(AppLocalizations l10n) {
     if (_loadingConversations && _conversations.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -378,7 +384,7 @@ class _ChatPageState extends State<ChatPage> {
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: _loadConversations,
-                child: const Text('Retry'),
+                child: Text(l10n.retry),
               ),
             ],
           ),
@@ -393,14 +399,14 @@ class _ChatPageState extends State<ChatPage> {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           children: [
             Text(
-              'Your artist',
+              l10n.chatYourArtist,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Deposit paid — you can message your artist or use their contact details below.',
+              l10n.chatPaidArtistBlurbLong,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                   ),
@@ -436,15 +442,13 @@ class _ChatPageState extends State<ChatPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No conversations yet',
+              l10n.chatInboxEmptyTitle,
               style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Chats from Explore (customer messages first) appear here. '
-              'After you pay the deposit on your winning bid, this screen shows '
-              'your artist’s contact details and a button to start messaging.',
+              l10n.chatInboxEmptyBody,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                   ),
@@ -452,7 +456,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Pay to unlock messaging',
+              l10n.chatInboxUnlockTitle,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -460,8 +464,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Complete the deposit from your request’s winning bid to unlock '
-              'artist contact and chat.',
+              l10n.chatInboxUnlockBody,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                   ),
@@ -482,14 +485,14 @@ class _ChatPageState extends State<ChatPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Your artist',
+                l10n.chatYourArtist,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
               ),
               const SizedBox(height: 6),
               Text(
-                'Deposit paid — message your artist or use their contact details.',
+                l10n.chatPaidArtistBlurbShort,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
@@ -514,7 +517,7 @@ class _ChatPageState extends State<ChatPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
           child: Text(
-            'Conversations',
+            l10n.chatConversationsSection,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -577,9 +580,9 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Widget _buildMessageList() {
+  Widget _buildMessageList(AppLocalizations l10n) {
     if (_receiverId == null) {
-      return _buildInbox();
+      return _buildInbox(l10n);
     }
     if (_loading && _messages.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -595,11 +598,7 @@ class _ChatPageState extends State<ChatPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                isTableMissing
-                    ? 'Chat setup required. Run the migration in '
-                        'supabase/apply_chat_messages.sql in your Supabase '
-                        'Dashboard (SQL Editor), then tap Retry.'
-                    : _error!,
+                isTableMissing ? l10n.chatSetupRequired : _error!,
                 style: TextStyle(
                   color: isTableMissing
                       ? Theme.of(context).colorScheme.onSurface
@@ -616,7 +615,7 @@ class _ChatPageState extends State<ChatPage> {
                   });
                   _loadMessages();
                 },
-                child: const Text('Retry'),
+                child: Text(l10n.retry),
               ),
             ],
           ),
@@ -629,8 +628,7 @@ class _ChatPageState extends State<ChatPage> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'No messages yet. Say hello — this conversation is only visible '
-            'to you and the other person.',
+            l10n.chatEmptyConversation,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
@@ -655,21 +653,25 @@ class _ChatPageState extends State<ChatPage> {
       itemBuilder: (context, index) {
         final msg = chronological[index];
         final boldThis = emphasizeLatestIncoming && msg.id == latestId;
-        return _buildMessageBubble(msg, emphasize: boldThis);
+        return _buildMessageBubble(msg, l10n, emphasize: boldThis);
       },
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage msg, {bool emphasize = false}) {
+  Widget _buildMessageBubble(
+    ChatMessage msg,
+    AppLocalizations l10n, {
+    bool emphasize = false,
+  }) {
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     final isMe = msg.senderId == currentUserId;
     // Avatar/name shows the sender (who wrote the message).
     final senderId = msg.senderId;
 
     return FutureBuilder<String>(
-      future: _getDisplayName(senderId),
+      future: _getDisplayName(senderId, l10n.chatUnknownUser),
       builder: (context, snapshot) {
-        final name = snapshot.data ?? 'User';
+        final name = snapshot.data ?? l10n.chatUnknownUser;
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Row(
@@ -767,7 +769,7 @@ class _ChatPageState extends State<ChatPage> {
     return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
-  Widget _buildInputBar() {
+  Widget _buildInputBar(AppLocalizations l10n) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -777,7 +779,7 @@ class _ChatPageState extends State<ChatPage> {
               child: TextField(
                 controller: _controller,
                 decoration: InputDecoration(
-                  hintText: 'Message (private)',
+                  hintText: l10n.chatMessageHint,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),
@@ -822,6 +824,7 @@ class _PaidArtistContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final scheme = Theme.of(context).colorScheme;
     final avatar = contact.avatarUrl;
     return Card(
@@ -866,21 +869,21 @@ class _PaidArtistContactCard extends StatelessWidget {
             if (contact.mobile != null) ...[
               const SizedBox(height: 12),
               SelectableText(
-                'Phone: ${contact.mobile}',
+                l10n.chatPhoneLine(contact.mobile!),
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
             ],
             if (contact.contactEmail != null) ...[
               const SizedBox(height: 8),
               SelectableText(
-                'Email: ${contact.contactEmail}',
+                l10n.chatEmailLine(contact.contactEmail!),
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
             ],
             if (contact.mobile == null && contact.contactEmail == null) ...[
               const SizedBox(height: 8),
               Text(
-                'No phone or email on file yet.',
+                l10n.chatNoContactYet,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: scheme.outline,
                     ),
@@ -890,7 +893,7 @@ class _PaidArtistContactCard extends StatelessWidget {
             FilledButton.icon(
               onPressed: onMessageArtist,
               icon: const Icon(Icons.chat_bubble_outline),
-              label: const Text('Message artist'),
+              label: Text(l10n.chatMessageArtist),
             ),
           ],
         ),

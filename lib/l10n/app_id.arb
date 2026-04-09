@@ -5,7 +5,21 @@
   "tabUpload": "Unggah",
   "tabMessage": "Pesan",
   "tabProfile": "Profil",
+  "dashboardTitle": "Dasbor",
+  "dashboardPlaceholderBody": "Halaman dasbor",
   "exploreTitle": "Jelajahi",
+  "exploreSearchHint": "Nama, kota, kecamatan...",
+  "exploreBidsNearMe": "Penawaran di dekat saya",
+  "exploreNearMeNeedProfile": "Tambahkan kota atau kecamatan di profil Anda untuk memakai Penawaran di dekat saya.",
+  "exploreNoSearchResults": "Tidak ada postingan yang cocok",
+  "exploreTitleWithCountry": "Jelajahi - {country}",
+  "@exploreTitleWithCountry": {
+    "placeholders": {
+      "country": {
+        "type": "String"
+      }
+    }
+  },
   "postedOnDate": "Diposting {date}",
   "@postedOnDate": {
     "placeholders": {
@@ -25,6 +39,20 @@
   "bidClosed": "Penawaran ditutup",
   "noTattooRequestsYet": "Belum ada permintaan tato",
   "addRequestToSeeHere": "Tambah permintaan untuk melihatnya di sini",
+  "addPostCountryMismatchTitle": "Tidak bisa posting di sini",
+  "addPostCountryMismatchBody": "Anda hanya bisa memposting untuk negara tempat Anda tinggal. Negara di profil Anda tidak cocok dengan {targetCountry}. Perbarui tempat tinggal Anda di profil.",
+  "@addPostCountryMismatchBody": {
+    "placeholders": {
+      "targetCountry": {
+        "type": "String"
+      }
+    }
+  },
+  "addPostCountryMissingTitle": "Negara wajib",
+  "addPostCountryMissingBody": "Tambahkan negara tempat Anda tinggal di profil sebelum memposting permintaan.",
+  "addPostCountryMismatchOk": "Oke",
+  "addPostNeedDestinationTitle": "Pilih negara dulu",
+  "addPostNeedDestinationBody": "Pilih negara dari ikon globe di Jelajahi sebelum memposting.",
   "retry": "Coba lagi",
   "actionTooltipExplore": "Jelajahi",
   "actionTooltipSettings": "Pengaturan",
@@ -133,6 +161,19 @@
   "bidDetailBids": "Penawaran",
   "bidDetailArtistToolsNotBidHint": "Alat seniman — penawaran tidak dimulai dari tombol ini.",
   "bidDetailOnlyArtistsMayBid": "Hanya seniman tato yang dapat mengajukan penawaran.",
+  "bidDetailBidCountryRequestMissingHint": "Permintaan ini tidak memiliki negara. Anda tidak dapat mengajukan penawaran.",
+  "bidDetailBidCountryProfileMissingHint": "Tambahkan negara tempat Anda tinggal atau bekerja di profil untuk menawar permintaan di negara tersebut.",
+  "bidDetailBidCountryMismatchHint": "Anda hanya dapat menawar permintaan di negara Anda. Pekerjaan ini di {requestCountry}; negara profil Anda adalah {profileCountry}.",
+  "@bidDetailBidCountryMismatchHint": {
+    "placeholders": {
+      "requestCountry": {
+        "type": "String"
+      },
+      "profileCountry": {
+        "type": "String"
+      }
+    }
+  },
   "bidDetailBiddingClosedMessage": "Penawaran ditutup. Permintaan ini tidak lagi menerima penawaran baru.",
   "bidDetailViewArtistTools": "Lihat alat seniman",
   "bidDetailBid": "Tawar",
@@ -178,5 +219,233 @@
   "bidDetailCannotPlaceBid": "Anda tidak dapat mengajukan penawaran untuk permintaan ini.",
   "bidDetailBiddingClosedSnackbar": "Penawaran ditutup untuk permintaan ini.",
   "bidDetailBidPlaced": "Penawaran diajukan",
-  "bidDetailFailedPlaceBidDetails": "Gagal mengajukan penawaran: {details}"
+  "bidDetailFailedPlaceBidDetails": "Gagal mengajukan penawaran: {details}",
+  "photoTakePhoto": "Ambil foto",
+  "photoFromGallery": "Unggah dari galeri",
+  "destinationChooseTitle": "Pilih tujuan",
+  "destinationComingSoon": "Segera hadir",
+  "addTabTitle": "Tambah",
+  "addUploading": "Mengunggah...",
+  "addPhotoButton": "Tambah foto",
+  "addHappyAddDetails": "Saya puas — tambah detail",
+  "addChooseDifferentPhoto": "Pilih foto lain",
+  "addDescriptionHint": "Jelaskan visi Anda...",
+  "addPlacementHint": "Di bagian tubuh mana? (mis. lengan, punggung, kaki)",
+  "addSizeHint": "Kecil, sedang, besar, atau ukuran",
+  "addColourChip": "Warna",
+  "addBlackGreyChip": "Hitam putih",
+  "addTimeAsap": "Sesegera mungkin",
+  "addTimeWeek": "Selama minggu ini",
+  "addTimeBookWhen": "Kapan Anda bisa membooking saya",
+  "addBidAmountHint": "0",
+  "addSubmitRequest": "Kirim permintaan",
+  "addBackButton": "Kembali",
+  "addAnotherRequest": "Tambah permintaan lain",
+  "artistsDirectorySearchHint": "Nama, kota, kecamatan, atau negara",
+  "artistsFilterRating": "Rating",
+  "artistsFilterCleanliness": "Kebersihan",
+  "exploreDeleteFailedDetails": "Gagal menghapus: {details}",
+  "@exploreDeleteFailedDetails": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutTitle": "Checkout",
+  "checkoutContinue": "Lanjutkan",
+  "checkoutCancelledMessage": "Checkout dibatalkan.",
+  "checkoutTryAgain": "Coba lagi",
+  "checkoutBackToDashboard": "Kembali ke dasbor",
+  "depositSummaryTitle": "Ringkasan deposit",
+  "depositTotalCostLine": "Total biaya: {amount}",
+  "@depositTotalCostLine": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "depositArtistReceivesLine": "Seniman menerima: {amount}",
+  "@depositArtistReceivesLine": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "depositPayButton": "Bayar",
+  "depositFeePercentLine": "Biaya deposit ({percent}%): {amount}",
+  "@depositFeePercentLine": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "platformFeePaymentFailed": "Pembayaran gagal: {error}",
+  "@platformFeePaymentFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraTitle": "Kamera",
+  "cameraSwitchError": "Tidak dapat mengganti kamera: {error}",
+  "@cameraSwitchError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraCaptureError": "Gagal mengambil gambar: {error}",
+  "@cameraCaptureError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraNoDeviceAvailable": "Tidak ada kamera di perangkat ini.",
+  "cameraInitFailed": "Gagal menginisialisasi kamera: {error}",
+  "@cameraInitFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "bidPageTitle": "Penawaran",
+  "paywallSubscribeTitle": "Berlangganan",
+  "paywallSubscribeMonthly": "Berlangganan bulanan",
+  "paywallFreePlanTitle": "Versi gratis",
+  "paywallProPlanTitle": "Versi Pro",
+  "paywallProMaxPlanTitle": "Pro Max",
+  "paywallProPlanSubtitle": "99¢ AUD per bulan",
+  "paywallProMaxPlanSubtitle": "$1,00 AUD per bulan",
+  "welcomeGetStarted": "Mulai",
+  "welcomeSkip": "Lewati",
+  "editContactEmailHint": "Email kontak Anda",
+  "editContactPhoneHint": "Nomor telepon Anda",
+  "publicProfileCantChatSelf": "Anda tidak dapat mengobrol dengan diri sendiri.",
+  "publicProfileReviewCommentRequired": "Silakan tulis komentar.",
+  "publicProfileReviewSubmitError": "Tidak dapat mengirim ulasan sekarang. Coba lagi.",
+  "publicProfileChatButton": "Obrolan",
+  "publicProfileChatWithArtist": "Obrolan dengan seniman",
+  "publicProfileReviewHint": "Bagikan pengalaman Anda…",
+  "publicProfileSubmitReview": "Kirim ulasan",
+  "publicProfileEmailTitle": "Email",
+  "publicProfileMobileTitle": "Ponsel",
+  "publicProfileTitleFallback": "Profil",
+  "publicProfileReviewSelectBoth": "Pilih Rating dan Kebersihan (masing-masing 1–5 bintang).",
+  "publicProfileReviewPostedThanks": "Terima kasih — ulasan Anda telah dipublikasikan.",
+  "publicProfileReviewUpdated": "Anda sudah mengulas seniman ini. Ulasan Anda telah diperbarui.",
+  "publicProfileReviewAlreadyReviewedShort": "Anda sudah mengulas seniman ini",
+  "publicProfileReviewsHeading": "Ulasan",
+  "publicProfileNoReviewsYet": "Belum ada ulasan.",
+  "publicProfilePreviousReviews": "Ulasan sebelumnya",
+  "publicProfileReviewsTileSubtitle": "{count, plural, one{{count} ulasan · ketuk untuk memperluas} other{{count} ulasan · ketuk untuk memperluas}}",
+  "@publicProfileReviewsTileSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "num"
+      }
+    }
+  },
+  "publicProfileWriteReview": "Tulis ulasan",
+  "publicProfileEditReview": "Edit ulasan Anda",
+  "publicProfileNoContactOnFile": "Tidak ada detail kontak.",
+  "chatSendFailed": "Gagal mengirim: {error}",
+  "@chatSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessageHint": "Pesan (pribadi)",
+  "chatMessageArtist": "Pesan seniman",
+  "chatMobileLine": "Ponsel: {phone}",
+  "@chatMobileLine": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "chatEmailLine": "Email: {email}",
+  "@chatEmailLine": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "chatInboxTitle": "Pesan",
+  "chatPartnerFallbackTitle": "Obrolan",
+  "chatPrivacyNotice": "Pesan hanya untuk seniman tato dan pelanggan. Hanya Anda dan orang ini yang dapat melihat pesan ini.",
+  "chatContactSectionTitle": "Kontak",
+  "chatSetupRequired": "Pengaturan chat diperlukan. Jalankan migrasi di supabase/apply_chat_messages.sql di Dashboard Supabase Anda (SQL Editor), lalu ketuk Coba lagi.",
+  "chatEmptyConversation": "Belum ada pesan. Sapa — percakapan ini hanya terlihat oleh Anda dan orang lain.",
+  "chatYourArtist": "Seniman Anda",
+  "chatPhoneLine": "Telepon: {phone}",
+  "@chatPhoneLine": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "chatNoContactYet": "Belum ada telepon atau email.",
+  "chatUnknownUser": "Pengguna",
+  "chatInboxEmptyTitle": "Belum ada percakapan",
+  "chatInboxEmptyBody": "Obrolan dari Jelajahi (pelanggan memulai pesan) muncul di sini. Setelah Anda membayar deposit pada penawaran yang menang, layar ini menampilkan detail kontak seniman dan tombol untuk mulai mengirim pesan.",
+  "chatInboxUnlockTitle": "Bayar untuk membuka pesan",
+  "chatInboxUnlockBody": "Selesaikan deposit dari penawaran yang menang pada permintaan Anda untuk membuka kontak seniman dan obrolan.",
+  "chatPaidArtistBlurbLong": "Deposit dibayar — Anda dapat mengirim pesan ke seniman atau menggunakan detail kontak mereka di bawah.",
+  "chatPaidArtistBlurbShort": "Deposit dibayar — kirim pesan ke seniman atau gunakan detail kontak mereka.",
+  "chatConversationsSection": "Percakapan",
+  "reviewRatingLabel": "Rating",
+  "reviewCleanlinessLabel": "Kebersihan",
+  "userAgreementTitle": "Perjanjian pengguna TattsBid",
+  "userAgreementAcceptTerms": "Saya setuju dengan syarat TattsBid",
+  "userAgreementContinue": "Lanjutkan",
+  "userAgreementSaveError": "Tidak dapat menyimpan perjanjian: {error}",
+  "@userAgreementSaveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "addReferencePhotoTitle": "Tambah foto referensi",
+  "addReferencePhotoSubtitle": "Ambil foto atau pilih dari galeri",
+  "addPhotoUploadedTitle": "Foto berhasil diunggah",
+  "addPhotoUploadedSubtitle": "Puas dengan foto ini? Tambahkan deskripsi dan penawaran awal.",
+  "addDescriptionSectionTitle": "Deskripsi",
+  "addFieldDescriptionLabel": "Apa yang Anda inginkan untuk tato Anda?",
+  "addFieldPlacementLabel": "Penempatan",
+  "addFieldSizeLabel": "Ukuran",
+  "addSectionColourTitle": "Warna atau hitam putih",
+  "addSectionTimeframeTitle": "Jangka waktu",
+  "addCreativeFreedomTitle": "Izinkan seniman berkreasi",
+  "addStartingBidLabel": "Penawaran awal ($)",
+  "addInvalidBidAmount": "Masukkan jumlah yang valid (0 atau lebih)",
+  "addSubmittedTitle": "Permintaan dikirim!",
+  "addSubmittedSubtitle": "Seniman sekarang dapat melihat permintaan Anda dan mengajukan penawaran.",
+  "artistsNearMeButton": "Seniman di dekat saya",
+  "artistsShowingInLocation": "Menampilkan seniman di {location}",
+  "@artistsShowingInLocation": {
+    "placeholders": {
+      "location": {
+        "type": "String"
+      }
+    }
+  },
+  "artistsClearSearchTooltip": "Hapus pencarian"
 }

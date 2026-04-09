@@ -24,7 +24,31 @@ class AppLocalizationsId extends AppLocalizations {
   String get tabProfile => 'Profil';
 
   @override
+  String get dashboardTitle => 'Dasbor';
+
+  @override
+  String get dashboardPlaceholderBody => 'Halaman dasbor';
+
+  @override
   String get exploreTitle => 'Jelajahi';
+
+  @override
+  String get exploreSearchHint => 'Nama, kota, kecamatan...';
+
+  @override
+  String get exploreBidsNearMe => 'Penawaran di dekat saya';
+
+  @override
+  String get exploreNearMeNeedProfile =>
+      'Tambahkan kota atau kecamatan di profil Anda untuk memakai Penawaran di dekat saya.';
+
+  @override
+  String get exploreNoSearchResults => 'Tidak ada postingan yang cocok';
+
+  @override
+  String exploreTitleWithCountry(String country) {
+    return 'Jelajahi - $country';
+  }
 
   @override
   String postedOnDate(String date) {
@@ -52,6 +76,31 @@ class AppLocalizationsId extends AppLocalizations {
   @override
   String get addRequestToSeeHere =>
       'Tambah permintaan untuk melihatnya di sini';
+
+  @override
+  String get addPostCountryMismatchTitle => 'Tidak bisa posting di sini';
+
+  @override
+  String addPostCountryMismatchBody(String targetCountry) {
+    return 'Anda hanya bisa memposting untuk negara tempat Anda tinggal. Negara di profil Anda tidak cocok dengan $targetCountry. Perbarui tempat tinggal Anda di profil.';
+  }
+
+  @override
+  String get addPostCountryMissingTitle => 'Negara wajib';
+
+  @override
+  String get addPostCountryMissingBody =>
+      'Tambahkan negara tempat Anda tinggal di profil sebelum memposting permintaan.';
+
+  @override
+  String get addPostCountryMismatchOk => 'Oke';
+
+  @override
+  String get addPostNeedDestinationTitle => 'Pilih negara dulu';
+
+  @override
+  String get addPostNeedDestinationBody =>
+      'Pilih negara dari ikon globe di Jelajahi sebelum memposting.';
 
   @override
   String get retry => 'Coba lagi';
@@ -382,6 +431,20 @@ class AppLocalizationsId extends AppLocalizations {
       'Hanya seniman tato yang dapat mengajukan penawaran.';
 
   @override
+  String get bidDetailBidCountryRequestMissingHint =>
+      'Permintaan ini tidak memiliki negara. Anda tidak dapat mengajukan penawaran.';
+
+  @override
+  String get bidDetailBidCountryProfileMissingHint =>
+      'Tambahkan negara tempat Anda tinggal atau bekerja di profil untuk menawar permintaan di negara tersebut.';
+
+  @override
+  String bidDetailBidCountryMismatchHint(
+      String requestCountry, String profileCountry) {
+    return 'Anda hanya dapat menawar permintaan di negara Anda. Pekerjaan ini di $requestCountry; negara profil Anda adalah $profileCountry.';
+  }
+
+  @override
   String get bidDetailBiddingClosedMessage =>
       'Penawaran ditutup. Permintaan ini tidak lagi menerima penawaran baru.';
 
@@ -553,4 +616,417 @@ class AppLocalizationsId extends AppLocalizations {
   String bidDetailFailedPlaceBidDetails(String details) {
     return 'Gagal mengajukan penawaran: $details';
   }
+
+  @override
+  String get photoTakePhoto => 'Ambil foto';
+
+  @override
+  String get photoFromGallery => 'Unggah dari galeri';
+
+  @override
+  String get destinationChooseTitle => 'Pilih tujuan';
+
+  @override
+  String get destinationComingSoon => 'Segera hadir';
+
+  @override
+  String get addTabTitle => 'Tambah';
+
+  @override
+  String get addUploading => 'Mengunggah...';
+
+  @override
+  String get addPhotoButton => 'Tambah foto';
+
+  @override
+  String get addHappyAddDetails => 'Saya puas — tambah detail';
+
+  @override
+  String get addChooseDifferentPhoto => 'Pilih foto lain';
+
+  @override
+  String get addDescriptionHint => 'Jelaskan visi Anda...';
+
+  @override
+  String get addPlacementHint =>
+      'Di bagian tubuh mana? (mis. lengan, punggung, kaki)';
+
+  @override
+  String get addSizeHint => 'Kecil, sedang, besar, atau ukuran';
+
+  @override
+  String get addColourChip => 'Warna';
+
+  @override
+  String get addBlackGreyChip => 'Hitam putih';
+
+  @override
+  String get addTimeAsap => 'Sesegera mungkin';
+
+  @override
+  String get addTimeWeek => 'Selama minggu ini';
+
+  @override
+  String get addTimeBookWhen => 'Kapan Anda bisa membooking saya';
+
+  @override
+  String get addBidAmountHint => '0';
+
+  @override
+  String get addSubmitRequest => 'Kirim permintaan';
+
+  @override
+  String get addBackButton => 'Kembali';
+
+  @override
+  String get addAnotherRequest => 'Tambah permintaan lain';
+
+  @override
+  String get artistsDirectorySearchHint => 'Nama, kota, kecamatan, atau negara';
+
+  @override
+  String get artistsFilterRating => 'Rating';
+
+  @override
+  String get artistsFilterCleanliness => 'Kebersihan';
+
+  @override
+  String exploreDeleteFailedDetails(String details) {
+    return 'Gagal menghapus: $details';
+  }
+
+  @override
+  String get checkoutTitle => 'Checkout';
+
+  @override
+  String get checkoutContinue => 'Lanjutkan';
+
+  @override
+  String get checkoutCancelledMessage => 'Checkout dibatalkan.';
+
+  @override
+  String get checkoutTryAgain => 'Coba lagi';
+
+  @override
+  String get checkoutBackToDashboard => 'Kembali ke dasbor';
+
+  @override
+  String get depositSummaryTitle => 'Ringkasan deposit';
+
+  @override
+  String depositTotalCostLine(String amount) {
+    return 'Total biaya: $amount';
+  }
+
+  @override
+  String depositArtistReceivesLine(String amount) {
+    return 'Seniman menerima: $amount';
+  }
+
+  @override
+  String get depositPayButton => 'Bayar';
+
+  @override
+  String depositFeePercentLine(int percent, String amount) {
+    return 'Biaya deposit ($percent%): $amount';
+  }
+
+  @override
+  String platformFeePaymentFailed(String error) {
+    return 'Pembayaran gagal: $error';
+  }
+
+  @override
+  String get cameraTitle => 'Kamera';
+
+  @override
+  String cameraSwitchError(String error) {
+    return 'Tidak dapat mengganti kamera: $error';
+  }
+
+  @override
+  String cameraCaptureError(String error) {
+    return 'Gagal mengambil gambar: $error';
+  }
+
+  @override
+  String get cameraNoDeviceAvailable => 'Tidak ada kamera di perangkat ini.';
+
+  @override
+  String cameraInitFailed(String error) {
+    return 'Gagal menginisialisasi kamera: $error';
+  }
+
+  @override
+  String get bidPageTitle => 'Penawaran';
+
+  @override
+  String get paywallSubscribeTitle => 'Berlangganan';
+
+  @override
+  String get paywallSubscribeMonthly => 'Berlangganan bulanan';
+
+  @override
+  String get paywallFreePlanTitle => 'Versi gratis';
+
+  @override
+  String get paywallProPlanTitle => 'Versi Pro';
+
+  @override
+  String get paywallProMaxPlanTitle => 'Pro Max';
+
+  @override
+  String get paywallProPlanSubtitle => '99¢ AUD per bulan';
+
+  @override
+  String get paywallProMaxPlanSubtitle => '\$1,00 AUD per bulan';
+
+  @override
+  String get welcomeGetStarted => 'Mulai';
+
+  @override
+  String get welcomeSkip => 'Lewati';
+
+  @override
+  String get editContactEmailHint => 'Email kontak Anda';
+
+  @override
+  String get editContactPhoneHint => 'Nomor telepon Anda';
+
+  @override
+  String get publicProfileCantChatSelf =>
+      'Anda tidak dapat mengobrol dengan diri sendiri.';
+
+  @override
+  String get publicProfileReviewCommentRequired => 'Silakan tulis komentar.';
+
+  @override
+  String get publicProfileReviewSubmitError =>
+      'Tidak dapat mengirim ulasan sekarang. Coba lagi.';
+
+  @override
+  String get publicProfileChatButton => 'Obrolan';
+
+  @override
+  String get publicProfileChatWithArtist => 'Obrolan dengan seniman';
+
+  @override
+  String get publicProfileReviewHint => 'Bagikan pengalaman Anda…';
+
+  @override
+  String get publicProfileSubmitReview => 'Kirim ulasan';
+
+  @override
+  String get publicProfileEmailTitle => 'Email';
+
+  @override
+  String get publicProfileMobileTitle => 'Ponsel';
+
+  @override
+  String get publicProfileTitleFallback => 'Profil';
+
+  @override
+  String get publicProfileReviewSelectBoth =>
+      'Pilih Rating dan Kebersihan (masing-masing 1–5 bintang).';
+
+  @override
+  String get publicProfileReviewPostedThanks =>
+      'Terima kasih — ulasan Anda telah dipublikasikan.';
+
+  @override
+  String get publicProfileReviewUpdated =>
+      'Anda sudah mengulas seniman ini. Ulasan Anda telah diperbarui.';
+
+  @override
+  String get publicProfileReviewAlreadyReviewedShort =>
+      'Anda sudah mengulas seniman ini';
+
+  @override
+  String get publicProfileReviewsHeading => 'Ulasan';
+
+  @override
+  String get publicProfileNoReviewsYet => 'Belum ada ulasan.';
+
+  @override
+  String get publicProfilePreviousReviews => 'Ulasan sebelumnya';
+
+  @override
+  String publicProfileReviewsTileSubtitle(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ulasan · ketuk untuk memperluas',
+      one: '$count ulasan · ketuk untuk memperluas',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get publicProfileWriteReview => 'Tulis ulasan';
+
+  @override
+  String get publicProfileEditReview => 'Edit ulasan Anda';
+
+  @override
+  String get publicProfileNoContactOnFile => 'Tidak ada detail kontak.';
+
+  @override
+  String chatSendFailed(String error) {
+    return 'Gagal mengirim: $error';
+  }
+
+  @override
+  String get chatMessageHint => 'Pesan (pribadi)';
+
+  @override
+  String get chatMessageArtist => 'Pesan seniman';
+
+  @override
+  String chatMobileLine(String phone) {
+    return 'Ponsel: $phone';
+  }
+
+  @override
+  String chatEmailLine(String email) {
+    return 'Email: $email';
+  }
+
+  @override
+  String get chatInboxTitle => 'Pesan';
+
+  @override
+  String get chatPartnerFallbackTitle => 'Obrolan';
+
+  @override
+  String get chatPrivacyNotice =>
+      'Pesan hanya untuk seniman tato dan pelanggan. Hanya Anda dan orang ini yang dapat melihat pesan ini.';
+
+  @override
+  String get chatContactSectionTitle => 'Kontak';
+
+  @override
+  String get chatSetupRequired =>
+      'Pengaturan chat diperlukan. Jalankan migrasi di supabase/apply_chat_messages.sql di Dashboard Supabase Anda (SQL Editor), lalu ketuk Coba lagi.';
+
+  @override
+  String get chatEmptyConversation =>
+      'Belum ada pesan. Sapa — percakapan ini hanya terlihat oleh Anda dan orang lain.';
+
+  @override
+  String get chatYourArtist => 'Seniman Anda';
+
+  @override
+  String chatPhoneLine(String phone) {
+    return 'Telepon: $phone';
+  }
+
+  @override
+  String get chatNoContactYet => 'Belum ada telepon atau email.';
+
+  @override
+  String get chatUnknownUser => 'Pengguna';
+
+  @override
+  String get chatInboxEmptyTitle => 'Belum ada percakapan';
+
+  @override
+  String get chatInboxEmptyBody =>
+      'Obrolan dari Jelajahi (pelanggan memulai pesan) muncul di sini. Setelah Anda membayar deposit pada penawaran yang menang, layar ini menampilkan detail kontak seniman dan tombol untuk mulai mengirim pesan.';
+
+  @override
+  String get chatInboxUnlockTitle => 'Bayar untuk membuka pesan';
+
+  @override
+  String get chatInboxUnlockBody =>
+      'Selesaikan deposit dari penawaran yang menang pada permintaan Anda untuk membuka kontak seniman dan obrolan.';
+
+  @override
+  String get chatPaidArtistBlurbLong =>
+      'Deposit dibayar — Anda dapat mengirim pesan ke seniman atau menggunakan detail kontak mereka di bawah.';
+
+  @override
+  String get chatPaidArtistBlurbShort =>
+      'Deposit dibayar — kirim pesan ke seniman atau gunakan detail kontak mereka.';
+
+  @override
+  String get chatConversationsSection => 'Percakapan';
+
+  @override
+  String get reviewRatingLabel => 'Rating';
+
+  @override
+  String get reviewCleanlinessLabel => 'Kebersihan';
+
+  @override
+  String get userAgreementTitle => 'Perjanjian pengguna TattsBid';
+
+  @override
+  String get userAgreementAcceptTerms => 'Saya setuju dengan syarat TattsBid';
+
+  @override
+  String get userAgreementContinue => 'Lanjutkan';
+
+  @override
+  String userAgreementSaveError(String error) {
+    return 'Tidak dapat menyimpan perjanjian: $error';
+  }
+
+  @override
+  String get addReferencePhotoTitle => 'Tambah foto referensi';
+
+  @override
+  String get addReferencePhotoSubtitle => 'Ambil foto atau pilih dari galeri';
+
+  @override
+  String get addPhotoUploadedTitle => 'Foto berhasil diunggah';
+
+  @override
+  String get addPhotoUploadedSubtitle =>
+      'Puas dengan foto ini? Tambahkan deskripsi dan penawaran awal.';
+
+  @override
+  String get addDescriptionSectionTitle => 'Deskripsi';
+
+  @override
+  String get addFieldDescriptionLabel =>
+      'Apa yang Anda inginkan untuk tato Anda?';
+
+  @override
+  String get addFieldPlacementLabel => 'Penempatan';
+
+  @override
+  String get addFieldSizeLabel => 'Ukuran';
+
+  @override
+  String get addSectionColourTitle => 'Warna atau hitam putih';
+
+  @override
+  String get addSectionTimeframeTitle => 'Jangka waktu';
+
+  @override
+  String get addCreativeFreedomTitle => 'Izinkan seniman berkreasi';
+
+  @override
+  String get addStartingBidLabel => 'Penawaran awal (\$)';
+
+  @override
+  String get addInvalidBidAmount => 'Masukkan jumlah yang valid (0 atau lebih)';
+
+  @override
+  String get addSubmittedTitle => 'Permintaan dikirim!';
+
+  @override
+  String get addSubmittedSubtitle =>
+      'Seniman sekarang dapat melihat permintaan Anda dan mengajukan penawaran.';
+
+  @override
+  String get artistsNearMeButton => 'Seniman di dekat saya';
+
+  @override
+  String artistsShowingInLocation(String location) {
+    return 'Menampilkan seniman di $location';
+  }
+
+  @override
+  String get artistsClearSearchTooltip => 'Hapus pencarian';
 }

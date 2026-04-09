@@ -6,6 +6,7 @@ import '../core/models/artist_directory_entry.dart';
 import '../core/models/user_profile.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/review_service.dart';
+import '../l10n/app_localizations.dart';
 import '../widgets/clean_hands_icon.dart';
 import 'public_artist_profile_page.dart';
 
@@ -212,13 +213,14 @@ class _ArtistsPageState extends State<ArtistsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final scheme = Theme.of(context).colorScheme;
     final hasQuery = _searchController.text.trim().isNotEmpty;
     final showClear = hasQuery || _nearMeLocationFilter != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Artists'),
+        title: Text(l10n.tabArtists),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -230,7 +232,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _commitSearch(),
               decoration: InputDecoration(
-                hintText: 'Name, city, suburb, or country',
+                hintText: l10n.artistsDirectorySearchHint,
                 prefixIcon: const Icon(Icons.search),
                 // Keep suffix intrinsic-width only — no [Flexible] here or it steals
                 // horizontal space from the editable text area beside the magnifying glass.
@@ -251,7 +253,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
                             color: scheme.primary,
                           ),
                           label: Text(
-                            'Artist near me',
+                            l10n.artistsNearMeButton,
                             style: Theme.of(context)
                                 .textTheme
                                 .labelMedium
@@ -274,7 +276,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
                       if (showClear)
                         IconButton(
                           icon: const Icon(Icons.close),
-                          tooltip: 'Clear search',
+                          tooltip: l10n.artistsClearSearchTooltip,
                           onPressed: _clearSearch,
                         ),
                     ],
@@ -301,7 +303,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                'Showing artists in ${_nearMeLocationFilter!}',
+                l10n.artistsShowingInLocation(_nearMeLocationFilter!),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: scheme.primary,
@@ -324,6 +326,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
+      final l10n = AppLocalizations.of(context)!;
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -344,7 +347,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: _loadInitial,
-                child: const Text('Retry'),
+                child: Text(l10n.retry),
               ),
             ],
           ),
@@ -484,6 +487,7 @@ class _DirectoryDualRatingLines extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final empty = Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
     final bodySmall = Theme.of(context).textTheme.bodySmall;
 
@@ -533,13 +537,13 @@ class _DirectoryDualRatingLines extends StatelessWidget {
         line(
           leading: Icon(Icons.star_rounded, size: 16, color: _gold),
           starColor: _gold,
-          label: 'Rating',
+          label: l10n.artistsFilterRating,
           average: experienceAverage,
         ),
         line(
           leading: const CleanHandsIcon(size: 14),
           starColor: _green,
-          label: 'Cleanliness',
+          label: l10n.artistsFilterCleanliness,
           average: cleanlinessAverage,
         ),
       ],

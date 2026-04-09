@@ -3,38 +3,44 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../l10n/app_localizations.dart';
+
 final ImagePicker _picker = ImagePicker();
 
 /// Bottom sheet used by Upload and Profile: "Take a photo" / "Upload from gallery".
 Future<ImageSource?> showPhotoSourceBottomSheet(BuildContext context) {
   return showModalBottomSheet<ImageSource>(
     context: context,
-    builder: (BuildContext sheetContext) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                Icons.camera_alt,
-                color: Theme.of(sheetContext).colorScheme.primary,
+    builder: (BuildContext sheetContext) {
+      final l10n = AppLocalizations.of(sheetContext)!;
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.camera_alt,
+                  color: Theme.of(sheetContext).colorScheme.primary,
+                ),
+                title: Text(l10n.photoTakePhoto),
+                onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
               ),
-              title: const Text('Take a photo'),
-              onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.photo_library,
-                color: Theme.of(sheetContext).colorScheme.primary,
+              ListTile(
+                leading: Icon(
+                  Icons.photo_library,
+                  color: Theme.of(sheetContext).colorScheme.primary,
+                ),
+                title: Text(l10n.photoFromGallery),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.gallery),
               ),
-              title: const Text('Upload from gallery'),
-              onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }
 

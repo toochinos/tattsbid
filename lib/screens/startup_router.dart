@@ -111,9 +111,7 @@ class _StartupRouterState extends State<StartupRouter> {
   }
 
   Future<void> _completeLanguageSelection(String code) async {
-    await context
-        .read<AppLocaleController>()
-        .setLocale(Locale(code.trim()));
+    await context.read<AppLocaleController>().setLocale(Locale(code.trim()));
     if (!mounted) return;
     setState(() => _hasSelectedLanguage = true);
   }

@@ -1,6 +1,8 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
+
 class CameraPage extends StatefulWidget {
   const CameraPage({super.key});
 
@@ -13,7 +15,8 @@ class _CameraPageState extends State<CameraPage> {
   List<CameraDescription> _cameras = const [];
   int _cameraIndex = 0;
   bool _capturing = false;
-  String? _error;
+  bool _noCameraDevice = false;
+  String? _cameraInitErrorDetail;
 
   @override
   void initState() {
@@ -25,13 +28,13 @@ class _CameraPageState extends State<CameraPage> {
     try {
       _cameras = await availableCameras();
       if (_cameras.isEmpty) {
-        setState(() => _error = 'No camera available on this device.');
+        setState(() => _noCameraDevice = true);
         return;
       }
       await _startController(_cameraIndex);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = 'Failed to initialize camera: $e');
+      setState(() => _cameraInitErrorDetail = e.toString());
     }
   }
 
@@ -56,8 +59,9 @@ class _CameraPageState extends State<CameraPage> {
       await _startController(nextIndex);
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not switch camera: $e')),
+        SnackBar(content: Text(l10n.cameraSwitchError(e.toString()))),
       );
     }
   }
@@ -74,8 +78,9 @@ class _CameraPageState extends State<CameraPage> {
       Navigator.of(context).pop(image.path);
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to capture image: $e')),
+        SnackBar(content: Text(l10n.cameraCaptureError(e.toString()))),
       );
       setState(() => _capturing = false);
     }
@@ -89,13 +94,17 @@ class _CameraPageState extends State<CameraPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_error != null) {
+    final l10n = AppLocalizations.of(context)!;
+    if (_noCameraDevice || _cameraInitErrorDetail != null) {
+      final message = _noCameraDevice
+          ? l10n.cameraNoDeviceAvailable
+          : l10n.cameraInitFailed(_cameraInitErrorDetail!);
       return Scaffold(
-        appBar: AppBar(title: const Text('Camera')),
+        appBar: AppBar(title: Text(l10n.cameraTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(_error!, textAlign: TextAlign.center),
+            child: Text(message, textAlign: TextAlign.center),
           ),
         ),
       );
@@ -105,7 +114,7 @@ class _CameraPageState extends State<CameraPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Camera')),
+      appBar: AppBar(title: Text(l10n.cameraTitle)),
       body: CameraPreview(_controller!),
       floatingActionButton: Row(
         mainAxisSize: MainAxisSize.min,

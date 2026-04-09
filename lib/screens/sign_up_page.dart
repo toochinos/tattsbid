@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/routes/app_routes.dart';
 import '../core/services/auth_service.dart';
+import '../l10n/app_localizations.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -61,8 +62,9 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign up')),
+      appBar: AppBar(title: Text(l10n.authTabSignUp)),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -76,13 +78,13 @@ class _SignUpPageState extends State<SignUpPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.authEmailLabel,
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
-                      return 'Enter your email';
+                      return l10n.authEnterEmail;
                     }
                     return null;
                   },
@@ -91,16 +93,16 @@ class _SignUpPageState extends State<SignUpPage> {
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.authPasswordLabel,
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (v) {
                     if (v == null || v.isEmpty) {
-                      return 'Enter a password';
+                      return l10n.authEnterPasswordSignUp;
                     }
                     if (v.length < 6) {
-                      return 'Password must be at least 6 characters';
+                      return l10n.authPasswordMinLength;
                     }
                     return null;
                   },
@@ -109,16 +111,16 @@ class _SignUpPageState extends State<SignUpPage> {
                 TextFormField(
                   controller: _confirmPasswordController,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Re-enter Password',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.authReenterPasswordLabel,
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (v) {
                     if (v == null || v.isEmpty) {
-                      return 'Re-enter your password';
+                      return l10n.authReenterPasswordError;
                     }
                     if (v != _passwordController.text) {
-                      return 'Passwords do not match';
+                      return l10n.authPasswordsDoNotMatch;
                     }
                     return null;
                   },
@@ -140,7 +142,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           width: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Create account'),
+                      : Text(l10n.authCreateAccount),
                 ),
               ],
             ),

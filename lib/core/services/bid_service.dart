@@ -5,11 +5,40 @@ import '../config/supabase_schema.dart';
 import '../utils/supabase_list.dart';
 import '../models/bid.dart';
 
+/// Tattoo artists cannot bid when profile country does not match the request’s country.
+enum BidCountryBlockedKind {
+  requestCountryMissing,
+  profileCountryMissing,
+  mismatch,
+}
+
+class BidCountryBlockedException implements Exception {
+  BidCountryBlockedException(
+    this.kind, {
+    this.requestCountry,
+    this.profileCountry,
+  });
+
+  final BidCountryBlockedKind kind;
+  final String? requestCountry;
+  final String? profileCountry;
+
+  @override
+  String toString() => 'BidCountryBlockedException($kind)';
+}
+
 /// Fetches bids on tattoo requests. Only tattoo artists can place bids.
 class BidService {
   BidService._();
 
   static SupabaseClient get _client => Supabase.instance.client;
+
+  static bool _sameCountry(String? a, String? b) {
+    final x = a?.trim().toLowerCase();
+    final y = b?.trim().toLowerCase();
+    if (x == null || x.isEmpty || y == null || y.isEmpty) return false;
+    return x == y;
+  }
 
   /// Whether the signed-in user’s profile has `user_type == tattoo_artist`.
   /// Matches the check in [placeBid] so UI can show the Bid button reliably.
@@ -26,6 +55,7 @@ class BidService {
   }
 
   /// Places a bid on a tattoo request. Only tattoo artists can place bids.
+  /// [TattooRequest.country] must match the artist’s profile [SupabaseProfiles.country].
   static Future<void> placeBid({
     required String requestId,
     required double bidAmount,
@@ -39,7 +69,9 @@ class BidService {
     // Customers cannot place bids.
     final profile = await _client
         .from(SupabaseProfiles.table)
-        .select(SupabaseProfiles.userType)
+        .select(
+          '${SupabaseProfiles.userType}, ${SupabaseProfiles.country}',
+        )
         .eq(SupabaseProfiles.id, user.id)
         .maybeSingle();
     final userType = profile?[SupabaseProfiles.userType] as String?;
@@ -51,9 +83,14 @@ class BidService {
       );
     }
 
+    final profileCountry =
+        (profile?[SupabaseProfiles.country] as String?)?.trim();
+
     final reqRow = await _client
         .from(SupabaseTattooRequests.table)
-        .select(SupabaseTattooRequests.status)
+        .select(
+          '${SupabaseTattooRequests.status}, ${SupabaseTattooRequests.country}',
+        )
         .eq(SupabaseTattooRequests.id, requestId)
         .maybeSingle();
     final requestStatus =
@@ -63,6 +100,30 @@ class BidService {
         requestStatus == 'completed'
             ? 'Bidding is closed — this request has been completed.'
             : 'Bidding is closed for this request.',
+      );
+    }
+
+    final requestCountry =
+        (reqRow?[SupabaseTattooRequests.country] as String?)?.trim();
+    if (requestCountry == null || requestCountry.isEmpty) {
+      throw BidCountryBlockedException(
+        BidCountryBlockedKind.requestCountryMissing,
+        requestCountry: requestCountry,
+        profileCountry: profileCountry,
+      );
+    }
+    if (profileCountry == null || profileCountry.isEmpty) {
+      throw BidCountryBlockedException(
+        BidCountryBlockedKind.profileCountryMissing,
+        requestCountry: requestCountry,
+        profileCountry: profileCountry,
+      );
+    }
+    if (!_sameCountry(requestCountry, profileCountry)) {
+      throw BidCountryBlockedException(
+        BidCountryBlockedKind.mismatch,
+        requestCountry: requestCountry,
+        profileCountry: profileCountry,
       );
     }
 

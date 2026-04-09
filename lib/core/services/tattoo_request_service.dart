@@ -59,6 +59,7 @@ class TattooRequestService {
     bool artistCreativeFreedom = true,
     String? timeframe,
     required double startingBid,
+    required String country,
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) throw StateError('User must be authenticated');
@@ -67,9 +68,15 @@ class TattooRequestService {
       throw ArgumentError('Starting bid must be non-negative.');
     }
 
+    final trimmedCountry = country.trim();
+    if (trimmedCountry.isEmpty) {
+      throw ArgumentError('Country is required for new tattoo requests.');
+    }
+
     final data = {
       SupabaseTattooRequests.userId: user.id,
       SupabaseTattooRequests.imageUrl: imageUrl,
+      SupabaseTattooRequests.country: trimmedCountry,
       SupabaseTattooRequests.description:
           description?.trim().isEmpty == true ? null : description?.trim(),
       SupabaseTattooRequests.placement:
@@ -170,11 +177,23 @@ class TattooRequestService {
     return _withDisplayNames(mapListFrom(res));
   }
 
-  /// Fetches tattoo requests for the Explore page.
-  static Future<List<TattooRequest>> fetchOpenRequests() async {
+  /// Fetches tattoo requests for Explore. When [country] is null or empty,
+  /// returns all rows visible under RLS (worldwide feed). Otherwise filters
+  /// by [SupabaseTattooRequests.country].
+  static Future<List<TattooRequest>> fetchOpenRequests(
+      {String? country}) async {
+    final c = country?.trim();
+    if (c == null || c.isEmpty) {
+      final res = await _client
+          .from(SupabaseTattooRequests.table)
+          .select()
+          .order(SupabaseTattooRequests.createdAt, ascending: false);
+      return _withDisplayNames(mapListFrom(res));
+    }
     final res = await _client
         .from(SupabaseTattooRequests.table)
         .select()
+        .eq(SupabaseTattooRequests.country, c)
         .order(SupabaseTattooRequests.createdAt, ascending: false);
 
     return _withDisplayNames(mapListFrom(res));

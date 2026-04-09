@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/locale/app_locale_controller.dart';
+import '../l10n/app_localizations.dart';
 import 'language_selection_screen.dart';
 import 'login_page.dart';
 
@@ -105,7 +106,9 @@ class _WelcomeOnboardingPageState extends State<WelcomeOnboardingPage> {
       MaterialPageRoute<void>(
         builder: (ctx) => LanguageSelectionScreen(
           onLanguageSelected: (code) async {
-            await ctx.read<AppLocaleController>().setLocale(Locale(code.trim()));
+            await ctx
+                .read<AppLocaleController>()
+                .setLocale(Locale(code.trim()));
             if (!ctx.mounted) return;
             await Navigator.of(ctx).pushReplacement(
               MaterialPageRoute<void>(builder: (_) => const LoginPage()),
@@ -132,6 +135,7 @@ class _WelcomeOnboardingPageState extends State<WelcomeOnboardingPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     final lastIndex = WelcomeOnboardingPage.slideAssets.length - 1;
 
     return Scaffold(
@@ -186,7 +190,7 @@ class _WelcomeOnboardingPageState extends State<WelcomeOnboardingPage> {
                 child: TextButton(
                   onPressed: _finishOnboarding,
                   child: Text(
-                    'Skip',
+                    l10n.welcomeSkip,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.95),
                       fontWeight: FontWeight.w600,
@@ -243,7 +247,7 @@ class _WelcomeOnboardingPageState extends State<WelcomeOnboardingPage> {
                                       vertical: 14,
                                     ),
                                   ),
-                                  child: const Text('Get Started'),
+                                  child: Text(l10n.welcomeGetStarted),
                                 ),
                               ),
                             )

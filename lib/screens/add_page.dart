@@ -5,12 +5,21 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../core/services/photo_service.dart';
+import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 import '../core/utils/pick_images.dart';
+import '../l10n/app_localizations.dart';
 
 /// Add tab: customer uploads reference photo, adds description and starting bid.
 class AddPage extends StatefulWidget {
-  const AddPage({super.key, this.onRequestSubmitted});
+  const AddPage({
+    super.key,
+    required this.selectedExploreCountryNotifier,
+    this.onRequestSubmitted,
+  });
+
+  /// Posts are tagged for this country (same as Explore filter).
+  final ValueNotifier<String> selectedExploreCountryNotifier;
 
   /// Called after a request is successfully submitted (e.g. to switch to Explore).
   final VoidCallback? onRequestSubmitted;
@@ -103,13 +112,69 @@ class _AddPageState extends State<AddPage> {
     });
   }
 
+  Future<void> _showCountryGuardDialog({
+    required String title,
+    required String body,
+  }) async {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(child: Text(body)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(l10n.addPostCountryMismatchOk),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submitRequest() async {
     if (!_formKey.currentState!.validate() || _uploadedUrl == null) return;
+
+    final postCountry = widget.selectedExploreCountryNotifier.value.trim();
+    if (postCountry.isEmpty) {
+      final l10n = AppLocalizations.of(context)!;
+      await _showCountryGuardDialog(
+        title: l10n.addPostNeedDestinationTitle,
+        body: l10n.addPostNeedDestinationBody,
+      );
+      return;
+    }
 
     setState(() {
       _submitting = true;
       _errorMessage = null;
     });
+
+    final profile = await ProfileService.getCurrentProfile();
+    if (!mounted) return;
+
+    final profileCountry = profile?.country?.trim() ?? '';
+    if (profileCountry.isEmpty) {
+      setState(() => _submitting = false);
+      final l10n = AppLocalizations.of(context)!;
+      await _showCountryGuardDialog(
+        title: l10n.addPostCountryMissingTitle,
+        body: l10n.addPostCountryMissingBody,
+      );
+      return;
+    }
+
+    if (profileCountry != postCountry) {
+      setState(() => _submitting = false);
+      final l10n = AppLocalizations.of(context)!;
+      await _showCountryGuardDialog(
+        title: l10n.addPostCountryMismatchTitle,
+        body: l10n.addPostCountryMismatchBody(postCountry),
+      );
+      return;
+    }
+
     try {
       final startingBid =
           double.tryParse(_startingBidController.text.trim()) ?? 0.0;
@@ -128,6 +193,7 @@ class _AddPageState extends State<AddPage> {
         artistCreativeFreedom: _artistCreativeFreedom,
         timeframe: _timeframe,
         startingBid: startingBid,
+        country: postCountry,
       );
       if (!mounted) return;
       setState(() {
@@ -147,8 +213,9 @@ class _AddPageState extends State<AddPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Add')),
+      appBar: AppBar(title: Text(l10n.addTabTitle)),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -156,11 +223,11 @@ class _AddPageState extends State<AddPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (_uploading)
-                const Column(
+                Column(
                   children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Uploading...'),
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(l10n.addUploading),
                   ],
                 )
               else if (_submitted)
@@ -190,6 +257,7 @@ class _AddPageState extends State<AddPage> {
   }
 
   Widget _buildInitialState(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       children: [
         Icon(
@@ -199,12 +267,12 @@ class _AddPageState extends State<AddPage> {
         ),
         const SizedBox(height: 16),
         Text(
-          'Add a reference photo',
+          l10n.addReferencePhotoTitle,
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 8),
         Text(
-          'Take a photo or choose from your gallery',
+          l10n.addReferencePhotoSubtitle,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.outline,
               ),
@@ -214,13 +282,14 @@ class _AddPageState extends State<AddPage> {
         FilledButton.icon(
           onPressed: _showPhotoOptions,
           icon: const Icon(Icons.add),
-          label: const Text('Add photo'),
+          label: Text(l10n.addPhotoButton),
         ),
       ],
     );
   }
 
   Widget _buildPhotoPreview(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       children: [
         ClipRRect(
@@ -236,12 +305,12 @@ class _AddPageState extends State<AddPage> {
         ),
         const SizedBox(height: 16),
         Text(
-          'Photo uploaded successfully',
+          l10n.addPhotoUploadedTitle,
           style: Theme.of(context).textTheme.bodyLarge,
         ),
         const SizedBox(height: 8),
         Text(
-          'Happy with this photo? Add a description and starting bid.',
+          l10n.addPhotoUploadedSubtitle,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.outline,
               ),
@@ -251,19 +320,20 @@ class _AddPageState extends State<AddPage> {
         FilledButton.icon(
           onPressed: () => setState(() => _showDetailsForm = true),
           icon: const Icon(Icons.check_circle_outline),
-          label: const Text("I'm happy — add details"),
+          label: Text(l10n.addHappyAddDetails),
         ),
         const SizedBox(height: 12),
         TextButton.icon(
           onPressed: _showPhotoOptions,
           icon: const Icon(Icons.refresh),
-          label: const Text('Choose different photo'),
+          label: Text(l10n.addChooseDifferentPhoto),
         ),
       ],
     );
   }
 
   Widget _buildDetailsForm(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Form(
       key: _formKey,
       child: Column(
@@ -282,7 +352,7 @@ class _AddPageState extends State<AddPage> {
           ),
           const SizedBox(height: 24),
           Text(
-            'Description',
+            l10n.addDescriptionSectionTitle,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -290,11 +360,11 @@ class _AddPageState extends State<AddPage> {
           const SizedBox(height: 8),
           TextFormField(
             controller: _descriptionController,
-            decoration: const InputDecoration(
-              labelText: 'What do you want for your tattoo?',
-              hintText: 'Describe your vision...',
+            decoration: InputDecoration(
+              labelText: l10n.addFieldDescriptionLabel,
+              hintText: l10n.addDescriptionHint,
               alignLabelWithHint: true,
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
             ),
             maxLines: 3,
             textInputAction: TextInputAction.next,
@@ -302,26 +372,26 @@ class _AddPageState extends State<AddPage> {
           const SizedBox(height: 16),
           TextFormField(
             controller: _placementController,
-            decoration: const InputDecoration(
-              labelText: 'Placement',
-              hintText: 'Where on the body? (e.g. arm, back, leg)',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: l10n.addFieldPlacementLabel,
+              hintText: l10n.addPlacementHint,
+              border: const OutlineInputBorder(),
             ),
             textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: 16),
           TextFormField(
             controller: _sizeController,
-            decoration: const InputDecoration(
-              labelText: 'Size',
-              hintText: 'Small, medium, large, or dimensions',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: l10n.addFieldSizeLabel,
+              hintText: l10n.addSizeHint,
+              border: const OutlineInputBorder(),
             ),
             textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: 16),
           Text(
-            'Colour or black and grey',
+            l10n.addSectionColourTitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w500,
                 ),
@@ -330,7 +400,7 @@ class _AddPageState extends State<AddPage> {
           Row(
             children: [
               ChoiceChip(
-                label: const Text('Colour'),
+                label: Text(l10n.addColourChip),
                 selected: _colourPreference == 'colour',
                 onSelected: (selected) {
                   setState(
@@ -339,7 +409,7 @@ class _AddPageState extends State<AddPage> {
               ),
               const SizedBox(width: 8),
               ChoiceChip(
-                label: const Text('Black and grey'),
+                label: Text(l10n.addBlackGreyChip),
                 selected: _colourPreference == 'black_and_grey',
                 onSelected: (selected) {
                   setState(() =>
@@ -350,7 +420,7 @@ class _AddPageState extends State<AddPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Time frame',
+            l10n.addSectionTimeframeTitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w500,
                 ),
@@ -361,14 +431,14 @@ class _AddPageState extends State<AddPage> {
             runSpacing: 8,
             children: [
               ChoiceChip(
-                label: const Text('ASAP'),
+                label: Text(l10n.addTimeAsap),
                 selected: _timeframe == 'asap',
                 onSelected: (selected) {
                   setState(() => _timeframe = selected ? 'asap' : null);
                 },
               ),
               ChoiceChip(
-                label: const Text('During the week'),
+                label: Text(l10n.addTimeWeek),
                 selected: _timeframe == 'during_the_week',
                 onSelected: (selected) {
                   setState(
@@ -376,7 +446,7 @@ class _AddPageState extends State<AddPage> {
                 },
               ),
               ChoiceChip(
-                label: const Text('Whenever you can book me in'),
+                label: Text(l10n.addTimeBookWhen),
                 selected: _timeframe == 'when_you_can_book_me_in',
                 onSelected: (selected) {
                   setState(() =>
@@ -390,8 +460,8 @@ class _AddPageState extends State<AddPage> {
             value: _artistCreativeFreedom,
             onChanged: (v) =>
                 setState(() => _artistCreativeFreedom = v ?? true),
-            title: const Text(
-              'Allow the artist to have creative freedom',
+            title: Text(
+              l10n.addCreativeFreedomTitle,
             ),
             controlAffinity: ListTileControlAffinity.leading,
             contentPadding: EdgeInsets.zero,
@@ -399,11 +469,11 @@ class _AddPageState extends State<AddPage> {
           const SizedBox(height: 16),
           TextFormField(
             controller: _startingBidController,
-            decoration: const InputDecoration(
-              labelText: 'Starting bid (\$)',
-              hintText: '0',
+            decoration: InputDecoration(
+              labelText: l10n.addStartingBidLabel,
+              hintText: l10n.addBidAmountHint,
               prefixText: '\$ ',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [
@@ -412,7 +482,7 @@ class _AddPageState extends State<AddPage> {
             validator: (v) {
               final n = double.tryParse(v?.trim() ?? '');
               if (n == null || n < 0) {
-                return 'Enter a valid amount (0 or more)';
+                return l10n.addInvalidBidAmount;
               }
               return null;
             },
@@ -426,14 +496,14 @@ class _AddPageState extends State<AddPage> {
                     width: 24,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Submit request'),
+                : Text(l10n.addSubmitRequest),
           ),
           const SizedBox(height: 12),
           TextButton(
             onPressed: _submitting
                 ? null
                 : () => setState(() => _showDetailsForm = false),
-            child: const Text('Back'),
+            child: Text(l10n.addBackButton),
           ),
         ],
       ),
@@ -441,6 +511,7 @@ class _AddPageState extends State<AddPage> {
   }
 
   Widget _buildSuccessState(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       children: [
         Icon(
@@ -450,12 +521,12 @@ class _AddPageState extends State<AddPage> {
         ),
         const SizedBox(height: 16),
         Text(
-          'Request submitted!',
+          l10n.addSubmittedTitle,
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 8),
         Text(
-          'Artists can now view your request and place bids.',
+          l10n.addSubmittedSubtitle,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.outline,
               ),
@@ -465,7 +536,7 @@ class _AddPageState extends State<AddPage> {
         FilledButton.icon(
           onPressed: _startOver,
           icon: const Icon(Icons.add),
-          label: const Text('Add another request'),
+          label: Text(l10n.addAnotherRequest),
         ),
       ],
     );

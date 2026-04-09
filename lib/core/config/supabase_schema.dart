@@ -90,6 +90,7 @@ abstract final class SupabaseTattooRequests {
   static const String startingBid = 'starting_bid';
   static const String winningBidId = 'winning_bid_id';
   static const String status = 'status';
+  static const String country = 'country';
   static const String createdAt = 'created_at';
   static const String updatedAt = 'updated_at';
 }

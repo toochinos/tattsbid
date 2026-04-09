@@ -5,7 +5,21 @@
   "tabUpload": "ផ្ទុកឡើង",
   "tabMessage": "សារ",
   "tabProfile": "ប្រវត្តិរូប",
+  "dashboardTitle": "ផ្ទាំងគ្រប់គ្រង",
+  "dashboardPlaceholderBody": "ទំព័រផ្ទាំងគ្រប់គ្រង",
   "exploreTitle": "រុករក",
+  "exploreSearchHint": "ឈ្មោះ ទីក្រុង សង្កាត់...",
+  "exploreBidsNearMe": "ដេញថ្លៃនៅក្បែរខ្ញុំ",
+  "exploreNearMeNeedProfile": "បន្ថែមទីក្រុង ឬសង្កាត់ក្នុងប្រវត្តិរូបដើម្បីប្រើដេញថ្លៃនៅក្បែរខ្ញុំ។",
+  "exploreNoSearchResults": "គ្មានប្រកាសដែលត្រូវគ្នា",
+  "exploreTitleWithCountry": "រុករក - {country}",
+  "@exploreTitleWithCountry": {
+    "placeholders": {
+      "country": {
+        "type": "String"
+      }
+    }
+  },
   "postedOnDate": "បានប្រកាស {date}",
   "@postedOnDate": {
     "placeholders": {
@@ -25,6 +39,20 @@
   "bidClosed": "បិទដេញថ្លៃ",
   "noTattooRequestsYet": "មិនទាន់មានសំណើសាក់",
   "addRequestToSeeHere": "បន្ថែមសំណើដើម្បីមើលនៅទីនេះ",
+  "addPostCountryMismatchTitle": "មិនអាចប្រកាសនៅទីនេះ",
+  "addPostCountryMismatchBody": "អ្នកប្រកាសបានតែសម្រាប់ប្រទេសដែលអ្នករស់នៅប៉ុណ្ណោះ។ ប្រទេសក្នុងប្រវត្តិរូបរបស់អ្នកមិនត្រូវនឹង {targetCountry} ទេ។ សូមធ្វើបច្ចុប្បន្នភាពកន្លែងរស់នៅក្នុងប្រវត្តិរូប។",
+  "@addPostCountryMismatchBody": {
+    "placeholders": {
+      "targetCountry": {
+        "type": "String"
+      }
+    }
+  },
+  "addPostCountryMissingTitle": "ត្រូវការប្រទេស",
+  "addPostCountryMissingBody": "បន្ថែមប្រទេសដែលអ្នករស់នៅក្នុងប្រវត្តិរូបមុនពេលប្រកាសសំណើ។",
+  "addPostCountryMismatchOk": "យល់ព្រម",
+  "addPostNeedDestinationTitle": "ជ្រើសប្រទេសជាមុន",
+  "addPostNeedDestinationBody": "ជ្រើសប្រទេសពីរូបភពនៅទំព័ររុករកមុនពេលប្រកាស។",
   "retry": "ព្យាយាមម្តងទៀត",
   "actionTooltipExplore": "រុករក",
   "actionTooltipSettings": "ការកំណត់",
@@ -133,6 +161,19 @@
   "bidDetailBids": "ការដេញថ្លៃ",
   "bidDetailArtistToolsNotBidHint": "ឧបករណ៍សិល្បករ — មិនចាប់ផ្តើមដេញថ្លៃពីប៊ូតុងនេះទេ។",
   "bidDetailOnlyArtistsMayBid": "មានតែសិល្បករសាក់ប៉ុណ្ណោះដែលអាចដេញថ្លៃលើស្នើសុំ។",
+  "bidDetailBidCountryRequestMissingHint": "សំណើនេះមិនមានប្រទេស។ អ្នកមិនអាចដាក់ការដេញថ្លៃបានទេ។",
+  "bidDetailBidCountryProfileMissingHint": "បន្ថែមប្រទេសដែលអ្នករស់នៅ ឬធ្វើការក្នុងប្រវត្តិរូប ដើម្បីដេញថ្លៃលើសំណើនៅប្រទេសនោះ។",
+  "bidDetailBidCountryMismatchHint": "អ្នកដេញថ្លៃបានតែលើសំណើនៅប្រទេសរបស់អ្នកប៉ុណ្ណោះ។ ការងានេះនៅ {requestCountry}; ប្រទេសក្នុងប្រវត្តិរូបរបស់អ្នកគឺ {profileCountry}។",
+  "@bidDetailBidCountryMismatchHint": {
+    "placeholders": {
+      "requestCountry": {
+        "type": "String"
+      },
+      "profileCountry": {
+        "type": "String"
+      }
+    }
+  },
   "bidDetailBiddingClosedMessage": "ការដេញថ្លៃបានបិទ។ ស្នើសុំនេះមិនទទួលការដេញថ្លៃថ្មីទៀតទេ។",
   "bidDetailViewArtistTools": "មើលឧបករណ៍សិល្បករ",
   "bidDetailBid": "ដេញថ្លៃ",
@@ -178,5 +219,233 @@
   "bidDetailCannotPlaceBid": "អ្នកមិនអាចដាក់ការដេញថ្លៃលើស្នើសុំនេះទេ។",
   "bidDetailBiddingClosedSnackbar": "ការដេញថ្លៃបានបិទសម្រាប់ស្នើសុំនេះ។",
   "bidDetailBidPlaced": "បានដាក់ការដេញថ្លៃ",
-  "bidDetailFailedPlaceBidDetails": "ដាក់ការដេញថ្លៃបរាជ័យ៖ {details}"
+  "bidDetailFailedPlaceBidDetails": "ដាក់ការដេញថ្លៃបរាជ័យ៖ {details}",
+  "photoTakePhoto": "ថតរូប",
+  "photoFromGallery": "ផ្ទុកពីវិចិត្រសាល",
+  "destinationChooseTitle": "ជ្រើសគោលដៅ",
+  "destinationComingSoon": "មកដល់ឆាប់ៗ",
+  "addTabTitle": "បន្ថែម",
+  "addUploading": "កំពុងផ្ទុក...",
+  "addPhotoButton": "បន្ថែមរូប",
+  "addHappyAddDetails": "ខ្ញុំពេញចិត្ត — បន្ថែមព័ត៌មានលម្អិត",
+  "addChooseDifferentPhoto": "ជ្រើសរូបផ្សេង",
+  "addDescriptionHint": "ពណ៌នាការចង់បានរបស់អ្នក...",
+  "addPlacementHint": "នៅផ្នែកណារបស់ខ្លួន? (ឧ. ដៃ ខ្នង ជើង)",
+  "addSizeHint": "តូច មធ្យម ធំ ឬទំហំ",
+  "addColourChip": "ពណ៌",
+  "addBlackGreyChip": "ខ្មៅ និងប្រផេះ",
+  "addTimeAsap": "ឆាប់ៗ",
+  "addTimeWeek": "ក្នុងសប្តាហ៍",
+  "addTimeBookWhen": "នៅពេលអាចកក់ខ្ញុំបាន",
+  "addBidAmountHint": "0",
+  "addSubmitRequest": "ដាក់ស្នើសំណើ",
+  "addBackButton": "ត្រឡប់",
+  "addAnotherRequest": "បន្ថែមសំណើផ្សេង",
+  "artistsDirectorySearchHint": "ឈ្មោះ ទីក្រុង សង្កាត់ ឬប្រទេស",
+  "artistsFilterRating": "ពិន្ទុ",
+  "artistsFilterCleanliness": "អនាម័យ",
+  "exploreDeleteFailedDetails": "លុបបរាជ័យ៖ {details}",
+  "@exploreDeleteFailedDetails": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutTitle": "Checkout",
+  "checkoutContinue": "បន្ត",
+  "checkoutCancelledMessage": "Checkout ត្រូវបានលុបចោល។",
+  "checkoutTryAgain": "ព្យាយាមម្តងទៀត",
+  "checkoutBackToDashboard": "ត្រឡប់ទៅផ្ទាំងគ្រប់គ្រង",
+  "depositSummaryTitle": "សង្ខេបកក់ប្រាក់",
+  "depositTotalCostLine": "ថ្លៃសរុប៖ {amount}",
+  "@depositTotalCostLine": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "depositArtistReceivesLine": "សិល្បករទទួល៖ {amount}",
+  "@depositArtistReceivesLine": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "depositPayButton": "បង់",
+  "depositFeePercentLine": "ថ្លៃកក់ ({percent}%): {amount}",
+  "@depositFeePercentLine": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "platformFeePaymentFailed": "ការទូទាត់បរាជ័យ៖ {error}",
+  "@platformFeePaymentFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraTitle": "កាមេរ៉ា",
+  "cameraSwitchError": "មិនអាចប្តូរកាមេរ៉ា៖ {error}",
+  "@cameraSwitchError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraCaptureError": "ថតរូបបរាជ័យ៖ {error}",
+  "@cameraCaptureError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraNoDeviceAvailable": "មិនមានកាមេរ៉ានៅលើឧបករណ៍នេះទេ។",
+  "cameraInitFailed": "ចាប់ផ្តើមកាមេរ៉ាបរាជ័យ៖ {error}",
+  "@cameraInitFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "bidPageTitle": "ដេញថ្លៃ",
+  "paywallSubscribeTitle": "ជាវ",
+  "paywallSubscribeMonthly": "ជាវប្រចាំខែ",
+  "paywallFreePlanTitle": "កំណែឥតគិតថ្លៃ",
+  "paywallProPlanTitle": "កំណែ Pro",
+  "paywallProMaxPlanTitle": "Pro Max",
+  "paywallProPlanSubtitle": "99¢ AUD ក្នុងមួយខែ",
+  "paywallProMaxPlanSubtitle": "$1.00 AUD ក្នុងមួយខែ",
+  "welcomeGetStarted": "ចាប់ផ្តើម",
+  "welcomeSkip": "រំលង",
+  "editContactEmailHint": "អ៊ីមែលទំនាក់ទំនងរបស់អ្នក",
+  "editContactPhoneHint": "លេខទូរស័ព្ទរបស់អ្នក",
+  "publicProfileCantChatSelf": "អ្នកមិនអាចជជែកជាមួយខ្លួនឯងបានទេ។",
+  "publicProfileReviewCommentRequired": "សូមសរសេរមតិ។",
+  "publicProfileReviewSubmitError": "មិនអាចដាក់ស្នើការវាយតម្លៃឥឡូវនេះ។ សូមព្យាយាមម្តងទៀត។",
+  "publicProfileChatButton": "ជជែក",
+  "publicProfileChatWithArtist": "ជជែកជាមួយសិល្បករ",
+  "publicProfileReviewHint": "ចែករំលែកបទពិសោធន៍របស់អ្នក…",
+  "publicProfileSubmitReview": "ដាក់ស្នើការវាយតម្លៃ",
+  "publicProfileEmailTitle": "អ៊ីមែល",
+  "publicProfileMobileTitle": "ទូរស័ព្ទ",
+  "publicProfileTitleFallback": "ប្រូហ្វាល់",
+  "publicProfileReviewSelectBoth": "សូមជ្រើសពិន្ទុ និងអនាម័យ (ផ្កាយ ១–៥ ម្យ៉ាងៗ)។",
+  "publicProfileReviewPostedThanks": "អរគុណ — ការវាយតម្លៃរបស់អ្នកត្រូវបានបង្ហោះ។",
+  "publicProfileReviewUpdated": "អ្នកបានវាយតម្លៃសិល្បករនេះរួចហើយ។ ការវាយតម្លៃត្រូវបានធ្វើបច្ចុប្បន្នភាព។",
+  "publicProfileReviewAlreadyReviewedShort": "អ្នកបានវាយតម្លៃសិល្បករនេះរួចហើយ",
+  "publicProfileReviewsHeading": "ការវាយតម្លៃ",
+  "publicProfileNoReviewsYet": "មិនទាន់មានការវាយតម្លៃ។",
+  "publicProfilePreviousReviews": "ការវាយតម្លៃមុន",
+  "publicProfileReviewsTileSubtitle": "{count, plural, one{{count} ការវាយតម្លៃ · ចុចដើម្បីពង្រីក} other{{count} ការវាយតម្លៃ · ចុចដើម្បីពង្រីក}}",
+  "@publicProfileReviewsTileSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "num"
+      }
+    }
+  },
+  "publicProfileWriteReview": "សរសេរការវាយតម្លៃ",
+  "publicProfileEditReview": "កែការវាយតម្លៃរបស់អ្នក",
+  "publicProfileNoContactOnFile": "មិនមានព័ត៌មានទំនាក់ទំនង។",
+  "chatSendFailed": "ផ្ញើបរាជ័យ៖ {error}",
+  "@chatSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessageHint": "សារ (ឯកជន)",
+  "chatMessageArtist": "សារសិល្បករ",
+  "chatMobileLine": "ទូរស័ព្ទ៖ {phone}",
+  "@chatMobileLine": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "chatEmailLine": "អ៊ីមែល៖ {email}",
+  "@chatEmailLine": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "chatInboxTitle": "សារ",
+  "chatPartnerFallbackTitle": "ជជែក",
+  "chatPrivacyNotice": "សាររវាងសិល្បករសាក់ និងអតិថិជនប៉ុណ្ណោះ។ មានតែអ្នក និងមនុស្សនេះទេដែលឃើញសារទាំងនេះ។",
+  "chatContactSectionTitle": "ទំនាក់ទំនង",
+  "chatSetupRequired": "ត្រូវការដំឡើងជជែក។ ដំណើរការ migration នៅ supabase/apply_chat_messages.sql ក្នុង Supabase Dashboard (SQL Editor) រួចចុចព្យាយាមម្តងទៀត។",
+  "chatEmptyConversation": "មិនទាន់មានសារ។ សួស្តី — ការសន្ទនានេះមានតែអ្នក និងភាគីម្ខាងទៀតឃើញ។",
+  "chatYourArtist": "សិល្បកររបស់អ្នក",
+  "chatPhoneLine": "ទូរស័ព្ទ៖ {phone}",
+  "@chatPhoneLine": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "chatNoContactYet": "មិនទាន់មានទូរស័ព្ទ ឬអ៊ីមែល។",
+  "chatUnknownUser": "អ្នកប្រើ",
+  "chatInboxEmptyTitle": "មិនទាន់មានការសន្ទនា",
+  "chatInboxEmptyBody": "ការជជែកពី Explore (អតិថិជនផ្ញើសារដំបូង) នឹងបង្ហាញនៅទីនេះ។ បន្ទាប់ពីអ្នកបង់ប្រាក់កក់សម្រាប់ការដេញថ្លៃឈ្នះ អេក្រង់នេះបង្ហាញព័ត៌មានទំនាក់ទំនងសិល្បករ និងប៊ូតុងចាប់ផ្តើមសារ។",
+  "chatInboxUnlockTitle": "បង់ដើម្បីដោះសោការផ្ញើសារ",
+  "chatInboxUnlockBody": "បញ្ចប់ការកក់ប្រាក់ពីការដេញថ្លៃឈ្នះនៃសំណើរបស់អ្នក ដើម្បីដោះសោទំនាក់ទំនងសិល្បករ និងការជជែក។",
+  "chatPaidArtistBlurbLong": "បានបង់ប្រាក់កក់ — អ្នកអាចសារសិល្បករ ឬប្រើព័ត៌មានទំនាក់ទំនងរបស់ពួកគេខាងក្រោម។",
+  "chatPaidArtistBlurbShort": "បានបង់ប្រាក់កក់ — សារសិល្បករ ឬប្រើព័ត៌មានទំនាក់ទំនងរបស់ពួកគេ។",
+  "chatConversationsSection": "ការសន្ទនា",
+  "reviewRatingLabel": "ពិន្ទុ",
+  "reviewCleanlinessLabel": "អនាម័យ",
+  "userAgreementTitle": "កិច្ចព្រមព្រៀងអ្នកប្រើ TattsBid",
+  "userAgreementAcceptTerms": "ខ្ញុំយល់ព្រមតាមលក្ខខណ្ឌ TattsBid",
+  "userAgreementContinue": "បន្ត",
+  "userAgreementSaveError": "មិនអាចរក្សាកិច្ចព្រមព្រៀង៖ {error}",
+  "@userAgreementSaveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "addReferencePhotoTitle": "បន្ថែមរូបយោង",
+  "addReferencePhotoSubtitle": "ថតរូប ឬជ្រើសពីវិចិត្រសាល",
+  "addPhotoUploadedTitle": "ផ្ទុករូបដោយជោគជ័យ",
+  "addPhotoUploadedSubtitle": "ពេញចិត្តរូបនេះទេ? បន្ថែមពិពណ៌នានិងការដេញថ្លៃដំបូង។",
+  "addDescriptionSectionTitle": "ពិពណ៌នា",
+  "addFieldDescriptionLabel": "តើអ្នកចង់បានអ្វីសម្រាប់សាក់?",
+  "addFieldPlacementLabel": "ទីតាំង",
+  "addFieldSizeLabel": "ទំហំ",
+  "addSectionColourTitle": "ពណ៌ ឬខ្មៅ និងប្រផេះ",
+  "addSectionTimeframeTitle": "រយៈពេល",
+  "addCreativeFreedomTitle": "អនុញ្ញាតឲ្យសិល្បករបង្កើតដោយសេរី",
+  "addStartingBidLabel": "ការដេញថ្លៃដំបូង ($)",
+  "addInvalidBidAmount": "បញ្ចូលចំនួនត្រឹមត្រូវ (០ ឬច្រើនជាង)",
+  "addSubmittedTitle": "បានដាក់ស្នើសំណើ!",
+  "addSubmittedSubtitle": "សិល្បករអាចមើលសំណើរបស់អ្នក និងដាក់ការដេញថ្លៃ។",
+  "artistsNearMeButton": "សិល្បករនៅក្បែរខ្ញុំ",
+  "artistsShowingInLocation": "បង្ហាញសិល្បករនៅ {location}",
+  "@artistsShowingInLocation": {
+    "placeholders": {
+      "location": {
+        "type": "String"
+      }
+    }
+  },
+  "artistsClearSearchTooltip": "លុបការស្វែងរក"
 }

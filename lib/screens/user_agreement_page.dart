@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/routes/app_routes.dart';
 import '../core/services/user_agreement_service.dart';
+import '../l10n/app_localizations.dart';
 
 class UserAgreementPage extends StatefulWidget {
   const UserAgreementPage({super.key});
@@ -50,9 +51,10 @@ class _UserAgreementPageState extends State<UserAgreementPage> {
       ).pushReplacementNamed(_nextRoute, arguments: _nextArgs);
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       setState(() {
         _saving = false;
-        _error = 'Could not save agreement: $e';
+        _error = l10n.userAgreementSaveError(e.toString());
       });
     }
   }
@@ -60,9 +62,10 @@ class _UserAgreementPageState extends State<UserAgreementPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('TattsBid User Agreement'),
+        title: Text(l10n.userAgreementTitle),
         automaticallyImplyLeading: false,
       ),
       body: Column(
@@ -106,7 +109,7 @@ class _UserAgreementPageState extends State<UserAgreementPage> {
                     onChanged: _saving
                         ? null
                         : (v) => setState(() => _agreed = v ?? false),
-                    title: const Text('I agree to the TattsBid terms'),
+                    title: Text(l10n.userAgreementAcceptTerms),
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
                   if (_error != null) ...[
@@ -125,7 +128,7 @@ class _UserAgreementPageState extends State<UserAgreementPage> {
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Continue'),
+                        : Text(l10n.userAgreementContinue),
                   ),
                 ],
               ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import 'clean_hands_icon.dart';
 
 /// Gold stars for overall experience.
@@ -218,16 +219,15 @@ class TattooDualRatingAveragesHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     // Explicit styles avoid theme TextStyle merges where a bad `height` etc.
     // could surface as bool vs double? at runtime.
     const style = TextStyle(
       fontSize: 16,
       fontWeight: FontWeight.w600,
     );
-    final expStars =
-        experienceAverage.round().clamp(1, 5).toInt();
-    final cleanStars =
-        cleanlinessAverage.round().clamp(1, 5).toInt();
+    final expStars = experienceAverage.round().clamp(1, 5).toInt();
+    final cleanStars = cleanlinessAverage.round().clamp(1, 5).toInt();
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -240,7 +240,7 @@ class TattooDualRatingAveragesHeader extends StatelessWidget {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Icon(Icons.star_rounded, color: _gold, size: 22),
-                  Text(' Rating: ', style: style),
+                  Text(' ${l10n.reviewRatingLabel}: ', style: style),
                   Text(
                     experienceAverage.toStringAsFixed(1),
                     style: style,
@@ -267,7 +267,7 @@ class TattooDualRatingAveragesHeader extends StatelessWidget {
                 children: [
                   const CleanHandsIcon(size: 20),
                   Text(
-                    ' Cleanliness: ',
+                    ' ${l10n.reviewCleanlinessLabel}: ',
                     style: style.copyWith(color: _green),
                   ),
                   Text(

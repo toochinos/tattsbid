@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/routes/app_routes.dart';
+import '../l10n/app_localizations.dart';
 
 class PaywallPage extends StatefulWidget {
   const PaywallPage({super.key});
@@ -63,9 +64,10 @@ class _PaywallPageState extends State<PaywallPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Subscribe'),
+        title: Text(l10n.paywallSubscribeTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pushReplacementNamed(
@@ -95,27 +97,30 @@ class _PaywallPageState extends State<PaywallPage> {
               ),
               const SizedBox(height: 16),
             ],
-            const _PlanCard(
-              title: 'Free Version',
+            _PlanCard(
+              title: l10n.paywallFreePlanTitle,
               subtitle: null,
               isSelected: false,
               onTap: null,
+              subscribeButtonLabel: l10n.paywallSubscribeMonthly,
             ),
             const SizedBox(height: 16),
             _PlanCard(
-              title: 'Pro Version',
-              subtitle: '99¢ AUD Monthly',
+              title: l10n.paywallProPlanTitle,
+              subtitle: l10n.paywallProPlanSubtitle,
               isSelected: false,
               onTap: _loading ? null : _openProCheckout,
               isLoading: _loading,
+              subscribeButtonLabel: l10n.paywallSubscribeMonthly,
             ),
             const SizedBox(height: 16),
             _PlanCard(
-              title: 'Pro Max',
-              subtitle: '\$1.00 AUD Monthly',
+              title: l10n.paywallProMaxPlanTitle,
+              subtitle: l10n.paywallProMaxPlanSubtitle,
               isSelected: false,
               onTap: _loading ? null : _openProMaxCheckout,
               isLoading: _loading,
+              subscribeButtonLabel: l10n.paywallSubscribeMonthly,
             ),
           ],
         ),
@@ -131,6 +136,7 @@ class _PlanCard extends StatelessWidget {
     required this.isSelected,
     this.onTap,
     this.isLoading = false,
+    required this.subscribeButtonLabel,
   });
 
   final String title;
@@ -138,6 +144,7 @@ class _PlanCard extends StatelessWidget {
   final bool isSelected;
   final VoidCallback? onTap;
   final bool isLoading;
+  final String subscribeButtonLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +198,7 @@ class _PlanCard extends StatelessWidget {
                       )
                     : ElevatedButton(
                         onPressed: onTap,
-                        child: const Text('Subscribe Monthly'),
+                        child: Text(subscribeButtonLabel),
                       ),
             ],
           ),

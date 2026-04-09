@@ -5,7 +5,21 @@
   "tabUpload": "Upload",
   "tabMessage": "Message",
   "tabProfile": "Profile",
+  "dashboardTitle": "Dashboard",
+  "dashboardPlaceholderBody": "Dashboard page",
   "exploreTitle": "Explore",
+  "exploreSearchHint": "Name, city, suburb...",
+  "exploreBidsNearMe": "Bids near me",
+  "exploreNearMeNeedProfile": "Add your city or suburb in your profile to use Bids near me.",
+  "exploreNoSearchResults": "No posts match your search",
+  "exploreTitleWithCountry": "Explore - {country}",
+  "@exploreTitleWithCountry": {
+    "placeholders": {
+      "country": {
+        "type": "String"
+      }
+    }
+  },
   "postedOnDate": "Posted {date}",
   "@postedOnDate": {
     "placeholders": {
@@ -25,6 +39,20 @@
   "bidClosed": "Bid closed",
   "noTattooRequestsYet": "No tattoo requests yet",
   "addRequestToSeeHere": "Add a request to see it here",
+  "addPostCountryMismatchTitle": "You can't post here",
+  "addPostCountryMismatchBody": "You can only post requests for the country where you live or stay. Your profile country does not match {targetCountry}. Update where you are staying or living in your profile.",
+  "@addPostCountryMismatchBody": {
+    "placeholders": {
+      "targetCountry": {
+        "type": "String"
+      }
+    }
+  },
+  "addPostCountryMissingTitle": "Country required",
+  "addPostCountryMissingBody": "Add the country where you live or stay in your profile before you can post a request.",
+  "addPostCountryMismatchOk": "OK",
+  "addPostNeedDestinationTitle": "Select a country first",
+  "addPostNeedDestinationBody": "Select a country from the globe on Explore before posting.",
   "retry": "Retry",
   "actionTooltipExplore": "Explore",
   "actionTooltipSettings": "Settings",
@@ -167,6 +195,19 @@
   "bidDetailBids": "Bids",
   "bidDetailArtistToolsNotBidHint": "Artist tools — bidding is not started from this button.",
   "bidDetailOnlyArtistsMayBid": "Only tattoo artists can place bids on requests.",
+  "bidDetailBidCountryRequestMissingHint": "This request has no country set. You can’t place a bid.",
+  "bidDetailBidCountryProfileMissingHint": "Add the country where you live or work in your profile to bid on requests in that country.",
+  "bidDetailBidCountryMismatchHint": "You can only bid on requests in your country. This job is in {requestCountry}; your profile country is {profileCountry}.",
+  "@bidDetailBidCountryMismatchHint": {
+    "placeholders": {
+      "requestCountry": {
+        "type": "String"
+      },
+      "profileCountry": {
+        "type": "String"
+      }
+    }
+  },
   "bidDetailBiddingClosedMessage": "Bidding is closed. This request is no longer accepting new bids.",
   "bidDetailViewArtistTools": "View Artist Tools",
   "bidDetailBid": "Bid",
@@ -288,5 +329,233 @@
         "type": "String"
       }
     }
-  }
+  },
+  "photoTakePhoto": "Take a photo",
+  "photoFromGallery": "Upload from gallery",
+  "destinationChooseTitle": "Choose destination",
+  "destinationComingSoon": "Coming soon",
+  "addTabTitle": "Add",
+  "addUploading": "Uploading...",
+  "addPhotoButton": "Add photo",
+  "addHappyAddDetails": "I'm happy — add details",
+  "addChooseDifferentPhoto": "Choose different photo",
+  "addDescriptionHint": "Describe your vision...",
+  "addPlacementHint": "Where on the body? (e.g. arm, back, leg)",
+  "addSizeHint": "Small, medium, large, or dimensions",
+  "addColourChip": "Colour",
+  "addBlackGreyChip": "Black and grey",
+  "addTimeAsap": "ASAP",
+  "addTimeWeek": "During the week",
+  "addTimeBookWhen": "Whenever you can book me in",
+  "addBidAmountHint": "0",
+  "addSubmitRequest": "Submit request",
+  "addBackButton": "Back",
+  "addAnotherRequest": "Add another request",
+  "artistsDirectorySearchHint": "Name, city, suburb, or country",
+  "artistsFilterRating": "Rating",
+  "artistsFilterCleanliness": "Cleanliness",
+  "exploreDeleteFailedDetails": "Delete failed: {details}",
+  "@exploreDeleteFailedDetails": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutTitle": "Checkout",
+  "checkoutContinue": "Continue",
+  "checkoutCancelledMessage": "Checkout was cancelled.",
+  "checkoutTryAgain": "Try again",
+  "checkoutBackToDashboard": "Back to dashboard",
+  "depositSummaryTitle": "Deposit summary",
+  "depositTotalCostLine": "Total cost: {amount}",
+  "@depositTotalCostLine": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "depositArtistReceivesLine": "Artist receives: {amount}",
+  "@depositArtistReceivesLine": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "depositPayButton": "Pay",
+  "depositFeePercentLine": "Deposit fee ({percent}%): {amount}",
+  "@depositFeePercentLine": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "platformFeePaymentFailed": "Payment failed: {error}",
+  "@platformFeePaymentFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraTitle": "Camera",
+  "cameraSwitchError": "Could not switch camera: {error}",
+  "@cameraSwitchError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraCaptureError": "Failed to capture image: {error}",
+  "@cameraCaptureError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraNoDeviceAvailable": "No camera available on this device.",
+  "cameraInitFailed": "Failed to initialize camera: {error}",
+  "@cameraInitFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "bidPageTitle": "Bid",
+  "paywallSubscribeTitle": "Subscribe",
+  "paywallSubscribeMonthly": "Subscribe monthly",
+  "paywallFreePlanTitle": "Free version",
+  "paywallProPlanTitle": "Pro version",
+  "paywallProMaxPlanTitle": "Pro Max",
+  "paywallProPlanSubtitle": "99¢ AUD monthly",
+  "paywallProMaxPlanSubtitle": "$1.00 AUD monthly",
+  "welcomeGetStarted": "Get started",
+  "welcomeSkip": "Skip",
+  "editContactEmailHint": "Your contact email",
+  "editContactPhoneHint": "Your phone number",
+  "publicProfileCantChatSelf": "You can't chat with yourself.",
+  "publicProfileReviewCommentRequired": "Please write a comment.",
+  "publicProfileReviewSubmitError": "Could not submit review right now. Please try again.",
+  "publicProfileChatButton": "Chat",
+  "publicProfileChatWithArtist": "Chat with artist",
+  "publicProfileReviewHint": "Share your experience…",
+  "publicProfileSubmitReview": "Submit review",
+  "publicProfileEmailTitle": "Email",
+  "publicProfileMobileTitle": "Mobile",
+  "publicProfileTitleFallback": "Profile",
+  "publicProfileReviewSelectBoth": "Please select both Rating and Cleanliness (1–5 stars each).",
+  "publicProfileReviewPostedThanks": "Thanks — your review was posted.",
+  "publicProfileReviewUpdated": "You have already reviewed this artist. Your review was updated.",
+  "publicProfileReviewAlreadyReviewedShort": "You have already reviewed this artist",
+  "publicProfileReviewsHeading": "Reviews",
+  "publicProfileNoReviewsYet": "No reviews yet.",
+  "publicProfilePreviousReviews": "Previous reviews",
+  "publicProfileReviewsTileSubtitle": "{count, plural, one{{count} review · tap to expand} other{{count} reviews · tap to expand}}",
+  "@publicProfileReviewsTileSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "num"
+      }
+    }
+  },
+  "publicProfileWriteReview": "Write a review",
+  "publicProfileEditReview": "Edit your review",
+  "publicProfileNoContactOnFile": "No contact details on file.",
+  "chatSendFailed": "Failed to send: {error}",
+  "@chatSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessageHint": "Message (private)",
+  "chatMessageArtist": "Message artist",
+  "chatMobileLine": "Mobile: {phone}",
+  "@chatMobileLine": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "chatEmailLine": "Email: {email}",
+  "@chatEmailLine": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "chatInboxTitle": "Message",
+  "chatPartnerFallbackTitle": "Chat",
+  "chatPrivacyNotice": "Messages between tattoo artists and customers only. Only you and this person can see these messages.",
+  "chatContactSectionTitle": "Contact",
+  "chatSetupRequired": "Chat setup required. Run the migration in supabase/apply_chat_messages.sql in your Supabase Dashboard (SQL Editor), then tap Retry.",
+  "chatEmptyConversation": "No messages yet. Say hello — this conversation is only visible to you and the other person.",
+  "chatYourArtist": "Your artist",
+  "chatPhoneLine": "Phone: {phone}",
+  "@chatPhoneLine": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "chatNoContactYet": "No phone or email on file yet.",
+  "chatUnknownUser": "User",
+  "chatInboxEmptyTitle": "No conversations yet",
+  "chatInboxEmptyBody": "Chats from Explore (customer messages first) appear here. After you pay the deposit on your winning bid, this screen shows your artist’s contact details and a button to start messaging.",
+  "chatInboxUnlockTitle": "Pay to unlock messaging",
+  "chatInboxUnlockBody": "Complete the deposit from your request’s winning bid to unlock artist contact and chat.",
+  "chatPaidArtistBlurbLong": "Deposit paid — you can message your artist or use their contact details below.",
+  "chatPaidArtistBlurbShort": "Deposit paid — message your artist or use their contact details.",
+  "chatConversationsSection": "Conversations",
+  "reviewRatingLabel": "Rating",
+  "reviewCleanlinessLabel": "Cleanliness",
+  "userAgreementTitle": "TattsBid user agreement",
+  "userAgreementAcceptTerms": "I agree to the TattsBid terms",
+  "userAgreementContinue": "Continue",
+  "userAgreementSaveError": "Could not save agreement: {error}",
+  "@userAgreementSaveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "addReferencePhotoTitle": "Add a reference photo",
+  "addReferencePhotoSubtitle": "Take a photo or choose from your gallery",
+  "addPhotoUploadedTitle": "Photo uploaded successfully",
+  "addPhotoUploadedSubtitle": "Happy with this photo? Add a description and starting bid.",
+  "addDescriptionSectionTitle": "Description",
+  "addFieldDescriptionLabel": "What do you want for your tattoo?",
+  "addFieldPlacementLabel": "Placement",
+  "addFieldSizeLabel": "Size",
+  "addSectionColourTitle": "Colour or black and grey",
+  "addSectionTimeframeTitle": "Time frame",
+  "addCreativeFreedomTitle": "Allow the artist to have creative freedom",
+  "addStartingBidLabel": "Starting bid ($)",
+  "addInvalidBidAmount": "Enter a valid amount (0 or more)",
+  "addSubmittedTitle": "Request submitted!",
+  "addSubmittedSubtitle": "Artists can now view your request and place bids.",
+  "artistsNearMeButton": "Artist near me",
+  "artistsShowingInLocation": "Showing artists in {location}",
+  "@artistsShowingInLocation": {
+    "placeholders": {
+      "location": {
+        "type": "String"
+      }
+    }
+  },
+  "artistsClearSearchTooltip": "Clear search"
 }

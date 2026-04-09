@@ -41,19 +41,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _mobileController = TextEditingController();
   final _imagePicker = ImagePicker();
   static const List<String> _countryOptions = <String>[
+    'Australia',
+    'Cambodia',
     'Indonesia',
     'Thailand',
     'Vietnam',
-    'Cambodia',
-    'Australia',
   ];
   static const Map<String, List<String>> _cityOptionsByCountry =
       <String, List<String>>{
+    'Australia': <String>['Sydney', 'Melbourne', 'Brisbane', 'Perth'],
+    'Cambodia': <String>['Phnom Penh', 'Siem Reap'],
     'Indonesia': <String>['Bali', 'Jakarta', 'Bandung', 'Surabaya'],
     'Thailand': <String>['Bangkok', 'Chiang Mai', 'Phuket', 'Pattaya'],
     'Vietnam': <String>['Saigon', 'Hanoi', 'Da Nang'],
-    'Cambodia': <String>['Phnom Penh', 'Siem Reap'],
-    'Australia': <String>['Sydney', 'Melbourne', 'Brisbane', 'Perth'],
   };
   String? _selectedCountry = 'Indonesia';
   String? _selectedCity;

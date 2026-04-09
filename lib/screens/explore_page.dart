@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/models/tattoo_request.dart';
+import '../core/models/user_profile.dart';
+import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 import '../l10n/app_localizations.dart';
 
@@ -14,6 +16,7 @@ class ExplorePage extends StatefulWidget {
     super.key,
     this.refreshTrigger,
     this.userType,
+    required this.exploreFeedScopeNotifier,
     required this.onRequestSelectedForBid,
   });
 
@@ -22,6 +25,9 @@ class ExplorePage extends StatefulWidget {
 
   /// 'tattoo_artist' or 'customer'. Tattoo artists cannot delete explore photos.
   final String? userType;
+
+  /// Null = main Explore (all countries). Non-null = filtered by country (globe).
+  final ValueNotifier<String?> exploreFeedScopeNotifier;
 
   /// When tapping a request, opens bid detail on the Explore stack.
   final void Function(TattooRequest request) onRequestSelectedForBid;
@@ -37,13 +43,146 @@ class _ExplorePageState extends State<ExplorePage> {
   RealtimeChannel? _realtimeChannel;
   Timer? _pollTimer;
 
+  final TextEditingController _searchController = TextEditingController();
+  bool _nearMeActive = false;
+  UserProfile? _profileForNearMe;
+
   @override
   void initState() {
     super.initState();
+    widget.exploreFeedScopeNotifier.addListener(_onExploreFeedScopeChanged);
+    _searchController.addListener(_onSearchTextChanged);
     _loadRequests();
+    _refreshProfileForNearMe();
     _subscribeToRealtime();
     _startPollingFallback();
     widget.refreshTrigger?.addListener(_onRefreshTriggered);
+  }
+
+  void _onSearchTextChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _refreshProfileForNearMe() async {
+    final p = await ProfileService.getCurrentProfile();
+    if (!mounted) return;
+    setState(() => _profileForNearMe = p);
+  }
+
+  Future<void> _onBidsNearMeTap() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (_nearMeActive) {
+      setState(() => _nearMeActive = false);
+      return;
+    }
+    await _refreshProfileForNearMe();
+    if (!mounted) return;
+    final p = _profileForNearMe;
+    final hasSuburb = p?.suburb?.trim().isNotEmpty == true;
+    final hasCity = p?.city?.trim().isNotEmpty == true;
+    if (!hasSuburb && !hasCity) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.exploreNearMeNeedProfile)),
+      );
+      return;
+    }
+    setState(() => _nearMeActive = true);
+  }
+
+  List<TattooRequest> get _visibleRequests {
+    var list = List<TattooRequest>.from(_requests);
+    if (_nearMeActive) {
+      final p = _profileForNearMe;
+      final suburb = p?.suburb?.trim().toLowerCase() ?? '';
+      final city = p?.city?.trim().toLowerCase() ?? '';
+      list = list.where((r) {
+        final loc = (r.customerLocation ?? '').toLowerCase();
+        if (suburb.isNotEmpty && loc.contains(suburb)) return true;
+        if (city.isNotEmpty && loc.contains(city)) return true;
+        return false;
+      }).toList();
+    }
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      list = list.where((r) {
+        final name = (r.customerName ?? '').toLowerCase();
+        final loc = (r.customerLocation ?? '').toLowerCase();
+        return name.contains(q) || loc.contains(q);
+      }).toList();
+    }
+    return list;
+  }
+
+  Widget _buildExploreSearchPill(AppLocalizations l10n) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final border = isDark ? const Color(0xFF5E6A7A) : const Color(0xFF6B7280);
+    final muted = isDark ? const Color(0xFFB0B8C4) : const Color(0xFF4B5563);
+    final accent = theme.colorScheme.primary;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: border.withValues(alpha: 0.9)),
+      ),
+      padding: const EdgeInsets.only(left: 4, right: 2, top: 2, bottom: 2),
+      child: Row(
+        children: [
+          const SizedBox(width: 8),
+          Icon(Icons.search, size: 22, color: muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurface,
+              ),
+              decoration: InputDecoration(
+                hintText: l10n.exploreSearchHint,
+                hintStyle: theme.textTheme.bodyLarge?.copyWith(color: muted),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 28,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            color: border.withValues(alpha: 0.35),
+          ),
+          InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: _onBidsNearMeTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _nearMeActive ? Icons.close : Icons.location_on_outlined,
+                    size: 20,
+                    color: _nearMeActive ? accent : muted,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    l10n.exploreBidsNearMe,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: accent,
+                      fontWeight:
+                          _nearMeActive ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Realtime subscription for instant updates.
@@ -89,14 +228,28 @@ class _ExplorePageState extends State<ExplorePage> {
       oldWidget.refreshTrigger?.removeListener(_onRefreshTriggered);
       widget.refreshTrigger?.addListener(_onRefreshTriggered);
     }
+    if (oldWidget.exploreFeedScopeNotifier != widget.exploreFeedScopeNotifier) {
+      oldWidget.exploreFeedScopeNotifier
+          .removeListener(_onExploreFeedScopeChanged);
+      widget.exploreFeedScopeNotifier.addListener(_onExploreFeedScopeChanged);
+      _loadRequests();
+    }
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchTextChanged);
+    _searchController.dispose();
+    widget.exploreFeedScopeNotifier.removeListener(_onExploreFeedScopeChanged);
     _pollTimer?.cancel();
     _realtimeChannel?.unsubscribe();
     widget.refreshTrigger?.removeListener(_onRefreshTriggered);
     super.dispose();
+  }
+
+  void _onExploreFeedScopeChanged() {
+    if (!mounted) return;
+    _loadRequests();
   }
 
   void _onRefreshTriggered() {
@@ -124,7 +277,10 @@ class _ExplorePageState extends State<ExplorePage> {
       });
     }
     try {
-      final requests = await TattooRequestService.fetchOpenRequests();
+      final scope = widget.exploreFeedScopeNotifier.value?.trim();
+      final requests = await TattooRequestService.fetchOpenRequests(
+        country: (scope == null || scope.isEmpty) ? null : scope,
+      );
       if (!mounted) return;
       setState(() {
         _requests = requests;
@@ -142,55 +298,94 @@ class _ExplorePageState extends State<ExplorePage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final scope = widget.exploreFeedScopeNotifier.value?.trim();
+    final isMainFeed = scope == null || scope.isEmpty;
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.exploreTitle)),
-      body: RefreshIndicator(onRefresh: _loadRequests, child: _buildBody()),
+      appBar: AppBar(
+        centerTitle: isMainFeed,
+        title: isMainFeed
+            ? Text(l10n.exploreTitle)
+            : Padding(
+                padding: const EdgeInsets.only(right: 96),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    l10n.exploreTitleWithCountry(scope),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            child: _buildExploreSearchPill(l10n),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadRequests,
+              child: _buildBody(l10n),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(AppLocalizations l10n) {
     if (_loading && _requests.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(height: MediaQuery.sizeOf(context).height * 0.32),
+          const Center(child: CircularProgressIndicator()),
+        ],
+      );
     }
     if (_errorMessage != null && _requests.isEmpty) {
-      final l10n = AppLocalizations.of(context)!;
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 48,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage!,
-                style: TextStyle(
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(height: MediaQuery.sizeOf(context).height * 0.2),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
                   color: Theme.of(context).colorScheme.error,
-                  fontSize: 14,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _loadRequests,
-                child: Text(l10n.retry),
-              ),
-            ],
+                const SizedBox(height: 16),
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: _loadRequests,
+                  child: Text(l10n.retry),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       );
     }
     if (_requests.isEmpty) {
-      final l10n = AppLocalizations.of(context)!;
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           SizedBox(
-            height: MediaQuery.of(context).size.height * 0.6,
+            height: MediaQuery.of(context).size.height * 0.5,
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -198,9 +393,10 @@ class _ExplorePageState extends State<ExplorePage> {
                   Icon(
                     Icons.photo_library_outlined,
                     size: 64,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outline.withValues(alpha: 0.6),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outline
+                        .withValues(alpha: 0.6),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -223,6 +419,36 @@ class _ExplorePageState extends State<ExplorePage> {
         ],
       );
     }
+
+    final visible = _visibleRequests;
+    if (visible.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(height: MediaQuery.sizeOf(context).height * 0.28),
+          Center(
+            child: Column(
+              children: [
+                Icon(
+                  Icons.search_off_outlined,
+                  size: 56,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.exploreNoSearchResults,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
@@ -235,16 +461,19 @@ class _ExplorePageState extends State<ExplorePage> {
               mainAxisSpacing: 12,
               childAspectRatio: 0.85,
             ),
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final request = _requests[index];
-              return _RequestCard(
-                request: request,
-                currentUserId: Supabase.instance.client.auth.currentUser?.id,
-                userType: widget.userType,
-                onTap: () => widget.onRequestSelectedForBid(request),
-                onDeleted: () => _removeRequest(request.id),
-              );
-            }, childCount: _requests.length),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final request = visible[index];
+                return _RequestCard(
+                  request: request,
+                  currentUserId: Supabase.instance.client.auth.currentUser?.id,
+                  userType: widget.userType,
+                  onTap: () => widget.onRequestSelectedForBid(request),
+                  onDeleted: () => _removeRequest(request.id),
+                );
+              },
+              childCount: visible.length,
+            ),
           ),
         ),
         if (_loading)
@@ -507,9 +736,10 @@ class _DeleteButtonState extends State<_DeleteButton> {
       widget.onDeleted?.call();
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Delete failed: ${e.toString()}'),
+          content: Text(l10n.exploreDeleteFailedDetails(e.toString())),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );

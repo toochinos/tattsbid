@@ -7,6 +7,7 @@ import '../core/services/payment_status_service.dart';
 import '../core/services/payment_service.dart';
 import '../core/services/subscription_service.dart';
 import '../core/services/tattoo_request_service.dart';
+import '../l10n/app_localizations.dart';
 
 /// Shown when user returns from Stripe checkout (success).
 /// Confirms the session, refreshes subscription state, then navigates.
@@ -135,8 +136,9 @@ class _CheckoutSuccessPageState extends State<CheckoutSuccessPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Checkout')),
+      appBar: AppBar(title: Text(l10n.checkoutTitle)),
       body: Center(
         child: _loading
             ? const CircularProgressIndicator()
@@ -149,7 +151,7 @@ class _CheckoutSuccessPageState extends State<CheckoutSuccessPage> {
                       FilledButton(
                         onPressed: () => Navigator.of(context)
                             .pushNamed(AppRoutes.dashboard),
-                        child: const Text('Continue'),
+                        child: Text(l10n.checkoutContinue),
                       ),
                     ],
                   )

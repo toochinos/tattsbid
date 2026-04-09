@@ -130,11 +130,53 @@ abstract class AppLocalizations {
   /// **'Profile'**
   String get tabProfile;
 
+  /// No description provided for @dashboardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dashboard'**
+  String get dashboardTitle;
+
+  /// No description provided for @dashboardPlaceholderBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Dashboard page'**
+  String get dashboardPlaceholderBody;
+
   /// No description provided for @exploreTitle.
   ///
   /// In en, this message translates to:
   /// **'Explore'**
   String get exploreTitle;
+
+  /// No description provided for @exploreSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Name, city, suburb...'**
+  String get exploreSearchHint;
+
+  /// No description provided for @exploreBidsNearMe.
+  ///
+  /// In en, this message translates to:
+  /// **'Bids near me'**
+  String get exploreBidsNearMe;
+
+  /// No description provided for @exploreNearMeNeedProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Add your city or suburb in your profile to use Bids near me.'**
+  String get exploreNearMeNeedProfile;
+
+  /// No description provided for @exploreNoSearchResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No posts match your search'**
+  String get exploreNoSearchResults;
+
+  /// No description provided for @exploreTitleWithCountry.
+  ///
+  /// In en, this message translates to:
+  /// **'Explore - {country}'**
+  String exploreTitleWithCountry(String country);
 
   /// No description provided for @postedOnDate.
   ///
@@ -165,6 +207,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add a request to see it here'**
   String get addRequestToSeeHere;
+
+  /// No description provided for @addPostCountryMismatchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'You can\'t post here'**
+  String get addPostCountryMismatchTitle;
+
+  /// No description provided for @addPostCountryMismatchBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You can only post requests for the country where you live or stay. Your profile country does not match {targetCountry}. Update where you are staying or living in your profile.'**
+  String addPostCountryMismatchBody(String targetCountry);
+
+  /// No description provided for @addPostCountryMissingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Country required'**
+  String get addPostCountryMissingTitle;
+
+  /// No description provided for @addPostCountryMissingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Add the country where you live or stay in your profile before you can post a request.'**
+  String get addPostCountryMissingBody;
+
+  /// No description provided for @addPostCountryMismatchOk.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get addPostCountryMismatchOk;
+
+  /// No description provided for @addPostNeedDestinationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a country first'**
+  String get addPostNeedDestinationTitle;
+
+  /// No description provided for @addPostNeedDestinationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a country from the globe on Explore before posting.'**
+  String get addPostNeedDestinationBody;
 
   /// No description provided for @retry.
   ///
@@ -772,6 +856,25 @@ abstract class AppLocalizations {
   /// **'Only tattoo artists can place bids on requests.'**
   String get bidDetailOnlyArtistsMayBid;
 
+  /// No description provided for @bidDetailBidCountryRequestMissingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This request has no country set. You can’t place a bid.'**
+  String get bidDetailBidCountryRequestMissingHint;
+
+  /// No description provided for @bidDetailBidCountryProfileMissingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add the country where you live or work in your profile to bid on requests in that country.'**
+  String get bidDetailBidCountryProfileMissingHint;
+
+  /// No description provided for @bidDetailBidCountryMismatchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'You can only bid on requests in your country. This job is in {requestCountry}; your profile country is {profileCountry}.'**
+  String bidDetailBidCountryMismatchHint(
+      String requestCountry, String profileCountry);
+
   /// No description provided for @bidDetailBiddingClosedMessage.
   ///
   /// In en, this message translates to:
@@ -1047,6 +1150,726 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to place bid: {details}'**
   String bidDetailFailedPlaceBidDetails(String details);
+
+  /// No description provided for @photoTakePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Take a photo'**
+  String get photoTakePhoto;
+
+  /// No description provided for @photoFromGallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload from gallery'**
+  String get photoFromGallery;
+
+  /// No description provided for @destinationChooseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose destination'**
+  String get destinationChooseTitle;
+
+  /// No description provided for @destinationComingSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Coming soon'**
+  String get destinationComingSoon;
+
+  /// No description provided for @addTabTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get addTabTitle;
+
+  /// No description provided for @addUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading...'**
+  String get addUploading;
+
+  /// No description provided for @addPhotoButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Add photo'**
+  String get addPhotoButton;
+
+  /// No description provided for @addHappyAddDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'I\'m happy — add details'**
+  String get addHappyAddDetails;
+
+  /// No description provided for @addChooseDifferentPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose different photo'**
+  String get addChooseDifferentPhoto;
+
+  /// No description provided for @addDescriptionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe your vision...'**
+  String get addDescriptionHint;
+
+  /// No description provided for @addPlacementHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Where on the body? (e.g. arm, back, leg)'**
+  String get addPlacementHint;
+
+  /// No description provided for @addSizeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Small, medium, large, or dimensions'**
+  String get addSizeHint;
+
+  /// No description provided for @addColourChip.
+  ///
+  /// In en, this message translates to:
+  /// **'Colour'**
+  String get addColourChip;
+
+  /// No description provided for @addBlackGreyChip.
+  ///
+  /// In en, this message translates to:
+  /// **'Black and grey'**
+  String get addBlackGreyChip;
+
+  /// No description provided for @addTimeAsap.
+  ///
+  /// In en, this message translates to:
+  /// **'ASAP'**
+  String get addTimeAsap;
+
+  /// No description provided for @addTimeWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'During the week'**
+  String get addTimeWeek;
+
+  /// No description provided for @addTimeBookWhen.
+  ///
+  /// In en, this message translates to:
+  /// **'Whenever you can book me in'**
+  String get addTimeBookWhen;
+
+  /// No description provided for @addBidAmountHint.
+  ///
+  /// In en, this message translates to:
+  /// **'0'**
+  String get addBidAmountHint;
+
+  /// No description provided for @addSubmitRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit request'**
+  String get addSubmitRequest;
+
+  /// No description provided for @addBackButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get addBackButton;
+
+  /// No description provided for @addAnotherRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Add another request'**
+  String get addAnotherRequest;
+
+  /// No description provided for @artistsDirectorySearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Name, city, suburb, or country'**
+  String get artistsDirectorySearchHint;
+
+  /// No description provided for @artistsFilterRating.
+  ///
+  /// In en, this message translates to:
+  /// **'Rating'**
+  String get artistsFilterRating;
+
+  /// No description provided for @artistsFilterCleanliness.
+  ///
+  /// In en, this message translates to:
+  /// **'Cleanliness'**
+  String get artistsFilterCleanliness;
+
+  /// No description provided for @exploreDeleteFailedDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete failed: {details}'**
+  String exploreDeleteFailedDetails(String details);
+
+  /// No description provided for @checkoutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Checkout'**
+  String get checkoutTitle;
+
+  /// No description provided for @checkoutContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get checkoutContinue;
+
+  /// No description provided for @checkoutCancelledMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Checkout was cancelled.'**
+  String get checkoutCancelledMessage;
+
+  /// No description provided for @checkoutTryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get checkoutTryAgain;
+
+  /// No description provided for @checkoutBackToDashboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to dashboard'**
+  String get checkoutBackToDashboard;
+
+  /// No description provided for @depositSummaryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Deposit summary'**
+  String get depositSummaryTitle;
+
+  /// No description provided for @depositTotalCostLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Total cost: {amount}'**
+  String depositTotalCostLine(String amount);
+
+  /// No description provided for @depositArtistReceivesLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist receives: {amount}'**
+  String depositArtistReceivesLine(String amount);
+
+  /// No description provided for @depositPayButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Pay'**
+  String get depositPayButton;
+
+  /// No description provided for @depositFeePercentLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Deposit fee ({percent}%): {amount}'**
+  String depositFeePercentLine(int percent, String amount);
+
+  /// No description provided for @platformFeePaymentFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment failed: {error}'**
+  String platformFeePaymentFailed(String error);
+
+  /// No description provided for @cameraTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get cameraTitle;
+
+  /// No description provided for @cameraSwitchError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not switch camera: {error}'**
+  String cameraSwitchError(String error);
+
+  /// No description provided for @cameraCaptureError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to capture image: {error}'**
+  String cameraCaptureError(String error);
+
+  /// No description provided for @cameraNoDeviceAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No camera available on this device.'**
+  String get cameraNoDeviceAvailable;
+
+  /// No description provided for @cameraInitFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to initialize camera: {error}'**
+  String cameraInitFailed(String error);
+
+  /// No description provided for @bidPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bid'**
+  String get bidPageTitle;
+
+  /// No description provided for @paywallSubscribeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribe'**
+  String get paywallSubscribeTitle;
+
+  /// No description provided for @paywallSubscribeMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribe monthly'**
+  String get paywallSubscribeMonthly;
+
+  /// No description provided for @paywallFreePlanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Free version'**
+  String get paywallFreePlanTitle;
+
+  /// No description provided for @paywallProPlanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro version'**
+  String get paywallProPlanTitle;
+
+  /// No description provided for @paywallProMaxPlanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro Max'**
+  String get paywallProMaxPlanTitle;
+
+  /// No description provided for @paywallProPlanSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'99¢ AUD monthly'**
+  String get paywallProPlanSubtitle;
+
+  /// No description provided for @paywallProMaxPlanSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'\$1.00 AUD monthly'**
+  String get paywallProMaxPlanSubtitle;
+
+  /// No description provided for @welcomeGetStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Get started'**
+  String get welcomeGetStarted;
+
+  /// No description provided for @welcomeSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get welcomeSkip;
+
+  /// No description provided for @editContactEmailHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your contact email'**
+  String get editContactEmailHint;
+
+  /// No description provided for @editContactPhoneHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your phone number'**
+  String get editContactPhoneHint;
+
+  /// No description provided for @publicProfileCantChatSelf.
+  ///
+  /// In en, this message translates to:
+  /// **'You can\'t chat with yourself.'**
+  String get publicProfileCantChatSelf;
+
+  /// No description provided for @publicProfileReviewCommentRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please write a comment.'**
+  String get publicProfileReviewCommentRequired;
+
+  /// No description provided for @publicProfileReviewSubmitError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not submit review right now. Please try again.'**
+  String get publicProfileReviewSubmitError;
+
+  /// No description provided for @publicProfileChatButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get publicProfileChatButton;
+
+  /// No description provided for @publicProfileChatWithArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat with artist'**
+  String get publicProfileChatWithArtist;
+
+  /// No description provided for @publicProfileReviewHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Share your experience…'**
+  String get publicProfileReviewHint;
+
+  /// No description provided for @publicProfileSubmitReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit review'**
+  String get publicProfileSubmitReview;
+
+  /// No description provided for @publicProfileEmailTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get publicProfileEmailTitle;
+
+  /// No description provided for @publicProfileMobileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Mobile'**
+  String get publicProfileMobileTitle;
+
+  /// No description provided for @publicProfileTitleFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get publicProfileTitleFallback;
+
+  /// No description provided for @publicProfileReviewSelectBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'Please select both Rating and Cleanliness (1–5 stars each).'**
+  String get publicProfileReviewSelectBoth;
+
+  /// No description provided for @publicProfileReviewPostedThanks.
+  ///
+  /// In en, this message translates to:
+  /// **'Thanks — your review was posted.'**
+  String get publicProfileReviewPostedThanks;
+
+  /// No description provided for @publicProfileReviewUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'You have already reviewed this artist. Your review was updated.'**
+  String get publicProfileReviewUpdated;
+
+  /// No description provided for @publicProfileReviewAlreadyReviewedShort.
+  ///
+  /// In en, this message translates to:
+  /// **'You have already reviewed this artist'**
+  String get publicProfileReviewAlreadyReviewedShort;
+
+  /// No description provided for @publicProfileReviewsHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reviews'**
+  String get publicProfileReviewsHeading;
+
+  /// No description provided for @publicProfileNoReviewsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No reviews yet.'**
+  String get publicProfileNoReviewsYet;
+
+  /// No description provided for @publicProfilePreviousReviews.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous reviews'**
+  String get publicProfilePreviousReviews;
+
+  /// No description provided for @publicProfileReviewsTileSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} review · tap to expand} other{{count} reviews · tap to expand}}'**
+  String publicProfileReviewsTileSubtitle(num count);
+
+  /// No description provided for @publicProfileWriteReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a review'**
+  String get publicProfileWriteReview;
+
+  /// No description provided for @publicProfileEditReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit your review'**
+  String get publicProfileEditReview;
+
+  /// No description provided for @publicProfileNoContactOnFile.
+  ///
+  /// In en, this message translates to:
+  /// **'No contact details on file.'**
+  String get publicProfileNoContactOnFile;
+
+  /// No description provided for @chatSendFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send: {error}'**
+  String chatSendFailed(String error);
+
+  /// No description provided for @chatMessageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Message (private)'**
+  String get chatMessageHint;
+
+  /// No description provided for @chatMessageArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Message artist'**
+  String get chatMessageArtist;
+
+  /// No description provided for @chatMobileLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Mobile: {phone}'**
+  String chatMobileLine(String phone);
+
+  /// No description provided for @chatEmailLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Email: {email}'**
+  String chatEmailLine(String email);
+
+  /// No description provided for @chatInboxTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Message'**
+  String get chatInboxTitle;
+
+  /// No description provided for @chatPartnerFallbackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get chatPartnerFallbackTitle;
+
+  /// No description provided for @chatPrivacyNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages between tattoo artists and customers only. Only you and this person can see these messages.'**
+  String get chatPrivacyNotice;
+
+  /// No description provided for @chatContactSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact'**
+  String get chatContactSectionTitle;
+
+  /// No description provided for @chatSetupRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat setup required. Run the migration in supabase/apply_chat_messages.sql in your Supabase Dashboard (SQL Editor), then tap Retry.'**
+  String get chatSetupRequired;
+
+  /// No description provided for @chatEmptyConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'No messages yet. Say hello — this conversation is only visible to you and the other person.'**
+  String get chatEmptyConversation;
+
+  /// No description provided for @chatYourArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Your artist'**
+  String get chatYourArtist;
+
+  /// No description provided for @chatPhoneLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone: {phone}'**
+  String chatPhoneLine(String phone);
+
+  /// No description provided for @chatNoContactYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No phone or email on file yet.'**
+  String get chatNoContactYet;
+
+  /// No description provided for @chatUnknownUser.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get chatUnknownUser;
+
+  /// No description provided for @chatInboxEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No conversations yet'**
+  String get chatInboxEmptyTitle;
+
+  /// No description provided for @chatInboxEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Chats from Explore (customer messages first) appear here. After you pay the deposit on your winning bid, this screen shows your artist’s contact details and a button to start messaging.'**
+  String get chatInboxEmptyBody;
+
+  /// No description provided for @chatInboxUnlockTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pay to unlock messaging'**
+  String get chatInboxUnlockTitle;
+
+  /// No description provided for @chatInboxUnlockBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete the deposit from your request’s winning bid to unlock artist contact and chat.'**
+  String get chatInboxUnlockBody;
+
+  /// No description provided for @chatPaidArtistBlurbLong.
+  ///
+  /// In en, this message translates to:
+  /// **'Deposit paid — you can message your artist or use their contact details below.'**
+  String get chatPaidArtistBlurbLong;
+
+  /// No description provided for @chatPaidArtistBlurbShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Deposit paid — message your artist or use their contact details.'**
+  String get chatPaidArtistBlurbShort;
+
+  /// No description provided for @chatConversationsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversations'**
+  String get chatConversationsSection;
+
+  /// No description provided for @reviewRatingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Rating'**
+  String get reviewRatingLabel;
+
+  /// No description provided for @reviewCleanlinessLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cleanliness'**
+  String get reviewCleanlinessLabel;
+
+  /// No description provided for @userAgreementTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'TattsBid user agreement'**
+  String get userAgreementTitle;
+
+  /// No description provided for @userAgreementAcceptTerms.
+  ///
+  /// In en, this message translates to:
+  /// **'I agree to the TattsBid terms'**
+  String get userAgreementAcceptTerms;
+
+  /// No description provided for @userAgreementContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get userAgreementContinue;
+
+  /// No description provided for @userAgreementSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save agreement: {error}'**
+  String userAgreementSaveError(String error);
+
+  /// No description provided for @addReferencePhotoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a reference photo'**
+  String get addReferencePhotoTitle;
+
+  /// No description provided for @addReferencePhotoSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Take a photo or choose from your gallery'**
+  String get addReferencePhotoSubtitle;
+
+  /// No description provided for @addPhotoUploadedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo uploaded successfully'**
+  String get addPhotoUploadedTitle;
+
+  /// No description provided for @addPhotoUploadedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Happy with this photo? Add a description and starting bid.'**
+  String get addPhotoUploadedSubtitle;
+
+  /// No description provided for @addDescriptionSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get addDescriptionSectionTitle;
+
+  /// No description provided for @addFieldDescriptionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'What do you want for your tattoo?'**
+  String get addFieldDescriptionLabel;
+
+  /// No description provided for @addFieldPlacementLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Placement'**
+  String get addFieldPlacementLabel;
+
+  /// No description provided for @addFieldSizeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get addFieldSizeLabel;
+
+  /// No description provided for @addSectionColourTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Colour or black and grey'**
+  String get addSectionColourTitle;
+
+  /// No description provided for @addSectionTimeframeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Time frame'**
+  String get addSectionTimeframeTitle;
+
+  /// No description provided for @addCreativeFreedomTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow the artist to have creative freedom'**
+  String get addCreativeFreedomTitle;
+
+  /// No description provided for @addStartingBidLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting bid (\$)'**
+  String get addStartingBidLabel;
+
+  /// No description provided for @addInvalidBidAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid amount (0 or more)'**
+  String get addInvalidBidAmount;
+
+  /// No description provided for @addSubmittedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Request submitted!'**
+  String get addSubmittedTitle;
+
+  /// No description provided for @addSubmittedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Artists can now view your request and place bids.'**
+  String get addSubmittedSubtitle;
+
+  /// No description provided for @artistsNearMeButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist near me'**
+  String get artistsNearMeButton;
+
+  /// No description provided for @artistsShowingInLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Showing artists in {location}'**
+  String artistsShowingInLocation(String location);
+
+  /// No description provided for @artistsClearSearchTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get artistsClearSearchTooltip;
 }
 
 class _AppLocalizationsDelegate
