@@ -71,6 +71,14 @@
   "settingsDangerZone": "Zona bahaya",
   "settingsDeleteAccount": "Hapus akun",
   "settingsAccountDeleted": "Akun dihapus",
+  "settingsAccountDeleteFailed": "Tidak dapat menghapus akun. {reason}",
+  "@settingsAccountDeleteFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "appVersionLabel": "Versi {version}",
   "@appVersionLabel": {
     "placeholders": {
@@ -103,6 +111,11 @@
   "profileNameMaxLength": "Nama maksimal 100 karakter",
   "profileCountryLabel": "Negara",
   "profileSelectCountry": "Pilih negara",
+  "profileCountryLockedByPostsBody": "Anda masih memiliki permintaan tato yang diposting. Hapus dari Jelajahi sebelum mengubah negara.",
+  "profileCountryChangeBlockedError": "Hapus permintaan yang diposting sebelum mengubah negara.",
+  "profileDisplayNameLockedHelper": "Nama tampilan tidak dapat diubah setelah ditetapkan.",
+  "profileDisplayNameImmutableError": "Nama tampilan Anda tidak dapat diubah.",
+  "profileDisplayNameTakenError": "Nama tampilan itu sudah dipakai. Coba yang lain.",
   "profileCityLabel": "Kota",
   "profileSelectCity": "Pilih kota",
   "profileSuburbOptionalLabel": "Wilayah pinggiran (opsional)",
@@ -162,7 +175,7 @@
   "bidDetailArtistToolsNotBidHint": "Alat seniman — penawaran tidak dimulai dari tombol ini.",
   "bidDetailOnlyArtistsMayBid": "Hanya seniman tato yang dapat mengajukan penawaran.",
   "bidDetailBidCountryRequestMissingHint": "Permintaan ini tidak memiliki negara. Anda tidak dapat mengajukan penawaran.",
-  "bidDetailBidCountryProfileMissingHint": "Tambahkan negara tempat Anda tinggal atau bekerja di profil untuk menawar permintaan di negara tersebut.",
+  "bidDetailBidCountryProfileMissingHint": "Profil Anda belum menyimpan negara. Buka Profil → detail kontak, pilih Negara, ketuk Simpan, lalu coba lagi.",
   "bidDetailBidCountryMismatchHint": "Anda hanya dapat menawar permintaan di negara Anda. Pekerjaan ini di {requestCountry}; negara profil Anda adalah {profileCountry}.",
   "@bidDetailBidCountryMismatchHint": {
     "placeholders": {

@@ -71,6 +71,14 @@
   "settingsDangerZone": "Danger zone",
   "settingsDeleteAccount": "Delete Account",
   "settingsAccountDeleted": "Account deleted",
+  "settingsAccountDeleteFailed": "Could not delete your account. {reason}",
+  "@settingsAccountDeleteFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "appVersionLabel": "Version {version}",
   "@appVersionLabel": {
     "placeholders": {
@@ -103,6 +111,11 @@
   "profileNameMaxLength": "Name must be 100 characters or less",
   "profileCountryLabel": "Country",
   "profileSelectCountry": "Select country",
+  "profileCountryLockedByPostsBody": "You still have tattoo requests posted. Delete them from Explore before you can change your country.",
+  "profileCountryChangeBlockedError": "Delete your posted requests before you can change country.",
+  "profileDisplayNameLockedHelper": "Display name can't be changed after it's set.",
+  "profileDisplayNameImmutableError": "Your display name can't be changed.",
+  "profileDisplayNameTakenError": "That display name is already taken. Try another.",
   "profileCityLabel": "City",
   "profileSelectCity": "Select city",
   "profileSuburbOptionalLabel": "Suburb (optional)",
@@ -196,7 +209,7 @@
   "bidDetailArtistToolsNotBidHint": "Artist tools — bidding is not started from this button.",
   "bidDetailOnlyArtistsMayBid": "Only tattoo artists can place bids on requests.",
   "bidDetailBidCountryRequestMissingHint": "This request has no country set. You can’t place a bid.",
-  "bidDetailBidCountryProfileMissingHint": "Add the country where you live or work in your profile to bid on requests in that country.",
+  "bidDetailBidCountryProfileMissingHint": "Your profile has no country saved in the app. Open Profile → contact details, choose Country, tap Save, then try again.",
   "bidDetailBidCountryMismatchHint": "You can only bid on requests in your country. This job is in {requestCountry}; your profile country is {profileCountry}.",
   "@bidDetailBidCountryMismatchHint": {
     "placeholders": {

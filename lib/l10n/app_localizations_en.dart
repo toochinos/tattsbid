@@ -156,6 +156,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsAccountDeleted => 'Account deleted';
 
   @override
+  String settingsAccountDeleteFailed(String reason) {
+    return 'Could not delete your account. $reason';
+  }
+
+  @override
   String appVersionLabel(String version) {
     return 'Version $version';
   }
@@ -231,6 +236,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileSelectCountry => 'Select country';
+
+  @override
+  String get profileCountryLockedByPostsBody =>
+      'You still have tattoo requests posted. Delete them from Explore before you can change your country.';
+
+  @override
+  String get profileCountryChangeBlockedError =>
+      'Delete your posted requests before you can change country.';
+
+  @override
+  String get profileDisplayNameLockedHelper =>
+      'Display name can\'t be changed after it\'s set.';
+
+  @override
+  String get profileDisplayNameImmutableError =>
+      'Your display name can\'t be changed.';
+
+  @override
+  String get profileDisplayNameTakenError =>
+      'That display name is already taken. Try another.';
 
   @override
   String get profileCityLabel => 'City';
@@ -433,7 +458,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bidDetailBidCountryProfileMissingHint =>
-      'Add the country where you live or work in your profile to bid on requests in that country.';
+      'Your profile has no country saved in the app. Open Profile → contact details, choose Country, tap Save, then try again.';
 
   @override
   String bidDetailBidCountryMismatchHint(

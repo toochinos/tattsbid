@@ -71,6 +71,14 @@
   "settingsDangerZone": "តំបន់គ្រោះថ្នាក់",
   "settingsDeleteAccount": "លុបគណនី",
   "settingsAccountDeleted": "គណនីត្រូវបានលុប",
+  "settingsAccountDeleteFailed": "មិនអាចលុបគណនីបានទេ។ {reason}",
+  "@settingsAccountDeleteFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "appVersionLabel": "កំណែ {version}",
   "@appVersionLabel": {
     "placeholders": {
@@ -103,6 +111,11 @@
   "profileNameMaxLength": "ឈ្មោះមិនអាចលើស ១០០ តួអក្សរ",
   "profileCountryLabel": "ប្រទេស",
   "profileSelectCountry": "ជ្រើសប្រទេស",
+  "profileCountryLockedByPostsBody": "អ្នកនៅតែមានសំណើសាក់ដែលបានប្រកាស។ លុបពី Explore មុនពេលអាចផ្លាស់ប្តូរប្រទេស។",
+  "profileCountryChangeBlockedError": "លុបសំណើដែលបានប្រកាសមុនពេលអាចផ្លាស់ប្តូរប្រទេស។",
+  "profileDisplayNameLockedHelper": "មិនអាចផ្លាស់ប្តូរឈ្មោះដែលបង្ហាញបន្ទាប់ពីបានកំណត់រួចទេ។",
+  "profileDisplayNameImmutableError": "ឈ្មោះដែលបង្ហាញរបស់អ្នកមិនអាចផ្លាស់ប្តូរបានទេ។",
+  "profileDisplayNameTakenError": "ឈ្មោះដែលបង្ហាញនេះមានគេប្រើរួចហើយ។ សាកលើកផ្សេង។",
   "profileCityLabel": "ទីក្រុង",
   "profileSelectCity": "ជ្រើសទីក្រុង",
   "profileSuburbOptionalLabel": "តំបន់ជុំវិញ (ស្រេចចិត្ត)",
@@ -162,7 +175,7 @@
   "bidDetailArtistToolsNotBidHint": "ឧបករណ៍សិល្បករ — មិនចាប់ផ្តើមដេញថ្លៃពីប៊ូតុងនេះទេ។",
   "bidDetailOnlyArtistsMayBid": "មានតែសិល្បករសាក់ប៉ុណ្ណោះដែលអាចដេញថ្លៃលើស្នើសុំ។",
   "bidDetailBidCountryRequestMissingHint": "សំណើនេះមិនមានប្រទេស។ អ្នកមិនអាចដាក់ការដេញថ្លៃបានទេ។",
-  "bidDetailBidCountryProfileMissingHint": "បន្ថែមប្រទេសដែលអ្នករស់នៅ ឬធ្វើការក្នុងប្រវត្តិរូប ដើម្បីដេញថ្លៃលើសំណើនៅប្រទេសនោះ។",
+  "bidDetailBidCountryProfileMissingHint": "ប្រវត្តិរូបរបស់អ្នកមិនទាន់រក្សាទុកប្រទេសទេ។ ចូលទៅ ប្រវត្តិរូប → ព័ត៌មានទំនាក់ទំនង ជ្រើសប្រទេស ចុចរក្សាទុក រួចសាកម្តងទៀត។",
   "bidDetailBidCountryMismatchHint": "អ្នកដេញថ្លៃបានតែលើសំណើនៅប្រទេសរបស់អ្នកប៉ុណ្ណោះ។ ការងានេះនៅ {requestCountry}; ប្រទេសក្នុងប្រវត្តិរូបរបស់អ្នកគឺ {profileCountry}។",
   "@bidDetailBidCountryMismatchHint": {
     "placeholders": {

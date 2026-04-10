@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/data/profile_location_suburbs.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
+import '../core/services/tattoo_request_service.dart';
 import '../core/utils/pick_images.dart';
 import '../core/utils/user_type_utils.dart';
 import '../l10n/app_localizations.dart';
@@ -73,6 +75,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _initialized = false;
   String? _errorMessage;
 
+  /// Customers with posted tattoo requests cannot change country until posts are deleted.
+  bool _countryChangeLocked = false;
+
+  /// Non-empty display names are set once and cannot be edited.
+  bool _displayNameLocked = false;
+
   @override
   void dispose() {
     _displayNameController.removeListener(_onFieldChanged);
@@ -116,7 +124,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _userType = persisted;
       }
     }
-    setState(() => _initialized = true);
+    var countryLocked = false;
+    if (profile?.userType == 'customer') {
+      countryLocked =
+          await TattooRequestService.currentUserHasAnyOwnedRequest();
+    }
+    if (!mounted) return;
+    setState(() {
+      _initialized = true;
+      _countryChangeLocked = countryLocked;
+      _displayNameLocked = profile?.displayName?.trim().isNotEmpty == true;
+    });
   }
 
   Future<void> _showPhotoSourceSheet() async {
@@ -434,6 +452,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    final supabase = Supabase.instance.client;
+    if (supabase.auth.currentUser == null) {
+      setState(() => _errorMessage = l10n.profileNotLoggedIn);
+      return;
+    }
+
     final displayName = _displayNameController.text.trim();
     final country = (_selectedCountry ?? '').trim();
     final city = (_selectedCity ?? '').trim();
@@ -461,6 +485,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       } else {
         Navigator.of(context).pop();
       }
+    } on ProfileCountryChangeBlockedException catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = l10n.profileCountryChangeBlockedError;
+      });
+    } on DisplayNameImmutableException catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = l10n.profileDisplayNameImmutableError;
+      });
+    } on DisplayNameTakenException catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = l10n.profileDisplayNameTakenError;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -593,10 +635,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 24),
                     TextFormField(
                       controller: _displayNameController,
+                      readOnly: _displayNameLocked,
                       decoration: _outlinedFieldDecoration(
                         context,
                         labelText: l10n.profileDisplayNameLabel,
                         hintText: l10n.profileDisplayNameHint,
+                        helperText: _displayNameLocked
+                            ? l10n.profileDisplayNameLockedHelper
+                            : null,
                         showError: _displayNameController.text.trim().isEmpty,
                       ),
                       textCapitalization: TextCapitalization.words,
@@ -630,21 +676,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           )
                           .toList(),
-                      onChanged: (v) {
-                        setState(() {
-                          _selectedCountry = v;
-                          final nextCities = _cityOptionsByCountry[v ?? ''] ??
-                              const <String>[];
-                          if (!nextCities.contains(_selectedCity)) {
-                            _selectedCity = null;
-                          }
-                          _suburbController.clear();
-                        });
-                      },
+                      onChanged: _countryChangeLocked
+                          ? null
+                          : (v) {
+                              setState(() {
+                                _selectedCountry = v;
+                                final nextCities =
+                                    _cityOptionsByCountry[v ?? ''] ??
+                                        const <String>[];
+                                if (!nextCities.contains(_selectedCity)) {
+                                  _selectedCity = null;
+                                }
+                                _suburbController.clear();
+                              });
+                            },
                       validator: (v) => (v == null || v.trim().isEmpty)
                           ? l10n.profileSelectCountry
                           : null,
                     ),
+                    if (_countryChangeLocked) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        l10n.profileCountryLockedByPostsBody,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       initialValue: _selectedCity,
@@ -949,7 +1007,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                     const SizedBox(height: 24),
                     FilledButton(
-                      onPressed: (_loading || !_isFormComplete) ? null : _save,
+                      onPressed: (_loading || !_isFormComplete)
+                          ? null
+                          : () async {
+                              await _save();
+                            },
                       child: _loading
                           ? const SizedBox(
                               height: 20,

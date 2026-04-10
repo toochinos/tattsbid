@@ -164,6 +164,54 @@ class _BidDetailPageState extends State<BidDetailPage>
       await _loadUnlock();
     } catch (e, st) {
       debugPrint('BidDetailPage _loadProfileRole: $e\n$st');
+      await _loadProfileRoleFallback();
+    }
+  }
+
+  /// If selecting [role] fails (e.g. column lag on old DB), still load country
+  /// and [user_type] so same-country bidding works.
+  Future<void> _loadProfileRoleFallback() async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      setState(() {
+        _profileRoleLoading = false;
+        _userRole = null;
+        _legacyTattooArtist = false;
+        _viewerUserType = null;
+        _viewerProfileCountry = null;
+      });
+      return;
+    }
+
+    try {
+      final row = await client
+          .from(SupabaseProfiles.table)
+          .select(
+            '${SupabaseProfiles.userType}, ${SupabaseProfiles.country}',
+          )
+          .eq(SupabaseProfiles.id, user.id)
+          .maybeSingle();
+
+      final legacy = await BidService.isCurrentUserTattooArtist();
+      final ut = row?[SupabaseProfiles.userType] as String?;
+      final rawCountry = row?[SupabaseProfiles.country] as String?;
+      final trimmedCountry = rawCountry?.trim();
+      final viewerCountry = trimmedCountry != null && trimmedCountry.isNotEmpty
+          ? trimmedCountry
+          : null;
+
+      if (!mounted) return;
+      setState(() {
+        _profileRoleLoading = false;
+        _userRole = null;
+        _legacyTattooArtist = legacy;
+        _viewerUserType = ut?.trim().isEmpty == true ? null : ut?.trim();
+        _viewerProfileCountry = viewerCountry;
+      });
+    } catch (e2, st2) {
+      debugPrint('BidDetailPage _loadProfileRoleFallback: $e2\n$st2');
       final legacy = await BidService.isCurrentUserTattooArtist();
       if (!mounted) return;
       setState(() {
@@ -173,8 +221,8 @@ class _BidDetailPageState extends State<BidDetailPage>
         _viewerUserType = null;
         _viewerProfileCountry = null;
       });
-      await _loadUnlock();
     }
+    if (mounted) await _loadUnlock();
   }
 
   /// Request owner who is not a tattoo artist (customers only for unlock UI).
@@ -292,14 +340,17 @@ class _BidDetailPageState extends State<BidDetailPage>
   bool get _biddingOpen => _request.status == 'open';
 
   /// Same visibility rules as the Bid button before country gating.
+  /// Only [profiles.role] `artist` or legacy tattoo artists (see [_legacyTattooArtist]).
   bool get _bidButtonBaseEligible =>
       !_profileRoleLoading &&
       _biddingOpen &&
       !_isOwner &&
-      (_userRole == 'customer' || (_userRole == null && _legacyTattooArtist));
+      (_userRole == 'artist' || (_userRole == null && _legacyTattooArtist));
 
   bool get _isTattooArtistViewer =>
-      _viewerUserType == 'tattoo_artist' || _legacyTattooArtist;
+      _viewerUserType == 'tattoo_artist' ||
+      _legacyTattooArtist ||
+      _userRole == 'artist';
 
   /// Tattoo artists may only bid when [TattooRequest.country] matches profile country.
   bool get _countriesAllowArtistBid {

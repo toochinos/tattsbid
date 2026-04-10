@@ -157,6 +157,11 @@ class AppLocalizationsId extends AppLocalizations {
   String get settingsAccountDeleted => 'Akun dihapus';
 
   @override
+  String settingsAccountDeleteFailed(String reason) {
+    return 'Tidak dapat menghapus akun. $reason';
+  }
+
+  @override
   String appVersionLabel(String version) {
     return 'Versi $version';
   }
@@ -232,6 +237,26 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get profileSelectCountry => 'Pilih negara';
+
+  @override
+  String get profileCountryLockedByPostsBody =>
+      'Anda masih memiliki permintaan tato yang diposting. Hapus dari Jelajahi sebelum mengubah negara.';
+
+  @override
+  String get profileCountryChangeBlockedError =>
+      'Hapus permintaan yang diposting sebelum mengubah negara.';
+
+  @override
+  String get profileDisplayNameLockedHelper =>
+      'Nama tampilan tidak dapat diubah setelah ditetapkan.';
+
+  @override
+  String get profileDisplayNameImmutableError =>
+      'Nama tampilan Anda tidak dapat diubah.';
+
+  @override
+  String get profileDisplayNameTakenError =>
+      'Nama tampilan itu sudah dipakai. Coba yang lain.';
 
   @override
   String get profileCityLabel => 'Kota';
@@ -436,7 +461,7 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get bidDetailBidCountryProfileMissingHint =>
-      'Tambahkan negara tempat Anda tinggal atau bekerja di profil untuk menawar permintaan di negara tersebut.';
+      'Profil Anda belum menyimpan negara. Buka Profil → detail kontak, pilih Negara, ketuk Simpan, lalu coba lagi.';
 
   @override
   String bidDetailBidCountryMismatchHint(

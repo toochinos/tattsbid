@@ -156,6 +156,11 @@ class AppLocalizationsKm extends AppLocalizations {
   String get settingsAccountDeleted => 'គណនីត្រូវបានលុប';
 
   @override
+  String settingsAccountDeleteFailed(String reason) {
+    return 'មិនអាចលុបគណនីបានទេ។ $reason';
+  }
+
+  @override
   String appVersionLabel(String version) {
     return 'កំណែ $version';
   }
@@ -232,6 +237,26 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get profileSelectCountry => 'ជ្រើសប្រទេស';
+
+  @override
+  String get profileCountryLockedByPostsBody =>
+      'អ្នកនៅតែមានសំណើសាក់ដែលបានប្រកាស។ លុបពី Explore មុនពេលអាចផ្លាស់ប្តូរប្រទេស។';
+
+  @override
+  String get profileCountryChangeBlockedError =>
+      'លុបសំណើដែលបានប្រកាសមុនពេលអាចផ្លាស់ប្តូរប្រទេស។';
+
+  @override
+  String get profileDisplayNameLockedHelper =>
+      'មិនអាចផ្លាស់ប្តូរឈ្មោះដែលបង្ហាញបន្ទាប់ពីបានកំណត់រួចទេ។';
+
+  @override
+  String get profileDisplayNameImmutableError =>
+      'ឈ្មោះដែលបង្ហាញរបស់អ្នកមិនអាចផ្លាស់ប្តូរបានទេ។';
+
+  @override
+  String get profileDisplayNameTakenError =>
+      'ឈ្មោះដែលបង្ហាញនេះមានគេប្រើរួចហើយ។ សាកលើកផ្សេង។';
 
   @override
   String get profileCityLabel => 'ទីក្រុង';
@@ -433,7 +458,7 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get bidDetailBidCountryProfileMissingHint =>
-      'បន្ថែមប្រទេសដែលអ្នករស់នៅ ឬធ្វើការក្នុងប្រវត្តិរូប ដើម្បីដេញថ្លៃលើសំណើនៅប្រទេសនោះ។';
+      'ប្រវត្តិរូបរបស់អ្នកមិនទាន់រក្សាទុកប្រទេសទេ។ ចូលទៅ ប្រវត្តិរូប → ព័ត៌មានទំនាក់ទំនង ជ្រើសប្រទេស ចុចរក្សាទុក រួចសាកម្តងទៀត។';
 
   @override
   String bidDetailBidCountryMismatchHint(

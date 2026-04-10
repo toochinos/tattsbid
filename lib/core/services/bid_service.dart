@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_schema.dart';
@@ -61,8 +60,6 @@ class BidService {
     required double bidAmount,
   }) async {
     final user = _client.auth.currentUser;
-    // Debug: verify auth user at bid time.
-    debugPrint('currentUser: $user');
     if (user == null) throw StateError('User must be authenticated');
     if (bidAmount < 0) throw ArgumentError('Amount must be non-negative');
 

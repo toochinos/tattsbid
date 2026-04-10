@@ -296,9 +296,10 @@ class _MainShellPageState extends State<MainShellPage> {
     return items;
   }
 
-  /// Switches to main Explore (all countries) and refreshes (e.g. after submitting).
+  /// Switches to Explore scoped to the post country and refreshes (after submitting a request).
   void switchToExploreAndRefresh() {
-    _exploreFeedScopeNotifier.value = null;
+    final c = _postCountryNotifier.value.trim();
+    _exploreFeedScopeNotifier.value = c.isNotEmpty ? c : null;
     setState(() => _currentIndex = 0);
     _popTabNavigatorToRoot(0);
     _exploreRefreshTrigger.value++;

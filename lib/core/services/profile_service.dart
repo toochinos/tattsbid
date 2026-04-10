@@ -6,6 +6,31 @@ import '../config/supabase_schema.dart';
 import '../utils/supabase_list.dart';
 import '../models/artist_directory_entry.dart';
 import '../models/user_profile.dart';
+import 'tattoo_request_service.dart';
+
+/// Customers cannot change profile [country] while they still own tattoo requests.
+class ProfileCountryChangeBlockedException implements Exception {
+  const ProfileCountryChangeBlockedException();
+
+  @override
+  String toString() => 'ProfileCountryChangeBlockedException';
+}
+
+/// Non-empty [displayName] cannot be changed after it is set (case-insensitive match allowed).
+class DisplayNameImmutableException implements Exception {
+  const DisplayNameImmutableException();
+
+  @override
+  String toString() => 'DisplayNameImmutableException';
+}
+
+/// Another profile already uses this display name (case-insensitive).
+class DisplayNameTakenException implements Exception {
+  const DisplayNameTakenException();
+
+  @override
+  String toString() => 'DisplayNameTakenException';
+}
 
 /// Fetches and updates user profile. Uses auth user + optional profiles table.
 class ProfileService {
@@ -102,6 +127,48 @@ class ProfileService {
         .replaceAll(r'\', r'\\')
         .replaceAll('%', r'\%')
         .replaceAll('_', r'\_');
+  }
+
+  static String _trimmedDisplayNameField(dynamic v) {
+    if (v == null) return '';
+    if (v is String) return v.trim();
+    return v.toString().trim();
+  }
+
+  /// Writes [profiles.display_name] into Auth `user_metadata` so the Supabase
+  /// Dashboard (Authentication → Users → Display name) stays in sync.
+  static Future<void> _syncAuthUserMetadataDisplayName(
+    Map<String, dynamic> profileRow,
+  ) async {
+    final dnVal = profileRow[SupabaseProfiles.displayName];
+    final dnStr =
+        dnVal is String ? dnVal.trim() : _trimmedDisplayNameField(dnVal);
+    if (dnStr.isEmpty) return;
+    if (_client.auth.currentSession == null) return;
+
+    final meta = Map<String, dynamic>.from(
+      _client.auth.currentUser?.userMetadata ?? const <String, dynamic>{},
+    );
+    meta['full_name'] = dnStr;
+    meta['name'] = dnStr;
+
+    await _client.auth.updateUser(UserAttributes(data: meta));
+  }
+
+  static Future<bool> _isDisplayNameTakenByOther(
+    String candidate,
+    String excludeUserId,
+  ) async {
+    final t = candidate.trim();
+    if (t.isEmpty) return false;
+    final pattern = _escapeIlike(t);
+    final rows = await _client
+        .from(SupabaseProfiles.table)
+        .select(SupabaseProfiles.id)
+        .neq(SupabaseProfiles.id, excludeUserId)
+        .filter(SupabaseProfiles.displayName, 'ilike', pattern)
+        .limit(1);
+    return mapListFrom(rows).isNotEmpty;
   }
 
   /// PostgREST `or(...)` clause: match text against name, location line, city, suburb, or country (not bio).
@@ -275,8 +342,28 @@ class ProfileService {
 
     final existingMap =
         existing is Map ? existing as Map<String, dynamic> : null;
-    data[SupabaseProfiles.displayName] =
-        displayName ?? existingMap?[SupabaseProfiles.displayName];
+    final existingDnRaw = existingMap?[SupabaseProfiles.displayName];
+    final prevTrim = _trimmedDisplayNameField(existingDnRaw);
+
+    if (displayName != null) {
+      final reqTrim = displayName.trim();
+      if (prevTrim.isNotEmpty) {
+        if (reqTrim.isEmpty ||
+            reqTrim.toLowerCase() != prevTrim.toLowerCase()) {
+          throw const DisplayNameImmutableException();
+        }
+        data[SupabaseProfiles.displayName] = existingDnRaw;
+      } else if (reqTrim.isNotEmpty) {
+        if (await _isDisplayNameTakenByOther(reqTrim, user.id)) {
+          throw const DisplayNameTakenException();
+        }
+        data[SupabaseProfiles.displayName] = reqTrim;
+      } else {
+        data[SupabaseProfiles.displayName] = existingDnRaw;
+      }
+    } else {
+      data[SupabaseProfiles.displayName] = existingDnRaw;
+    }
     data[SupabaseProfiles.avatarUrl] =
         avatarUrl ?? existingMap?[SupabaseProfiles.avatarUrl];
     data[SupabaseProfiles.location] =
@@ -307,6 +394,7 @@ class ProfileService {
         : hasPersistedRole
             ? existingUserType
             : (userType ?? existingUserType);
+    final effectiveUserType = data[SupabaseProfiles.userType] as String?;
 
     final hasLocationUpdateInput =
         country != null || city != null || suburb != null;
@@ -315,9 +403,37 @@ class ProfileService {
           DateTime.now().toIso8601String();
     }
 
-    await _client
-        .from(SupabaseProfiles.table)
-        .upsert(data, onConflict: SupabaseProfiles.id);
+    if (country != null) {
+      final next = country.trim();
+      final prevRaw = existingMap?[SupabaseProfiles.country] as String?;
+      final prev = prevRaw?.trim() ?? '';
+      final nextNorm = next.isEmpty ? '' : next.toLowerCase();
+      final prevNorm = prev.isEmpty ? '' : prev.toLowerCase();
+      if (nextNorm != prevNorm && effectiveUserType == 'customer') {
+        final hasPosts =
+            await TattooRequestService.currentUserHasAnyOwnedRequest();
+        if (hasPosts) {
+          throw const ProfileCountryChangeBlockedException();
+        }
+      }
+    }
+
+    try {
+      await _client
+          .from(SupabaseProfiles.table)
+          .upsert(data, onConflict: SupabaseProfiles.id);
+      await _syncAuthUserMetadataDisplayName(data);
+    } on PostgrestException catch (e) {
+      final msg = e.message.toLowerCase();
+      final dup = e.code == '23505' ||
+          msg.contains('duplicate key') ||
+          msg.contains('unique constraint') ||
+          msg.contains('profiles_display_name_lower_unique');
+      if (dup) {
+        throw const DisplayNameTakenException();
+      }
+      rethrow;
+    }
   }
 
   /// Replaces `portfolio_urls` for the current user.

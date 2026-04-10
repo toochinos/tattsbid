@@ -103,6 +103,22 @@ class TattooRequestService {
     return TattooRequest.fromJson(res);
   }
 
+  /// Whether the signed-in user owns at least one tattoo request (any status).
+  static Future<bool> currentUserHasAnyOwnedRequest() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return false;
+    try {
+      final res = await _client
+          .from(SupabaseTattooRequests.table)
+          .select(SupabaseTattooRequests.id)
+          .eq(SupabaseTattooRequests.userId, user.id)
+          .limit(1);
+      return mapListFrom(res).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Deletes a tattoo request. Only the owner can delete (enforced by RLS).
   /// Throws if delete did not remove a row (RLS blocked or row not found).
   static Future<void> deleteRequest(String requestId) async {

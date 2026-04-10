@@ -93,14 +93,14 @@ class _SettingsPageState extends State<SettingsPage> {
     final session = supabase.auth.currentSession;
 
     if (session == null) {
-      print('❌ No session — user already logged out');
+      debugPrint('delete-user: no session');
       return;
     }
 
     try {
       await supabase.auth.refreshSession();
       if (supabase.auth.currentSession == null) {
-        print('❌ No session after refresh');
+        debugPrint('delete-user: no session after refresh');
         return;
       }
 
@@ -112,14 +112,26 @@ class _SettingsPageState extends State<SettingsPage> {
       final response = await supabase.functions.invoke('delete-user');
 
       if (response.status != 200) {
-        print('❌ Delete failed: ${response.status}');
+        if (!mounted) return;
+        var reason = 'HTTP ${response.status}';
+        final data = response.data;
+        if (data is Map && data['error'] != null) {
+          reason = data['error'].toString();
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.settingsAccountDeleteFailed(reason),
+            ),
+          ),
+        );
         return;
       }
 
       // 2) THEN clear local session (only after successful delete)
       await AuthService.signOut();
 
-      print('✅ Account deleted');
+      debugPrint('delete-user: account deleted');
 
       if (!mounted) return;
       LinkHandler.navigatorKey.currentState?.pushNamedAndRemoveUntil(
@@ -137,8 +149,8 @@ class _SettingsPageState extends State<SettingsPage> {
         }
       });
     } on FunctionException catch (e) {
-      print('Delete error: $e');
-      final detail = e.details?.toString() ?? '';
+      if (!mounted) return;
+      final detail = e.details?.toString() ?? e.toString();
       if (detail.contains('Invalid JWT')) {
         debugPrint(
           'delete-user: Supabase gateway rejected the JWT. If this persists, '
@@ -147,8 +159,24 @@ class _SettingsPageState extends State<SettingsPage> {
           'then run: supabase functions deploy delete-user',
         );
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.settingsAccountDeleteFailed(detail),
+          ),
+        ),
+      );
     } catch (e) {
-      print('Delete error: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.settingsAccountDeleteFailed(
+              e.toString(),
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -257,7 +285,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    l10n.appVersionLabel('2.0.0'),
+                    l10n.appVersionLabel('2.0.2'),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.outline,
                     ),

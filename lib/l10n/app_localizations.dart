@@ -358,6 +358,12 @@ abstract class AppLocalizations {
   /// **'Account deleted'**
   String get settingsAccountDeleted;
 
+  /// No description provided for @settingsAccountDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete your account. {reason}'**
+  String settingsAccountDeleteFailed(String reason);
+
   /// No description provided for @appVersionLabel.
   ///
   /// In en, this message translates to:
@@ -507,6 +513,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select country'**
   String get profileSelectCountry;
+
+  /// No description provided for @profileCountryLockedByPostsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You still have tattoo requests posted. Delete them from Explore before you can change your country.'**
+  String get profileCountryLockedByPostsBody;
+
+  /// No description provided for @profileCountryChangeBlockedError.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete your posted requests before you can change country.'**
+  String get profileCountryChangeBlockedError;
+
+  /// No description provided for @profileDisplayNameLockedHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Display name can\'t be changed after it\'s set.'**
+  String get profileDisplayNameLockedHelper;
+
+  /// No description provided for @profileDisplayNameImmutableError.
+  ///
+  /// In en, this message translates to:
+  /// **'Your display name can\'t be changed.'**
+  String get profileDisplayNameImmutableError;
+
+  /// No description provided for @profileDisplayNameTakenError.
+  ///
+  /// In en, this message translates to:
+  /// **'That display name is already taken. Try another.'**
+  String get profileDisplayNameTakenError;
 
   /// No description provided for @profileCityLabel.
   ///
@@ -865,7 +901,7 @@ abstract class AppLocalizations {
   /// No description provided for @bidDetailBidCountryProfileMissingHint.
   ///
   /// In en, this message translates to:
-  /// **'Add the country where you live or work in your profile to bid on requests in that country.'**
+  /// **'Your profile has no country saved in the app. Open Profile → contact details, choose Country, tap Save, then try again.'**
   String get bidDetailBidCountryProfileMissingHint;
 
   /// No description provided for @bidDetailBidCountryMismatchHint.
