@@ -12,13 +12,15 @@ import '../l10n/app_localizations.dart';
 import 'artists_page.dart';
 import 'bid_detail_page.dart';
 import 'explore_page.dart';
+import 'tattsagram_page.dart';
 import 'add_page.dart';
 import 'chat_page.dart';
 import 'destination_page.dart';
 import 'profile_page.dart';
 import 'public_artist_profile_page.dart';
 
-/// Main shell with bottom tab bar: Explore, Artists, Add (customers), Message, Profile.
+/// Main shell with bottom tab bar: Explore, Upload (customers), Artists, Tattsagram
+/// (hidden when Upload is available for AU/KH/ID explore or on the Add tab), Message, Profile.
 /// Bidding is opened from Explore → request detail ([BidDetailPage]), not a root tab.
 /// Message tab is 1:1 between tattoo artists and customers only.
 /// Add (plus) is only for customers; tattoo artists cannot upload.
@@ -86,15 +88,24 @@ class _MainShellPageState extends State<MainShellPage> {
   List<Widget>? _memoTabPages;
   bool? _memoIsCustomer;
 
+  /// Bump when [IndexedStack] child order changes so memoized pages are rebuilt.
+  static const int _kTabLayoutVersion = 2;
+  int _memoTabLayoutVersion = 0;
+
   @override
   void initState() {
     super.initState();
+    _exploreFeedScopeNotifier.addListener(_onExploreScopeForTabs);
     PostDashboardOnboarding.scheduleAfterFirstFrame();
     _loadProfile();
     OnlinePresenceService.updatePresence();
     _presenceTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       OnlinePresenceService.updatePresence();
     });
+  }
+
+  void _onExploreScopeForTabs() {
+    _ejectFromTattsagramIfHidden();
   }
 
   Future<void> _loadProfile() async {
@@ -113,10 +124,11 @@ class _MainShellPageState extends State<MainShellPage> {
       if (_memoTabPages != null && wasCustomer != _isCustomer) {
         _memoTabPages = null;
         _memoIsCustomer = null;
+        _memoTabLayoutVersion = 0;
       }
       if (widget.openChatOnLaunch) {
-        // Message tab: index 3 for customers (5 tabs), index 2 for artists (4 tabs).
-        _currentIndex = _isCustomer ? 3 : 2;
+        // Message stack index: 4 customers (with Tattsagram), 3 artists.
+        _currentIndex = _isCustomer ? 4 : 3;
       }
     });
     MessageIndicatorService.start();
@@ -152,40 +164,107 @@ class _MainShellPageState extends State<MainShellPage> {
     return scope != null && _uploadAllowedExploreCountries.contains(scope);
   }
 
-  /// Upload tab: customers only, and only for AU/KH/ID Explore (or while on Add stack).
+  /// Upload tab: customers (AU/KH/ID Explore or Add stack).
   bool get _showCustomerUploadInBar =>
       _isCustomer &&
       ((_currentIndex == 0 && _exploreScopeAllowsCustomerUpload) ||
-          _currentIndex == 2);
+          _currentIndex == 1);
 
-  /// Bottom bar index → [IndexedStack] index (skips Add when upload tab is omitted).
-  int _stackIndexFromBarIndex(int barIndex) {
-    if (!_isCustomer) return barIndex;
-    if (!_showCustomerUploadInBar) {
-      return switch (barIndex) {
-        0 => 0,
-        1 => 1,
-        2 => 3,
-        3 => 4,
-        _ => barIndex.clamp(0, 4),
-      };
+  /// AU/KH/ID Explore keeps the Upload affordance visible for all roles.
+  bool get _showUploadInScopedExploreForAnyRole {
+    final scope = _exploreFeedScopeNotifier.value?.trim();
+    return scope != null &&
+        _uploadAllowedExploreCountries.contains(scope) &&
+        _currentIndex == 0;
+  }
+
+  bool get _showUploadInBar =>
+      _showCustomerUploadInBar ||
+      (!_isCustomer && _showUploadInScopedExploreForAnyRole);
+
+  /// Tattsagram is omitted from the bar when upload-friendly explore scope is active or
+  /// the user is on Add—those flows use the grey circle + Upload tab instead.
+  bool get _hideTattsagramFromBottomNav {
+    final scope = _exploreFeedScopeNotifier.value?.trim();
+    if (scope != null && _uploadAllowedExploreCountries.contains(scope)) {
+      return true;
     }
-    return barIndex;
+    return _isCustomer &&
+        (_exploreScopeAllowsCustomerUpload || _currentIndex == 1);
+  }
+
+  int get _chatStackIndex => _isCustomer ? 4 : 3;
+
+  int get _profileStackIndex => _isCustomer ? 5 : 4;
+
+  /// [IndexedStack] index of [TattsagramPage] — must match order in [_buildTabPages].
+  int get _tattsagramStackIndex => _isCustomer ? 3 : 2;
+
+  bool get _tattsagramFullScreen => _currentIndex == _tattsagramStackIndex;
+
+  int get _artistsStackIndex => _isCustomer ? 2 : 1;
+
+  /// Ordered [IndexedStack] indices shown in the bottom bar.
+  List<int> _navStackIndices() {
+    if (_isCustomer) {
+      final list = <int>[0, 2];
+      if (_showCustomerUploadInBar) {
+        list.add(1);
+      }
+      if (!_hideTattsagramFromBottomNav) {
+        list.add(3);
+      }
+      list.addAll([4, 5]);
+      return list;
+    }
+    final list = <int>[0, 1];
+    if (!_hideTattsagramFromBottomNav) {
+      list.add(2);
+    }
+    list.addAll([3, 4]);
+    return list;
+  }
+
+  /// Bottom bar index → [IndexedStack] index.
+  int _stackIndexFromBarIndex(int barIndex) {
+    final order = _navStackIndices();
+    final i = barIndex.clamp(0, order.length - 1);
+    return order[i];
   }
 
   /// [IndexedStack] index → bottom bar selected index (inverse of [_stackIndexFromBarIndex]).
   int _barIndexFromStack(int stackIndex) {
-    if (!_isCustomer) return stackIndex;
-    if (!_showCustomerUploadInBar) {
-      return switch (stackIndex) {
-        0 => 0,
-        1 => 1,
-        3 => 2,
-        4 => 3,
-        _ => stackIndex.clamp(0, 3),
-      };
+    final order = _navStackIndices();
+    final idx = order.indexOf(stackIndex);
+    if (idx >= 0) {
+      if (!_isCustomer && _showUploadInBar && idx >= 2) {
+        return idx + 1;
+      }
+      return idx;
     }
-    return stackIndex;
+    return 0;
+  }
+
+  void _ejectFromTattsagramIfHidden() {
+    if (!mounted || !_hideTattsagramFromBottomNav) {
+      return;
+    }
+    if (_currentIndex != _tattsagramStackIndex) {
+      return;
+    }
+    setState(() => _currentIndex = 0);
+    _popTabNavigatorToRoot(0);
+  }
+
+  void _openUploadFromExplore() {
+    Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => AddPage(
+          selectedExploreCountryNotifier: _postCountryNotifier,
+          onRequestSubmitted: switchToExploreAndRefresh,
+        ),
+      ),
+    );
   }
 
   List<Widget> _buildTabPages() {
@@ -201,17 +280,11 @@ class _MainShellPageState extends State<MainShellPage> {
           ),
         ),
       ),
-      Navigator(
-        key: _navKeys[1],
-        onGenerateRoute: (_) => MaterialPageRoute<void>(
-          builder: (_) => const ArtistsPage(),
-        ),
-      ),
     ];
     if (_isCustomer) {
       pages.add(
         Navigator(
-          key: _navKeys[2],
+          key: _navKeys[3],
           onGenerateRoute: (_) => MaterialPageRoute<void>(
             builder: (_) => AddPage(
               selectedExploreCountryNotifier: _postCountryNotifier,
@@ -221,10 +294,27 @@ class _MainShellPageState extends State<MainShellPage> {
         ),
       );
     }
-    final profileTabIndex = _isCustomer ? 4 : 3;
     pages.addAll([
       Navigator(
-        key: _navKeys[_isCustomer ? 3 : 2],
+        key: _navKeys[1],
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) => const ArtistsPage(),
+        ),
+      ),
+      Navigator(
+        key: _navKeys[2],
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) => TattsagramPage(
+            onLeaveFullScreen: () {
+              if (!mounted) return;
+              setState(() => _currentIndex = 0);
+              _popTabNavigatorToRoot(0);
+            },
+          ),
+        ),
+      ),
+      Navigator(
+        key: _navKeys[_chatStackIndex],
         onGenerateRoute: (_) => MaterialPageRoute<void>(
           builder: (_) => ChatPage(
             initialReceiverId: widget.initialChatReceiverId,
@@ -233,12 +323,12 @@ class _MainShellPageState extends State<MainShellPage> {
         ),
       ),
       Navigator(
-        key: _navKeys[profileTabIndex],
+        key: _navKeys[_profileStackIndex],
         onGenerateRoute: (_) => MaterialPageRoute<void>(
           builder: (_) => ProfilePage(
             onProfileUpdated: () {
               _loadProfile();
-              setState(() => _currentIndex = profileTabIndex);
+              setState(() => _currentIndex = _profileStackIndex);
             },
           ),
         ),
@@ -248,15 +338,19 @@ class _MainShellPageState extends State<MainShellPage> {
   }
 
   List<Widget> _tabPagesForIndexedStack() {
-    if (_memoTabPages != null && _memoIsCustomer == _isCustomer) {
+    if (_memoTabPages != null &&
+        _memoIsCustomer == _isCustomer &&
+        _memoTabLayoutVersion == _kTabLayoutVersion) {
       return _memoTabPages!;
     }
     _memoIsCustomer = _isCustomer;
+    _memoTabLayoutVersion = _kTabLayoutVersion;
     _memoTabPages = _buildTabPages();
     return _memoTabPages!;
   }
 
   static final List<GlobalKey<NavigatorState>> _navKeys = [
+    GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
@@ -279,10 +373,17 @@ class _MainShellPageState extends State<MainShellPage> {
         activeIcon: const _ArtistsTabIcon(selected: true),
         label: l10n.tabArtists,
       ),
-      if (_showCustomerUploadInBar)
+      if (_showUploadInBar)
         BottomNavigationBarItem(
-          icon: const Icon(Icons.add_circle, size: 36),
+          icon: const _UploadTabIcon(selected: false),
+          activeIcon: const _UploadTabIcon(selected: true),
           label: l10n.tabUpload,
+        ),
+      if (!_hideTattsagramFromBottomNav)
+        BottomNavigationBarItem(
+          icon: const Icon(Icons.photo_library_outlined),
+          activeIcon: const Icon(Icons.photo_library),
+          label: l10n.tabTattsagram,
         ),
       BottomNavigationBarItem(
         icon: _MessageTabIconWithEnvelope(showEnvelope: showEnvelope),
@@ -344,16 +445,20 @@ class _MainShellPageState extends State<MainShellPage> {
   /// Message: [ChatPage] uses in-page state for threads — [_messageInboxResetTrigger]
   /// forces return to the inbox list (same as the in-chat back button).
   void _onBottomNavTap(int index) {
-    if (index == 0) {
-      _exploreFeedScopeNotifier.value = null;
-    }
+    // Do not clear [_exploreFeedScopeNotifier] when selecting Explore — that would
+    // drop Australia/Cambodia/Indonesia scoped feeds and hide the Upload (plus) tab.
     setState(() => _currentIndex = index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _ejectFromTattsagramIfHidden();
+      }
+    });
     _popTabNavigatorToRoot(index);
-    final messageTabIndex = _isCustomer ? 3 : 2;
-    if (index == messageTabIndex) {
+    final messageStackIndex = _chatStackIndex;
+    if (index == messageStackIndex) {
       _messageInboxResetTrigger.value++;
     }
-    if (index == 1 || index == messageTabIndex) {
+    if (index == _artistsStackIndex || index == messageStackIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final root = Navigator.of(context, rootNavigator: true);
@@ -382,6 +487,7 @@ class _MainShellPageState extends State<MainShellPage> {
 
   @override
   void dispose() {
+    _exploreFeedScopeNotifier.removeListener(_onExploreScopeForTabs);
     MessageIndicatorService.stop();
     _presenceTimer?.cancel();
     _postCountryNotifier.dispose();
@@ -401,56 +507,85 @@ class _MainShellPageState extends State<MainShellPage> {
     }
 
     final tabPages = _tabPagesForIndexedStack();
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          IndexedStack(
-            index: _currentIndex.clamp(0, tabPages.length - 1),
-            children: tabPages,
-          ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: SafeArea(
-              minimum: const EdgeInsets.only(top: 6, right: 8),
-              child: _GlobalTopRightActions(
-                l10n: AppLocalizations.of(context)!,
-                onGlobeTap: _openGlobe,
-                onSettingsTap: _openSettings,
-              ),
+    return PopScope(
+      canPop: !_tattsagramFullScreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (!_tattsagramFullScreen || !mounted) return;
+        setState(() => _currentIndex = 0);
+        _popTabNavigatorToRoot(0);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: Stack(
+          children: [
+            IndexedStack(
+              index: _currentIndex.clamp(0, tabPages.length - 1),
+              children: tabPages,
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        child: ValueListenableBuilder<String?>(
-          valueListenable: _exploreFeedScopeNotifier,
-          builder: (context, _, __) {
-            return ValueListenableBuilder<bool>(
-              valueListenable: MessageIndicatorService.hasUnread,
-              builder: (context, showEnvelope, _) {
-                final items = _navItems(context, showEnvelope);
-                final stackIndex = _currentIndex.clamp(0, tabPages.length - 1);
-                final barIndex =
-                    _barIndexFromStack(stackIndex).clamp(0, items.length - 1);
-                return BottomNavigationBar(
-                  currentIndex: barIndex,
-                  onTap: (barIndex) {
-                    final stack = _stackIndexFromBarIndex(barIndex);
-                    _onBottomNavTap(stack);
-                  },
-                  // Do not call [MessageIndicatorService.refresh] here — it would
-                  // clear the green envelope as soon as the tab is opened, before
-                  // the user reads or replies. Updates come from realtime, polling,
-                  // and [ChatPage] after send/mark-read.
-                  type: BottomNavigationBarType.fixed,
-                  items: items,
-                );
-              },
-            );
-          },
+            if (!_tattsagramFullScreen)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: SafeArea(
+                  minimum: const EdgeInsets.only(top: 6, right: 8),
+                  child: _GlobalTopRightActions(
+                    l10n: AppLocalizations.of(context)!,
+                    onGlobeTap: _openGlobe,
+                    onTattsagramTap: () {
+                      setState(() => _currentIndex = _tattsagramStackIndex);
+                      _popTabNavigatorToRoot(_tattsagramStackIndex);
+                    },
+                    onSettingsTap: _openSettings,
+                  ),
+                ),
+              ),
+          ],
         ),
+        bottomNavigationBar: _tattsagramFullScreen
+            ? null
+            : SafeArea(
+                child: ValueListenableBuilder<String?>(
+                  valueListenable: _exploreFeedScopeNotifier,
+                  builder: (context, _, __) {
+                    return ValueListenableBuilder<bool>(
+                      valueListenable: MessageIndicatorService.hasUnread,
+                      builder: (context, showEnvelope, _) {
+                        final items = _navItems(context, showEnvelope);
+                        final stackIndex =
+                            _currentIndex.clamp(0, tabPages.length - 1);
+                        final barIndex = _barIndexFromStack(stackIndex)
+                            .clamp(0, items.length - 1);
+                        return BottomNavigationBar(
+                          currentIndex: barIndex,
+                          onTap: (barIndex) {
+                            if (!_isCustomer &&
+                                _showUploadInBar &&
+                                barIndex == 2) {
+                              _openUploadFromExplore();
+                              return;
+                            }
+                            final normalizedBarIndex = (!_isCustomer &&
+                                    _showUploadInBar &&
+                                    barIndex > 2)
+                                ? barIndex - 1
+                                : barIndex;
+                            final stack =
+                                _stackIndexFromBarIndex(normalizedBarIndex);
+                            _onBottomNavTap(stack);
+                          },
+                          // Do not call [MessageIndicatorService.refresh] here — it would
+                          // clear the green envelope as soon as the tab is opened, before
+                          // the user reads or replies. Updates come from realtime, polling,
+                          // and [ChatPage] after send/mark-read.
+                          type: BottomNavigationBarType.fixed,
+                          items: items,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
       ),
     );
   }
@@ -460,11 +595,13 @@ class _GlobalTopRightActions extends StatelessWidget {
   const _GlobalTopRightActions({
     required this.l10n,
     required this.onGlobeTap,
+    required this.onTattsagramTap,
     required this.onSettingsTap,
   });
 
   final AppLocalizations l10n;
   final VoidCallback onGlobeTap;
+  final VoidCallback onTattsagramTap;
   final VoidCallback onSettingsTap;
 
   @override
@@ -477,6 +614,13 @@ class _GlobalTopRightActions extends StatelessWidget {
           tooltip: l10n.actionTooltipExplore,
           icon: Icons.public,
           onTap: onGlobeTap,
+          background: scheme.surface,
+        ),
+        const SizedBox(width: 8),
+        _TopActionButton(
+          tooltip: l10n.tabTattsagram,
+          icon: Icons.photo_library_outlined,
+          onTap: onTattsagramTap,
           background: scheme.surface,
         ),
         const SizedBox(width: 8),
@@ -513,6 +657,36 @@ class _TopActionButton extends StatelessWidget {
         tooltip: tooltip,
         onPressed: onTap,
         icon: Icon(icon),
+      ),
+    );
+  }
+}
+
+/// Grey circle + white plus for Upload tab (matches classic bottom-bar upload control).
+class _UploadTabIcon extends StatelessWidget {
+  const _UploadTabIcon({required this.selected});
+
+  final bool selected;
+
+  static const Color _inactiveGrey = Color(0xFF6B7280);
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final bg = selected ? scheme.primary : _inactiveGrey;
+    return SizedBox(
+      width: 30,
+      height: 30,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: bg,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.add,
+          color: Colors.white,
+          size: 22,
+        ),
       ),
     );
   }

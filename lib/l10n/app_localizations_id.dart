@@ -15,6 +15,9 @@ class AppLocalizationsId extends AppLocalizations {
   String get tabArtists => 'Seniman';
 
   @override
+  String get tabTattsagram => 'Tattsagram';
+
+  @override
   String get tabUpload => 'Unggah';
 
   @override
@@ -22,6 +25,16 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get tabProfile => 'Profil';
+
+  @override
+  String get tattsagramEmptyTitle => 'Belum ada tato';
+
+  @override
+  String get tattsagramEmptySubtitle =>
+      'Jadilah yang pertama menampilkan tato Anda';
+
+  @override
+  String get tattsagramFabShowTattoo => 'Tampilkan tato Anda';
 
   @override
   String get dashboardTitle => 'Dasbor';
@@ -647,6 +660,16 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get photoFromGallery => 'Unggah dari galeri';
+
+  @override
+  String get tattsagramPhotoSharedInChat => '📷 Foto';
+
+  @override
+  String get tattsagramUploadingPhoto => 'Mengunggah foto…';
+
+  @override
+  String get tattsagramPhotoUploadFailed =>
+      'Tidak dapat mengunggah foto. Masuk dan coba lagi.';
 
   @override
   String get destinationChooseTitle => 'Pilih tujuan';

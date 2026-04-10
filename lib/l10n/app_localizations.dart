@@ -112,6 +112,12 @@ abstract class AppLocalizations {
   /// **'Artists'**
   String get tabArtists;
 
+  /// No description provided for @tabTattsagram.
+  ///
+  /// In en, this message translates to:
+  /// **'Tattsagram'**
+  String get tabTattsagram;
+
   /// No description provided for @tabUpload.
   ///
   /// In en, this message translates to:
@@ -129,6 +135,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Profile'**
   String get tabProfile;
+
+  /// No description provided for @tattsagramEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No tattoos yet'**
+  String get tattsagramEmptyTitle;
+
+  /// No description provided for @tattsagramEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Be the first to show your tattoo'**
+  String get tattsagramEmptySubtitle;
+
+  /// No description provided for @tattsagramFabShowTattoo.
+  ///
+  /// In en, this message translates to:
+  /// **'Show your tattoo'**
+  String get tattsagramFabShowTattoo;
 
   /// No description provided for @dashboardTitle.
   ///
@@ -1198,6 +1222,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Upload from gallery'**
   String get photoFromGallery;
+
+  /// No description provided for @tattsagramPhotoSharedInChat.
+  ///
+  /// In en, this message translates to:
+  /// **'📷 Photo'**
+  String get tattsagramPhotoSharedInChat;
+
+  /// No description provided for @tattsagramUploadingPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading photo…'**
+  String get tattsagramUploadingPhoto;
+
+  /// No description provided for @tattsagramPhotoUploadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not upload photo. Sign in and try again.'**
+  String get tattsagramPhotoUploadFailed;
 
   /// No description provided for @destinationChooseTitle.
   ///

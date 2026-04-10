@@ -15,6 +15,9 @@ class AppLocalizationsKm extends AppLocalizations {
   String get tabArtists => 'សិល្បករ';
 
   @override
+  String get tabTattsagram => 'Tattsagram';
+
+  @override
   String get tabUpload => 'ផ្ទុកឡើង';
 
   @override
@@ -22,6 +25,15 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get tabProfile => 'ប្រវត្តិរូប';
+
+  @override
+  String get tattsagramEmptyTitle => 'មិនទាន់មានសាក់នៅឡើយ';
+
+  @override
+  String get tattsagramEmptySubtitle => 'ក្លាយជាអ្នកដំបូងដែលបង្ហាញសាក់របស់អ្នក';
+
+  @override
+  String get tattsagramFabShowTattoo => 'បង្ហាញសាក់របស់អ្នក';
 
   @override
   String get dashboardTitle => 'ផ្ទាំងគ្រប់គ្រង';
@@ -641,6 +653,16 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get photoFromGallery => 'ផ្ទុកពីវិចិត្រសាល';
+
+  @override
+  String get tattsagramPhotoSharedInChat => '📷 រូបភាព';
+
+  @override
+  String get tattsagramUploadingPhoto => 'កំពុងផ្ទុករូបភាព…';
+
+  @override
+  String get tattsagramPhotoUploadFailed =>
+      'មិនអាចផ្ទុករូបភាពបានទេ។ ចូលគណនីហើយព្យាយាមម្តងទៀត។';
 
   @override
   String get destinationChooseTitle => 'ជ្រើសគោលដៅ';

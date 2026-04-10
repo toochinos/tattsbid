@@ -15,6 +15,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tabArtists => 'Artists';
 
   @override
+  String get tabTattsagram => 'Tattsagram';
+
+  @override
   String get tabUpload => 'Upload';
 
   @override
@@ -22,6 +25,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tabProfile => 'Profile';
+
+  @override
+  String get tattsagramEmptyTitle => 'No tattoos yet';
+
+  @override
+  String get tattsagramEmptySubtitle => 'Be the first to show your tattoo';
+
+  @override
+  String get tattsagramFabShowTattoo => 'Show your tattoo';
 
   @override
   String get dashboardTitle => 'Dashboard';
@@ -640,6 +652,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get photoFromGallery => 'Upload from gallery';
+
+  @override
+  String get tattsagramPhotoSharedInChat => '📷 Photo';
+
+  @override
+  String get tattsagramUploadingPhoto => 'Uploading photo…';
+
+  @override
+  String get tattsagramPhotoUploadFailed =>
+      'Could not upload photo. Sign in and try again.';
 
   @override
   String get destinationChooseTitle => 'Choose destination';

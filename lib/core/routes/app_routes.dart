@@ -12,6 +12,7 @@ import '../../screens/paywall_page.dart';
 import '../../screens/profile_screen.dart';
 import '../../screens/settings_page.dart';
 import '../../screens/sign_up_page.dart';
+import '../../screens/tattsagram_page.dart';
 import '../../screens/user_agreement_page.dart';
 import '../../screens/welcome_onboarding_page.dart';
 
@@ -39,6 +40,7 @@ class AppRoutes {
   static const String auth = '/auth';
   static const String profile = '/profile';
   static const String userAgreement = '/user-agreement';
+  static const String tattsagram = '/tattsagram';
 
   static Map<String, WidgetBuilder> get routes => {
         root: (_) => const AuthGatePage(),
@@ -65,6 +67,7 @@ class AppRoutes {
         paywall: (_) => const PaywallPage(),
         settings: (_) => const SettingsPage(),
         checkoutCancel: (_) => const CheckoutCancelPage(),
+        tattsagram: (_) => const TattsagramPage(),
       };
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
