@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../core/models/tattsagram_post.dart';
+import '../core/services/tattsagram_ranked_pool_feed.dart';
 import '../core/services/tattsagram_video_sound_registry.dart';
 import '../widgets/tattsagram_chat_overlay.dart';
 import '../widgets/video_player_widget.dart';
@@ -30,8 +31,14 @@ class _TattsagramPageState extends State<TattsagramPage>
   /// Open on entry so users immediately see Live Chat, composer, and camera affordances.
   bool _chatOpen = true;
 
-  /// Feed items; user posts from live chat are inserted at the front.
-  late List<TattsagramPost> _feedPosts;
+  /// Unique posts (pool). Ranked expansion uses [TattsagramRankedPoolFeed.score].
+  late List<TattsagramPost> _uniquePool;
+
+  /// Shuffled expanded sequence: `score` copies per post, shuffled once per rebuild.
+  late List<TattsagramPost> _feedSequence;
+
+  /// After a like: weights change but sequence is not rebuilt until [near-end] load.
+  bool _needsSequenceRebuild = false;
 
   late final ScrollController _feedScrollController;
   Ticker? _autoScrollTicker;
@@ -40,57 +47,72 @@ class _TattsagramPageState extends State<TattsagramPage>
   /// True while the user is dragging or after a fling until scrolling settles.
   bool _userGestureDrivingScroll = false;
 
-  /// Shown when [_mockPosts] is empty so the loop still has images.
+  static const int _nearEndSlots = 10;
+
+  /// Shown when [_uniquePool] is empty so the loop still has images.
   static final List<TattsagramPost> _placeholderLoopPosts = [
     TattsagramPost(
+      id: 'ph_0',
       mediaUrl: 'https://picsum.photos/seed/tattsagram_loop1/1080/1080',
       artistName: 'Tattsagram',
       location: '',
       caption: '',
       timestamp: DateTime(2026, 1, 1),
+      likesCount: 0,
     ),
     TattsagramPost(
+      id: 'ph_1',
       mediaUrl: 'https://picsum.photos/seed/tattsagram_loop2/1080/1080',
       artistName: 'Tattsagram',
       location: '',
       caption: '',
       timestamp: DateTime(2026, 1, 1),
+      likesCount: 0,
     ),
     TattsagramPost(
+      id: 'ph_2',
       mediaUrl: 'https://picsum.photos/seed/tattsagram_loop3/1080/1080',
       artistName: 'Tattsagram',
       location: '',
       caption: '',
       timestamp: DateTime(2026, 1, 1),
+      likesCount: 0,
     ),
   ];
 
+  /// Demo pool: distinct [likesCount] → different weights (5+1, 1+1, 3+1).
   static final List<TattsagramPost> _mockPosts = [
     TattsagramPost(
+      id: 'mock_a',
       mediaUrl: 'https://picsum.photos/seed/tattsagram1/1080/1080',
       artistName: 'Alex Ink',
       location: 'Melbourne, Australia',
       caption: 'Fine line floral sleeve — session 2.',
       timestamp: DateTime(2026, 4, 8, 14, 30),
+      likesCount: 5,
     ),
     TattsagramPost(
+      id: 'mock_b',
       mediaUrl: 'https://picsum.photos/seed/tattsagram2/1080/1080',
       artistName: 'Studio Nusa',
       location: 'Bali, Indonesia',
       caption: 'Traditional meets modern. Booking open April.',
       timestamp: DateTime(2026, 4, 9, 9, 15),
+      likesCount: 1,
     ),
     TattsagramPost(
+      id: 'mock_c',
       mediaUrl: 'https://picsum.photos/seed/tattsagram3/1080/1080',
       artistName: 'River City Tattoos',
       location: 'Phnom Penh, Cambodia',
       caption: 'Healed blackwork geometric piece.',
       timestamp: DateTime(2026, 4, 10, 18, 0),
+      likesCount: 3,
     ),
   ];
 
-  List<TattsagramPost> get _loopPosts =>
-      _feedPosts.isNotEmpty ? _feedPosts : _placeholderLoopPosts;
+  List<TattsagramPost> get _activeUniquePool =>
+      _uniquePool.isNotEmpty ? _uniquePool : _placeholderLoopPosts;
 
   static const int _loopItemMultiplier = 400;
 
@@ -100,10 +122,11 @@ class _TattsagramPageState extends State<TattsagramPage>
   @override
   void initState() {
     super.initState();
-    _feedPosts = List<TattsagramPost>.from(_mockPosts);
+    _uniquePool = List<TattsagramPost>.from(_mockPosts);
+    _feedSequence =
+        TattsagramRankedPoolFeed.buildShuffledRankedSequence(_activeUniquePool);
     _feedScrollController = ScrollController();
-    _feedScrollController.addListener(_onFeedScrollSoundPass);
-    _feedScrollController.addListener(_repositionInfiniteScroll);
+    _feedScrollController.addListener(_onFeedScrollCombined);
     _autoScrollTicker = createTicker(_onAutoScrollTick)..start();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _seedLoopScrollOffset();
@@ -116,10 +139,17 @@ class _TattsagramPageState extends State<TattsagramPage>
   void dispose() {
     _autoScrollTicker?.dispose();
     _feedScrollController
-      ..removeListener(_onFeedScrollSoundPass)
-      ..removeListener(_repositionInfiniteScroll)
+      ..removeListener(_onFeedScrollCombined)
       ..dispose();
     super.dispose();
+  }
+
+  int get _sequenceLength => _feedSequence.length;
+
+  void _onFeedScrollCombined() {
+    _onFeedScrollSoundPass();
+    _repositionInfiniteScroll();
+    _maybeRebuildRankedSequenceNearEnd();
   }
 
   double _itemExtentForWidth(double width) => width;
@@ -133,7 +163,7 @@ class _TattsagramPageState extends State<TattsagramPage>
     final c = _feedScrollController;
     if (!mounted || !c.hasClients) return;
     final w = MediaQuery.sizeOf(context).width;
-    final n = _loopPosts.length;
+    final n = _sequenceLength;
     if (w <= 0 || n == 0) return;
     final cycle = n * w;
     c.jumpTo(cycle * 100);
@@ -143,7 +173,7 @@ class _TattsagramPageState extends State<TattsagramPage>
     final c = _feedScrollController;
     if (!mounted || !c.hasClients) return;
     final w = MediaQuery.sizeOf(context).width;
-    final n = _loopPosts.length;
+    final n = _sequenceLength;
     if (w <= 0 || n == 0) return;
     final cycle = n * w;
     final o = c.offset;
@@ -152,6 +182,86 @@ class _TattsagramPageState extends State<TattsagramPage>
     } else if (o > cycle * (_loopItemMultiplier - 12)) {
       c.jumpTo(o - cycle * 120);
     }
+  }
+
+  /// Rebuild expanded pool from current [likesCount], shuffle; keep the same post on screen.
+  void _rebuildRankedSequencePreservingAnchor() {
+    final c = _feedScrollController;
+    if (!mounted) return;
+
+    final w = _itemExtentForWidth(MediaQuery.sizeOf(context).width);
+    final oldL = _feedSequence.length;
+
+    final absIndex =
+        c.hasClients && w > 0 && oldL > 0 ? (c.offset / w).floor() : 0;
+    final oldIdx = oldL > 0 ? ((absIndex % oldL) + oldL) % oldL : 0;
+    final anchor = oldL > 0 ? _feedSequence[oldIdx] : null;
+    final lap = oldL > 0 ? absIndex ~/ oldL : 0;
+
+    _feedSequence =
+        TattsagramRankedPoolFeed.buildShuffledRankedSequence(_activeUniquePool);
+    _needsSequenceRebuild = false;
+
+    final newL = _feedSequence.length;
+    setState(() {});
+
+    if (!c.hasClients || w <= 0 || newL == 0 || anchor == null) {
+      return;
+    }
+
+    var newIdx = 0;
+    for (var i = 0; i < newL; i++) {
+      if (TattsagramRankedPoolFeed.samePost(_feedSequence[i], anchor)) {
+        newIdx = i;
+        break;
+      }
+    }
+    final newAbs = lap * newL + newIdx;
+    final target = newAbs * w;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !c.hasClients) return;
+      final clamped = target.clamp(0.0, c.position.maxScrollExtent);
+      if ((c.offset - clamped).abs() > 0.5) {
+        c.jumpTo(clamped);
+      }
+    });
+  }
+
+  void _maybeRebuildRankedSequenceNearEnd() {
+    if (!_needsSequenceRebuild) return;
+    if (!_feedScrollController.hasClients || !mounted) return;
+    final w = _itemExtentForWidth(MediaQuery.sizeOf(context).width);
+    final L = _sequenceLength;
+    if (w <= 0 || L == 0) return;
+    final absIndex = (_feedScrollController.offset / w).floor();
+    final idx = ((absIndex % L) + L) % L;
+    if (idx < L - _nearEndSlots) return;
+    _rebuildRankedSequencePreservingAnchor();
+  }
+
+  void _replaceInUniquePool(TattsagramPost updated) {
+    for (var i = 0; i < _uniquePool.length; i++) {
+      if (TattsagramRankedPoolFeed.samePost(_uniquePool[i], updated)) {
+        _uniquePool[i] = updated;
+        return;
+      }
+    }
+  }
+
+  /// Local like toggle (demo). Updates pool + in-place sequence refs; defers reshuffle.
+  void _onToggleLike(TattsagramPost post) {
+    final wasLiked = post.isLikedByMe;
+    final delta = wasLiked ? -1 : 1;
+    final nextCount = (post.likesCount + delta).clamp(0, 1 << 30);
+    final updated = post.copyWith(
+      likesCount: nextCount,
+      isLikedByMe: !wasLiked,
+    );
+    _replaceInUniquePool(updated);
+    TattsagramRankedPoolFeed.syncPostInstances(_feedSequence, updated);
+    _needsSequenceRebuild = true;
+    setState(() {});
   }
 
   void _onAutoScrollTick(Duration elapsed) {
@@ -171,13 +281,17 @@ class _TattsagramPageState extends State<TattsagramPage>
 
   void _onPhotoPostedFromLiveChat(TattsagramPost post) {
     setState(() {
-      _feedPosts.insert(0, post);
+      _uniquePool.insert(0, post);
     });
+    _rebuildRankedSequencePreservingAnchor();
   }
 
   Widget _buildFeed() {
-    final posts = _loopPosts;
-    final n = posts.length;
+    final seq = _feedSequence;
+    final L = seq.length;
+    if (L == 0) {
+      return const Center(child: Text('No posts'));
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = constraints.maxWidth;
@@ -197,15 +311,16 @@ class _TattsagramPageState extends State<TattsagramPage>
               parent: BouncingScrollPhysics(),
             ),
             itemExtent: extent,
-            itemCount: n * _loopItemMultiplier,
+            itemCount: L * _loopItemMultiplier,
             itemBuilder: (context, index) {
-              final p = posts[index % n];
+              final p = seq[index % L];
               return _TattsagramFeedItem(
-                key: ValueKey('${p.mediaUrl}-${p.mediaType}-$index'),
+                key: ValueKey('${p.id ?? p.mediaUrl}-${p.mediaType}-$index'),
                 post: p,
                 soundSlotId: index,
                 scrollController: _feedScrollController,
                 feedPlaybackListenable: widget.feedPlaybackListenable,
+                onLike: () => _onToggleLike(p),
               );
             },
           ),
@@ -231,8 +346,6 @@ class _TattsagramPageState extends State<TattsagramPage>
     final backTooltip = MaterialLocalizations.of(context).backButtonTooltip;
 
     return Scaffold(
-      // Feed ignores bottom IME insets ([MediaQuery.removeViewInsets]) so video
-      // visibility/sound stay stable while typing; overlay still uses real insets.
       resizeToAvoidBottomInset: false,
       body: Stack(
         clipBehavior: Clip.none,
@@ -303,12 +416,14 @@ class _TattsagramFeedItem extends StatelessWidget {
     required this.soundSlotId,
     required this.scrollController,
     this.feedPlaybackListenable,
+    required this.onLike,
   });
 
   final TattsagramPost post;
   final int soundSlotId;
   final ScrollController scrollController;
   final ValueListenable<bool>? feedPlaybackListenable;
+  final VoidCallback onLike;
 
   Widget _media(ColorScheme scheme) {
     if (post.mediaType == TattsagramMediaType.video) {
@@ -353,7 +468,49 @@ class _TattsagramFeedItem extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          media,
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onDoubleTap: onLike,
+            child: media,
+          ),
+          Positioned(
+            right: 8,
+            top: 0,
+            bottom: 0,
+            child: SafeArea(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  shape: const StadiumBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: onLike,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            post.isLikedByMe
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                          Text(
+                            '${post.likesCount}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           Positioned(
             left: 0,
             right: 0,

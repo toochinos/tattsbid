@@ -52,6 +52,10 @@ class TattsagramPostService {
     final mediaType = rawType == 'video'
         ? TattsagramMediaType.video
         : TattsagramMediaType.image;
+    final likesRaw = row['likes_count'];
+    final likes = likesRaw is int
+        ? likesRaw
+        : int.tryParse(likesRaw?.toString() ?? '') ?? 0;
     return TattsagramPost(
       id: row['id'] as String?,
       mediaUrl: (row['media_url'] as String?) ?? '',
@@ -64,6 +68,7 @@ class TattsagramPostService {
       thumbnailUrl: row['thumbnail_url'] as String?,
       timestamp: DateTime.tryParse((row['created_at'] as String?) ?? '') ??
           DateTime.now(),
+      likesCount: likes < 0 ? 0 : likes,
     );
   }
 }
