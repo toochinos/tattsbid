@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../core/models/tattsagram_post.dart';
+import '../core/services/tattsagram_video_sound_registry.dart';
 import '../widgets/tattsagram_chat_overlay.dart';
 import '../widgets/video_player_widget.dart';
 
@@ -101,22 +102,32 @@ class _TattsagramPageState extends State<TattsagramPage>
     super.initState();
     _feedPosts = List<TattsagramPost>.from(_mockPosts);
     _feedScrollController = ScrollController();
+    _feedScrollController.addListener(_onFeedScrollSoundPass);
     _feedScrollController.addListener(_repositionInfiniteScroll);
     _autoScrollTicker = createTicker(_onAutoScrollTick)..start();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _seedLoopScrollOffset());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _seedLoopScrollOffset();
+      TattsagramVideoSoundRegistry.beginScrollSoundPass();
+      TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
+    });
   }
 
   @override
   void dispose() {
     _autoScrollTicker?.dispose();
     _feedScrollController
+      ..removeListener(_onFeedScrollSoundPass)
       ..removeListener(_repositionInfiniteScroll)
       ..dispose();
     super.dispose();
   }
 
   double _itemExtentForWidth(double width) => width;
+
+  void _onFeedScrollSoundPass() {
+    TattsagramVideoSoundRegistry.beginScrollSoundPass();
+    TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
+  }
 
   void _seedLoopScrollOffset() {
     final c = _feedScrollController;

@@ -1,11 +1,54 @@
+import 'package:flutter/scheduler.dart';
 import 'package:video_player/video_player.dart';
 
-/// Tattsagram: one [VideoPlayerController] at volume 1. Sound hands off only when a
-/// **new** tile straddles the screen center; leaving center does not mute or clear active.
+/// Tattsagram: one [VideoPlayerController] at volume 1. Each scroll frame, visible
+/// videos [submitSoundCandidate]; the **closest tile center to screen center** wins.
 class TattsagramVideoSoundRegistry {
   TattsagramVideoSoundRegistry._();
 
   static VideoPlayerController? activeController;
+
+  static Duration? _lastCollectFrameStamp;
+  static double _bestDistance = double.infinity;
+  static VideoPlayerController? _bestController;
+
+  static bool _finalizeScheduled = false;
+
+  /// Start (or continue) a collection pass for this frame. Resets best-at-center once per frame.
+  static void beginScrollSoundPass() {
+    final stamp = SchedulerBinding.instance.currentFrameTimeStamp;
+    if (stamp != _lastCollectFrameStamp) {
+      _lastCollectFrameStamp = stamp;
+      _bestDistance = double.infinity;
+      _bestController = null;
+    }
+  }
+
+  /// Prefer [controller] if [distanceToScreenCenter] is smaller than any other submission this frame.
+  static void submitSoundCandidate(
+    VideoPlayerController controller,
+    double distanceToScreenCenter,
+  ) {
+    final c = controller;
+    if (!c.value.isInitialized) return;
+    if (distanceToScreenCenter < _bestDistance) {
+      _bestDistance = distanceToScreenCenter;
+      _bestController = c;
+    }
+  }
+
+  /// Coalesced: after layout, [makeActive] the single best candidate (if any).
+  static void scheduleFinalizeSoundPass() {
+    if (_finalizeScheduled) return;
+    _finalizeScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _finalizeScheduled = false;
+      final winner = _bestController;
+      if (winner != null) {
+        makeActive(winner);
+      }
+    });
+  }
 
   /// Switches audible video: mutes previous (no pause), assigns [controller], volume 1.
   static void makeActive(VideoPlayerController controller) {
@@ -28,25 +71,19 @@ class TattsagramVideoSoundRegistry {
     }
   }
 
-  static void syncFeedAndCenterLine({
+  /// When the feed is hidden (other tab): mute + pause this tile; clear active if needed.
+  static void applyFeedPlaybackGate({
     required VideoPlayerController controller,
-    required bool straddlesCenter,
-    required bool feedPlaybackAllowed,
+    required bool allow,
   }) {
     final c = controller;
     if (!c.value.isInitialized) return;
-
-    if (!feedPlaybackAllowed) {
+    if (!allow) {
       if (identical(activeController, c)) {
         activeController = null;
       }
       c.setVolume(0);
       if (c.value.isPlaying) c.pause();
-      return;
-    }
-
-    if (straddlesCenter) {
-      makeActive(c);
     }
   }
 

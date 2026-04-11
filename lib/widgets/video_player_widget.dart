@@ -6,8 +6,9 @@ import '../core/services/tattsagram_video_sound_registry.dart';
 
 /// Full-bleed network video, looping, [BoxFit.cover] (feed tile).
 ///
-/// Sound: tile straddles [MediaQuery.size.height / 2]. [ScrollController] listener
-/// runs an immediate layout read each scroll update (no debounce, no visibility %).
+/// Sound: once per frame, the tile whose **center** is closest to screen center
+/// wins (see [TattsagramVideoSoundRegistry]). [ScrollController] must notify first
+/// from [TattsagramPage] so collection resets before submissions.
 class VideoPlayerWidget extends StatefulWidget {
   const VideoPlayerWidget(
     this.mediaUrl, {
@@ -31,15 +32,34 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   bool get _feedAllowsPlayback => widget.feedPlaybackListenable?.value ?? true;
 
-  void _onScrollRecomputeSound() {
-    _applyCenterLineNow();
+  void _onVideoControllerUpdate() {
+    if (mounted) setState(() {});
   }
 
-  /// Synchronous center-line check (intended to run from [ScrollController] listener).
-  void _applyCenterLineNow() {
+  void _onTapResumeIfFrozen() {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    if (!c.value.isPlaying) {
+      c.play();
+    }
+  }
+
+  void _onScrollRecomputeSound() {
+    _applySoundFromLayout();
+  }
+
+  void _applySoundFromLayout() {
     if (!mounted) return;
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
+
+    if (!_feedAllowsPlayback) {
+      TattsagramVideoSoundRegistry.applyFeedPlaybackGate(
+        controller: c,
+        allow: false,
+      );
+      return;
+    }
 
     final ro = context.findRenderObject();
     if (ro is! RenderBox || !ro.hasSize) return;
@@ -47,18 +67,17 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     final offset = ro.localToGlobal(Offset.zero);
     final top = offset.dy;
     final bottom = top + ro.size.height;
-    final center = MediaQuery.sizeOf(context).height / 2;
+    final tileCenter = top + (bottom - top) / 2;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final screenCenter = screenHeight / 2;
+    final distance = (tileCenter - screenCenter).abs();
 
-    final straddles = top <= center && bottom >= center;
-
-    TattsagramVideoSoundRegistry.syncFeedAndCenterLine(
-      controller: c,
-      straddlesCenter: straddles,
-      feedPlaybackAllowed: _feedAllowsPlayback,
-    );
+    TattsagramVideoSoundRegistry.beginScrollSoundPass();
+    TattsagramVideoSoundRegistry.submitSoundCandidate(c, distance);
+    TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
   }
 
-  void _onFeedPlaybackGateChanged() => _applyCenterLineNow();
+  void _onFeedPlaybackGateChanged() => _applySoundFromLayout();
 
   @override
   void initState() {
@@ -72,9 +91,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
           ..setLooping(true)
           ..setVolume(0)
           ..play();
-        // One post-frame read so layout exists before any scroll event.
+        _controller!.addListener(_onVideoControllerUpdate);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _applyCenterLineNow();
+          if (mounted) _applySoundFromLayout();
         });
         setState(() {});
       });
@@ -83,7 +102,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _applyCenterLineNow();
+    _applySoundFromLayout();
   }
 
   @override
@@ -101,6 +120,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     if (oldWidget.mediaUrl != widget.mediaUrl) {
       final oldC = _controller;
       if (oldC != null) {
+        oldC.removeListener(_onVideoControllerUpdate);
         TattsagramVideoSoundRegistry.disposeSlot(oldC);
         oldC.dispose();
       }
@@ -111,8 +131,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
             ..setLooping(true)
             ..setVolume(0)
             ..play();
+          _controller!.addListener(_onVideoControllerUpdate);
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _applyCenterLineNow();
+            if (mounted) _applySoundFromLayout();
           });
           setState(() {});
         });
@@ -121,7 +142,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       if (c != null) {
         TattsagramVideoSoundRegistry.disposeSlot(c);
       }
-      _applyCenterLineNow();
+      _applySoundFromLayout();
     }
   }
 
@@ -131,6 +152,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     widget.feedPlaybackListenable?.removeListener(_onFeedPlaybackGateChanged);
     final c = _controller;
     if (c != null) {
+      c.removeListener(_onVideoControllerUpdate);
       TattsagramVideoSoundRegistry.disposeSlot(c);
     }
     _controller?.dispose();
@@ -141,13 +163,36 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   Widget build(BuildContext context) {
     final c = _controller;
     if (c != null && c.value.isInitialized) {
+      final showPausedHint = !c.value.isPlaying;
       return FittedBox(
         fit: BoxFit.cover,
         clipBehavior: Clip.hardEdge,
         child: SizedBox(
           width: c.value.size.width,
           height: c.value.size.height,
-          child: VideoPlayer(c),
+          child: GestureDetector(
+            onTap: _onTapResumeIfFrozen,
+            behavior: HitTestBehavior.opaque,
+            child: Stack(
+              fit: StackFit.expand,
+              alignment: Alignment.center,
+              children: [
+                VideoPlayer(c),
+                if (showPausedHint)
+                  Icon(
+                    Icons.play_circle_outline,
+                    size: 56,
+                    color: Colors.white.withValues(alpha: 0.88),
+                    shadows: const [
+                      Shadow(
+                        color: Colors.black54,
+                        blurRadius: 12,
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
         ),
       );
     }
