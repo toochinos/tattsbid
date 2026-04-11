@@ -177,15 +177,15 @@ class ReviewService {
     // Single row per (user_id, artist_id): DB UNIQUE + upsert avoids race duplicates.
     final wasUpdate = existing != null;
     await _client.from(SupabaseReviews.table).upsert(
-          {
-            SupabaseReviews.userId: user.id,
-            SupabaseReviews.artistId: aid,
-            SupabaseReviews.rating: r,
-            SupabaseReviews.cleanliness: cl,
-            SupabaseReviews.comment: c,
-          },
-          onConflict: '${SupabaseReviews.userId},${SupabaseReviews.artistId}',
-        );
+      {
+        SupabaseReviews.userId: user.id,
+        SupabaseReviews.artistId: aid,
+        SupabaseReviews.rating: r,
+        SupabaseReviews.cleanliness: cl,
+        SupabaseReviews.comment: c,
+      },
+      onConflict: '${SupabaseReviews.userId},${SupabaseReviews.artistId}',
+    );
     return wasUpdate ? ReviewSubmitResult.updated : ReviewSubmitResult.created;
   }
 }

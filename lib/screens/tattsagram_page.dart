@@ -1,15 +1,24 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../core/models/tattsagram_post.dart';
 import '../widgets/tattsagram_chat_overlay.dart';
+import '../widgets/video_player_widget.dart';
 
 /// Social-style vertical feed of tattoo posts (minimal UI).
 class TattsagramPage extends StatefulWidget {
-  const TattsagramPage({super.key, this.onLeaveFullScreen});
+  const TattsagramPage({
+    super.key,
+    this.onLeaveFullScreen,
+    this.feedPlaybackListenable,
+  });
 
   /// When set (e.g. from [MainShellPage] full-screen mode), shown as AppBar back control.
   final VoidCallback? onLeaveFullScreen;
+
+  /// When false (other tab selected), feed videos pause and mute. Null = always on.
+  final ValueListenable<bool>? feedPlaybackListenable;
 
   @override
   State<TattsagramPage> createState() => _TattsagramPageState();
@@ -17,7 +26,8 @@ class TattsagramPage extends StatefulWidget {
 
 class _TattsagramPageState extends State<TattsagramPage>
     with SingleTickerProviderStateMixin {
-  bool _chatOpen = false;
+  /// Open on entry so users immediately see Live Chat, composer, and camera affordances.
+  bool _chatOpen = true;
 
   /// Feed items; user posts from live chat are inserted at the front.
   late List<TattsagramPost> _feedPosts;
@@ -32,21 +42,21 @@ class _TattsagramPageState extends State<TattsagramPage>
   /// Shown when [_mockPosts] is empty so the loop still has images.
   static final List<TattsagramPost> _placeholderLoopPosts = [
     TattsagramPost(
-      imageUrl: 'https://picsum.photos/seed/tattsagram_loop1/1080/1080',
+      mediaUrl: 'https://picsum.photos/seed/tattsagram_loop1/1080/1080',
       artistName: 'Tattsagram',
       location: '',
       caption: '',
       timestamp: DateTime(2026, 1, 1),
     ),
     TattsagramPost(
-      imageUrl: 'https://picsum.photos/seed/tattsagram_loop2/1080/1080',
+      mediaUrl: 'https://picsum.photos/seed/tattsagram_loop2/1080/1080',
       artistName: 'Tattsagram',
       location: '',
       caption: '',
       timestamp: DateTime(2026, 1, 1),
     ),
     TattsagramPost(
-      imageUrl: 'https://picsum.photos/seed/tattsagram_loop3/1080/1080',
+      mediaUrl: 'https://picsum.photos/seed/tattsagram_loop3/1080/1080',
       artistName: 'Tattsagram',
       location: '',
       caption: '',
@@ -56,21 +66,21 @@ class _TattsagramPageState extends State<TattsagramPage>
 
   static final List<TattsagramPost> _mockPosts = [
     TattsagramPost(
-      imageUrl: 'https://picsum.photos/seed/tattsagram1/1080/1080',
+      mediaUrl: 'https://picsum.photos/seed/tattsagram1/1080/1080',
       artistName: 'Alex Ink',
       location: 'Melbourne, Australia',
       caption: 'Fine line floral sleeve — session 2.',
       timestamp: DateTime(2026, 4, 8, 14, 30),
     ),
     TattsagramPost(
-      imageUrl: 'https://picsum.photos/seed/tattsagram2/1080/1080',
+      mediaUrl: 'https://picsum.photos/seed/tattsagram2/1080/1080',
       artistName: 'Studio Nusa',
       location: 'Bali, Indonesia',
       caption: 'Traditional meets modern. Booking open April.',
       timestamp: DateTime(2026, 4, 9, 9, 15),
     ),
     TattsagramPost(
-      imageUrl: 'https://picsum.photos/seed/tattsagram3/1080/1080',
+      mediaUrl: 'https://picsum.photos/seed/tattsagram3/1080/1080',
       artistName: 'River City Tattoos',
       location: 'Phnom Penh, Cambodia',
       caption: 'Healed blackwork geometric piece.',
@@ -179,7 +189,13 @@ class _TattsagramPageState extends State<TattsagramPage>
             itemCount: n * _loopItemMultiplier,
             itemBuilder: (context, index) {
               final p = posts[index % n];
-              return _TattsagramFeedItem(post: p);
+              return _TattsagramFeedItem(
+                key: ValueKey('${p.mediaUrl}-${p.mediaType}-$index'),
+                post: p,
+                soundSlotId: index,
+                scrollController: _feedScrollController,
+                feedPlaybackListenable: widget.feedPlaybackListenable,
+              );
             },
           ),
         );
@@ -204,12 +220,19 @@ class _TattsagramPageState extends State<TattsagramPage>
     final backTooltip = MaterialLocalizations.of(context).backButtonTooltip;
 
     return Scaffold(
+      // Feed ignores bottom IME insets ([MediaQuery.removeViewInsets]) so video
+      // visibility/sound stay stable while typing; overlay still uses real insets.
+      resizeToAvoidBottomInset: false,
       body: Stack(
         clipBehavior: Clip.none,
         fit: StackFit.expand,
         children: [
           Positioned.fill(
-            child: _buildFeed(),
+            child: MediaQuery.removeViewInsets(
+              removeBottom: true,
+              context: context,
+              child: _buildFeed(),
+            ),
           ),
           if (_showBackFab && !_chatOpen)
             Positioned(
@@ -230,24 +253,25 @@ class _TattsagramPageState extends State<TattsagramPage>
                 ),
               ),
             ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: SafeArea(
-              minimum: const EdgeInsets.only(top: 8, right: 8),
-              child: Material(
-                elevation: 2,
-                shape: const CircleBorder(),
-                clipBehavior: Clip.antiAlias,
-                color: scheme.surfaceContainerHighest.withValues(alpha: 0.95),
-                child: IconButton(
-                  tooltip: 'Live chat',
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  onPressed: () => setState(() => _chatOpen = true),
+          if (!_chatOpen)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: SafeArea(
+                minimum: const EdgeInsets.only(top: 8, right: 8),
+                child: Material(
+                  elevation: 2,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.95),
+                  child: IconButton(
+                    tooltip: 'Live chat',
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    onPressed: () => setState(() => _chatOpen = true),
+                  ),
                 ),
               ),
             ),
-          ),
           TattsagramChatOverlay(
             isOpen: _chatOpen,
             onClose: () => setState(() => _chatOpen = false),
@@ -262,40 +286,63 @@ class _TattsagramPageState extends State<TattsagramPage>
 }
 
 class _TattsagramFeedItem extends StatelessWidget {
-  const _TattsagramFeedItem({required this.post});
+  const _TattsagramFeedItem({
+    super.key,
+    required this.post,
+    required this.soundSlotId,
+    required this.scrollController,
+    this.feedPlaybackListenable,
+  });
 
   final TattsagramPost post;
+  final int soundSlotId;
+  final ScrollController scrollController;
+  final ValueListenable<bool>? feedPlaybackListenable;
+
+  Widget _media(ColorScheme scheme) {
+    if (post.mediaType == TattsagramMediaType.video) {
+      return VideoPlayerWidget(
+        post.mediaUrl,
+        soundSlotId: soundSlotId,
+        scrollController: scrollController,
+        feedPlaybackListenable: feedPlaybackListenable,
+      );
+    }
+    return Image.network(
+      post.mediaUrl,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return ColoredBox(
+          color: scheme.surfaceContainerHighest,
+          child: const Center(child: CircularProgressIndicator()),
+        );
+      },
+      errorBuilder: (_, __, ___) => ColoredBox(
+        color: scheme.surfaceContainerHighest,
+        child: Icon(
+          Icons.broken_image_outlined,
+          size: 48,
+          color: scheme.outline,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
+    final media = _media(scheme);
+
     return AspectRatio(
       aspectRatio: 1,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            post.imageUrl,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            loadingBuilder: (context, child, progress) {
-              if (progress == null) return child;
-              return ColoredBox(
-                color: scheme.surfaceContainerHighest,
-                child: const Center(child: CircularProgressIndicator()),
-              );
-            },
-            errorBuilder: (_, __, ___) => ColoredBox(
-              color: scheme.surfaceContainerHighest,
-              child: Icon(
-                Icons.broken_image_outlined,
-                size: 48,
-                color: scheme.outline,
-              ),
-            ),
-          ),
+          media,
           Positioned(
             left: 0,
             right: 0,

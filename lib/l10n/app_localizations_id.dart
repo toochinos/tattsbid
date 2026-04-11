@@ -669,7 +669,7 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get tattsagramPhotoUploadFailed =>
-      'Tidak dapat mengunggah foto. Masuk dan coba lagi.';
+      'Tidak dapat mengunggah media. Masuk dan coba lagi.';
 
   @override
   String get destinationChooseTitle => 'Pilih tujuan';

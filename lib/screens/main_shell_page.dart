@@ -70,6 +70,10 @@ class _MainShellPageState extends State<MainShellPage> {
 
   /// Bumped when the Message tab is tapped so [ChatPage] returns to the inbox list.
   final ValueNotifier<int> _messageInboxResetTrigger = ValueNotifier(0);
+
+  /// False when another tab is selected — [TattsagramPage] pauses feed videos and audio.
+  final ValueNotifier<bool> _tattsagramFeedPlaybackActive =
+      ValueNotifier<bool>(false);
   String? _userType;
   bool _profileLoaded = false;
   Timer? _presenceTimer;
@@ -305,6 +309,7 @@ class _MainShellPageState extends State<MainShellPage> {
         key: _navKeys[2],
         onGenerateRoute: (_) => MaterialPageRoute<void>(
           builder: (_) => TattsagramPage(
+            feedPlaybackListenable: _tattsagramFeedPlaybackActive,
             onLeaveFullScreen: () {
               if (!mounted) return;
               setState(() => _currentIndex = 0);
@@ -505,6 +510,9 @@ class _MainShellPageState extends State<MainShellPage> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
+
+    _tattsagramFeedPlaybackActive.value =
+        _currentIndex == _tattsagramStackIndex;
 
     final tabPages = _tabPagesForIndexedStack();
     return PopScope(

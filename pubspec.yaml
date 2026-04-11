@@ -23,6 +23,8 @@ dependencies:
   shared_preferences: ^2.3.2
   smooth_page_indicator: ^1.2.0+3
   provider: ^6.1.2
+  video_player: ^2.9.2
+  video_compress: ^3.1.4
 
 dev_dependencies:
   flutter_test:

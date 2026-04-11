@@ -7,9 +7,16 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../core/models/tattsagram_post.dart';
 import '../core/services/photo_service.dart';
+import '../core/services/tattsagram_video_prepare.dart';
 import '../core/services/profile_service.dart';
-import '../core/utils/pick_images.dart';
 import '../l10n/app_localizations.dart';
+
+enum _TattsagramPickKind {
+  cameraPhoto,
+  galleryPhoto,
+  cameraVideo,
+  galleryVideo,
+}
 
 /// Mock line in Tattsagram live chat.
 class TattsagramChatMessage {
@@ -81,7 +88,6 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   late List<TattsagramChatMessage> _messages;
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _messageScrollController = ScrollController();
-  final ImagePicker _imagePicker = ImagePicker();
 
   /// When [widget.isOpen] is true: full slide panel + composer vs peek camera only.
   bool _panelExpanded = true;
@@ -169,14 +175,70 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     _scrollMessagesToBottom();
   }
 
+  Future<_TattsagramPickKind?> _showTattsagramPickSheet() {
+    final scheme = Theme.of(context).colorScheme;
+    return showModalBottomSheet<_TattsagramPickKind>(
+      context: context,
+      backgroundColor: Colors.white,
+      barrierColor: Colors.black54,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        final accent = scheme.primary;
+        final titleStyle = TextStyle(
+          color: accent,
+          fontWeight: FontWeight.w500,
+          fontSize: 16,
+        );
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(Icons.camera_alt, color: accent),
+                  title: Text('Take photo', style: titleStyle),
+                  onTap: () => Navigator.of(sheetContext)
+                      .pop(_TattsagramPickKind.cameraPhoto),
+                ),
+                ListTile(
+                  leading: Icon(Icons.photo_library_outlined, color: accent),
+                  title: Text('Photo from gallery', style: titleStyle),
+                  onTap: () => Navigator.of(sheetContext)
+                      .pop(_TattsagramPickKind.galleryPhoto),
+                ),
+                ListTile(
+                  leading: Icon(Icons.videocam, color: accent),
+                  title: Text('Record video', style: titleStyle),
+                  onTap: () => Navigator.of(sheetContext)
+                      .pop(_TattsagramPickKind.cameraVideo),
+                ),
+                ListTile(
+                  leading: Icon(Icons.video_library_outlined, color: accent),
+                  title: Text('Video from gallery', style: titleStyle),
+                  onTap: () => Navigator.of(sheetContext)
+                      .pop(_TattsagramPickKind.galleryVideo),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _openCamera() async {
     if (!mounted) return;
-    final source = await showPhotoSourceBottomSheet(context);
-    if (!mounted || source == null) return;
+    final kind = await _showTattsagramPickSheet();
+    if (!mounted || kind == null) return;
 
-    if (source == ImageSource.camera) {
-      final status = await Permission.camera.request();
-      if (!status.isGranted) {
+    final needsCamera = kind == _TattsagramPickKind.cameraPhoto ||
+        kind == _TattsagramPickKind.cameraVideo;
+    if (needsCamera) {
+      final cam = await Permission.camera.request();
+      if (!cam.isGranted) {
         if (!mounted) return;
         final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -185,11 +247,26 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         return;
       }
     }
+    if (kind == _TattsagramPickKind.cameraVideo) {
+      await Permission.microphone.request();
+    }
 
-    XFile? xFile;
+    if (kind == _TattsagramPickKind.cameraVideo) {
+      await _pickVideo(ImageSource.camera);
+      return;
+    }
+    if (kind == _TattsagramPickKind.galleryVideo) {
+      await _pickVideo(ImageSource.gallery);
+      return;
+    }
+
+    final ImagePicker picker = ImagePicker();
+    XFile? file;
     try {
-      xFile = await _imagePicker.pickImage(
-        source: source,
+      file = await picker.pickImage(
+        source: kind == _TattsagramPickKind.cameraPhoto
+            ? ImageSource.camera
+            : ImageSource.gallery,
         maxWidth: 1920,
         maxHeight: 1920,
         imageQuality: 85,
@@ -201,7 +278,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       );
       return;
     }
-    if (!mounted || xFile == null) return;
+    if (!mounted || file == null) return;
 
     final l10n = AppLocalizations.of(context)!;
     final messenger = ScaffoldMessenger.of(context);
@@ -210,7 +287,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     );
 
     try {
-      final url = await PhotoService.uploadPhoto(File(xFile.path));
+      final url = await PhotoService.uploadPhoto(File(file.path));
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
 
@@ -220,7 +297,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
           (displayName != null && displayName.isNotEmpty) ? displayName : 'You';
 
       final post = TattsagramPost(
-        imageUrl: url,
+        mediaUrl: url,
+        mediaType: TattsagramMediaType.image,
         artistName: artistName,
         location: '',
         caption: '',
@@ -234,6 +312,97 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
           TattsagramChatMessage(
             username: 'You',
             text: l10n.tattsagramPhotoSharedInChat,
+            timestamp: DateTime.now(),
+          ),
+        );
+      });
+      _scrollMessagesToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.tattsagramPhotoUploadFailed)),
+      );
+    }
+  }
+
+  /// Picks a video: camera max 8s (picker); gallery any length, trimmed to 15s + compressed.
+  Future<void> _pickVideo(ImageSource source) async {
+    if (!mounted) return;
+    final picker = ImagePicker();
+
+    XFile? video;
+    try {
+      if (source == ImageSource.camera) {
+        video = await picker.pickVideo(
+          source: source,
+          maxDuration: const Duration(seconds: 8),
+        );
+      } else {
+        video = await picker.pickVideo(source: source);
+      }
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? e.toString())),
+      );
+      return;
+    }
+
+    if (video == null || !mounted) return;
+
+    final fromCamera = source == ImageSource.camera;
+    File toUpload;
+    try {
+      toUpload = await TattsagramVideoPrepare.prepareForUpload(
+        File(video.path),
+        fromCamera: fromCamera,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not process video: $e')),
+      );
+      return;
+    }
+
+    await _uploadVideo(toUpload);
+  }
+
+  Future<void> _uploadVideo(File file) async {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Uploading video…')),
+    );
+
+    try {
+      final url = await PhotoService.uploadVideo(file);
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+
+      final profile = await ProfileService.getCurrentProfile();
+      final displayName = profile?.displayNameOrEmail.trim();
+      final artistName =
+          (displayName != null && displayName.isNotEmpty) ? displayName : 'You';
+
+      final post = TattsagramPost(
+        mediaUrl: url,
+        mediaType: TattsagramMediaType.video,
+        artistName: artistName,
+        location: '',
+        caption: '',
+        timestamp: DateTime.now(),
+      );
+      widget.onPhotoPostedToFeed?.call(post);
+
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          TattsagramChatMessage(
+            username: 'You',
+            text: '🎬 Video',
             timestamp: DateTime.now(),
           ),
         );

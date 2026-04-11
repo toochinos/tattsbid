@@ -351,7 +351,7 @@
   "photoFromGallery": "Upload from gallery",
   "tattsagramPhotoSharedInChat": "📷 Photo",
   "tattsagramUploadingPhoto": "Uploading photo…",
-  "tattsagramPhotoUploadFailed": "Could not upload photo. Sign in and try again.",
+  "tattsagramPhotoUploadFailed": "Could not upload media. Sign in and try again.",
   "destinationChooseTitle": "Choose destination",
   "destinationComingSoon": "Coming soon",
   "addTabTitle": "Add",

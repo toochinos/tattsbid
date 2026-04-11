@@ -1238,7 +1238,7 @@ abstract class AppLocalizations {
   /// No description provided for @tattsagramPhotoUploadFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not upload photo. Sign in and try again.'**
+  /// **'Could not upload media. Sign in and try again.'**
   String get tattsagramPhotoUploadFailed;
 
   /// No description provided for @destinationChooseTitle.

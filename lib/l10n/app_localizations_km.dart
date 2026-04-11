@@ -662,7 +662,7 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get tattsagramPhotoUploadFailed =>
-      'មិនអាចផ្ទុករូបភាពបានទេ។ ចូលគណនីហើយព្យាយាមម្តងទៀត។';
+      'មិនអាចផ្ទុកមេឌាបានទេ។ ចូលគណនីហើយព្យាយាមម្តងទៀត។';
 
   @override
   String get destinationChooseTitle => 'ជ្រើសគោលដៅ';

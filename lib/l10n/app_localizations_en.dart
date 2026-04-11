@@ -661,7 +661,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tattsagramPhotoUploadFailed =>
-      'Could not upload photo. Sign in and try again.';
+      'Could not upload media. Sign in and try again.';
 
   @override
   String get destinationChooseTitle => 'Choose destination';

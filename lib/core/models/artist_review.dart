@@ -59,8 +59,7 @@ class ArtistReview {
     final userId = m[SupabaseReviews.userId] as String? ?? '';
     final artistId = m[SupabaseReviews.artistId] as String? ?? '';
     // Step 2 / 3 — [num?] + ?.toDouble() ?? 0.0 (handles int / double / null).
-    final ratingD =
-        (m[SupabaseReviews.rating] as num?)?.toDouble() ?? 0.0;
+    final ratingD = (m[SupabaseReviews.rating] as num?)?.toDouble() ?? 0.0;
     final int rating = ratingD.round().clamp(1, 5).toInt();
     final cRaw = m[SupabaseReviews.cleanliness];
     final int cleanlinessParsed = cRaw == null

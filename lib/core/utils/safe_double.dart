@@ -1,8 +1,7 @@
 /// Step 2 & 3 — same formula as:
 /// `(map['rating'] as num?)?.toDouble() ?? 0.0`
 /// Prefer this over casting map/JSON values directly to [double].
-double doubleFromJsonNum(dynamic value) =>
-    (value as num?)?.toDouble() ?? 0.0;
+double doubleFromJsonNum(dynamic value) => (value as num?)?.toDouble() ?? 0.0;
 
 /// Optional numeric field: null if absent or not a [num].
 double? doubleFromJsonNumNullable(dynamic value) {
