@@ -6,12 +6,14 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../core/models/live_message.dart';
 import '../core/models/tattsagram_post.dart';
 import '../core/services/live_messages_service.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/live_online_service.dart';
 import '../core/services/photo_service.dart';
 import '../core/services/tattsagram_video_prepare.dart';
+import '../core/services/tattsagram_video_sound_registry.dart';
 import '../l10n/app_localizations.dart';
 
 enum _TattsagramPickKind {
@@ -29,6 +31,7 @@ class TattsagramChatOverlay extends StatefulWidget {
     super.key,
     required this.isOpen,
     required this.onClose,
+    required this.feedSoundMuted,
     this.animationDuration = const Duration(milliseconds: 820),
     this.onPhotoPostedToFeed,
     this.showComposerBack = false,
@@ -38,6 +41,9 @@ class TattsagramChatOverlay extends StatefulWidget {
   final bool isOpen;
   final VoidCallback onClose;
   final Duration animationDuration;
+
+  /// Feed video mute; shared with [TattsagramPage] top-left control.
+  final ValueNotifier<bool> feedSoundMuted;
 
   /// After a successful storage upload, adds the post to the Tattsagram scroll feed.
   final void Function(TattsagramPost post)? onPhotoPostedToFeed;
@@ -52,13 +58,20 @@ class TattsagramChatOverlay extends StatefulWidget {
 
 class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     with SingleTickerProviderStateMixin {
+  /// After primary platform font so emoji resolve (Apple / Windows / Android).
+  static const List<String> _emojiFontFamilyFallback = [
+    'Apple Color Emoji',
+    'Segoe UI Emoji',
+    'Noto Color Emoji',
+  ];
+
   late final Stream<int> _onlineUsersStream;
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _messageScrollController = ScrollController();
 
   /// Server rows (Realtime + periodic REST refresh so other users appear without hot restart).
-  List<Map<String, dynamic>>? _serverMessages;
-  StreamSubscription<List<Map<String, dynamic>>>? _messagesSub;
+  List<LiveMessage>? _serverMessages;
+  StreamSubscription<List<LiveMessage>>? _messagesSub;
   Timer? _messagesPollTimer;
 
   /// When [widget.isOpen] is true: full slide panel + composer vs peek camera only.
@@ -68,7 +81,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   late final Animation<Offset> _composerSlide;
 
   /// Shown immediately on send; removed when the same row appears from [liveChatStream].
-  final List<Map<String, dynamic>> _pendingEcho = [];
+  final List<LiveMessage> _pendingEcho = [];
   int _echoSeq = 0;
 
   @override
@@ -78,7 +91,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     _messagesSub = LiveMessagesService.liveChatStream().listen(
       (rows) {
         if (!mounted) return;
-        _applyServerMessages(List<Map<String, dynamic>>.from(rows));
+        _applyServerMessages(List<LiveMessage>.from(rows));
       },
       onError: (Object e, StackTrace st) {
         debugPrint('live_messages stream error: $e\n$st');
@@ -134,18 +147,15 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     super.dispose();
   }
 
-  bool _sameMessageRows(
-    List<Map<String, dynamic>> a,
-    List<Map<String, dynamic>> b,
-  ) {
+  bool _sameMessageRows(List<LiveMessage> a, List<LiveMessage> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
-      if (a[i]['id'] != b[i]['id']) return false;
+      if (a[i].id != b[i].id) return false;
     }
     return true;
   }
 
-  void _applyServerMessages(List<Map<String, dynamic>> rows) {
+  void _applyServerMessages(List<LiveMessage> rows) {
     _pendingEcho.removeWhere(
       (p) => rows.any((s) => _echoMatchesServer(p, s)),
     );
@@ -204,35 +214,52 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     return time;
   }
 
-  DateTime _messageTime(Map<String, dynamic> msg) {
-    final raw = msg['created_at'];
-    if (raw is String) {
-      return DateTime.tryParse(raw) ?? DateTime.now();
-    }
-    return DateTime.now();
+  bool _echoMatchesServer(LiveMessage echo, LiveMessage serverRow) {
+    return echo.username == serverRow.username &&
+        echo.message == serverRow.message;
   }
 
-  bool _echoMatchesServer(Map<String, dynamic> echo, Map<String, dynamic> row) {
-    return (echo['username']?.toString() ?? '') ==
-            (row['username']?.toString() ?? '') &&
-        (echo['message']?.toString() ?? '') ==
-            (row['message']?.toString() ?? '');
+  /// Saturated dark hues — readable on light areas of the feed; [legibilityShadows] still help on dark media.
+  static const List<Color> _usernamePalette = [
+    Color(0xFF0D47A1),
+    Color(0xFF4A148C),
+    Color(0xFFB71C1C),
+    Color(0xFF1B5E20),
+    Color(0xFFE65100),
+    Color(0xFF006064),
+    Color(0xFF4E342E),
+    Color(0xFF880E4F),
+    Color(0xFF1A237E),
+    Color(0xFF004D40),
+    Color(0xFFF57F17),
+    Color(0xFF33691E),
+    Color(0xFF4527A0),
+    Color(0xFFBF360C),
+    Color(0xFF827717),
+    Color(0xFF00695C),
+  ];
+
+  static Color _colorForLiveUsername(String username) {
+    final key = username.toLowerCase().trim();
+    if (key.isEmpty) return const Color(0xFF212121);
+    final i = key.hashCode.abs() % _usernamePalette.length;
+    return _usernamePalette[i];
   }
 
-  Future<void> _submitLiveMessage(String raw) async {
-    final text = raw.trim();
-    if (text.isEmpty) return;
+  Future<void> _submitLiveMessage() async {
+    final text = _inputController.text;
+    if (text.trim().isEmpty) return;
 
     final username = await ProfileService.resolveLiveDisplayName();
     if (!mounted) return;
 
     final echoId = ++_echoSeq;
-    final echo = <String, dynamic>{
-      '_echoId': echoId,
-      'username': username,
-      'message': text,
-      'created_at': DateTime.now().toUtc().toIso8601String(),
-    };
+    final echo = LiveMessage(
+      localEchoId: echoId,
+      username: username,
+      message: text,
+      createdAt: DateTime.now().toUtc(),
+    );
 
     setState(() {
       _pendingEcho.add(echo);
@@ -246,7 +273,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       debugPrint('Live message send failed: $e\n$st');
       if (!mounted) return;
       setState(() {
-        _pendingEcho.removeWhere((p) => p['_echoId'] == echoId);
+        _pendingEcho.removeWhere((p) => p.localEchoId == echoId);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not send message')),
@@ -497,7 +524,6 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
 
   Widget _buildLiveMessagesPanel({
     required ColorScheme scheme,
-    required TextTheme textTheme,
     required Color onChatText,
     required Color onChatMuted,
     required List<Shadow> legibilityShadows,
@@ -517,15 +543,13 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       );
     }
 
-    final combined = <Map<String, dynamic>>[...server];
+    final combined = <LiveMessage>[...server];
     for (final p in _pendingEcho) {
       if (!server.any((s) => _echoMatchesServer(p, s))) {
         combined.add(p);
       }
     }
-    combined.sort(
-      (a, b) => _messageTime(a).compareTo(_messageTime(b)),
-    );
+    combined.sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
     if (combined.isEmpty) {
       return Center(
@@ -534,7 +558,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
           child: Text(
             'No messages yet',
             textAlign: TextAlign.center,
-            style: textTheme.bodyMedium?.copyWith(
+            style: TextStyle(
+              fontSize: 14,
               color: onChatMuted,
               shadows: legibilityShadows,
             ),
@@ -554,8 +579,16 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       itemCount: combined.length,
       itemBuilder: (context, i) {
         final msg = combined[i];
-        final username = msg['username'] as String? ?? 'User';
-        final body = msg['message'] as String? ?? '';
+        final usernameRaw = msg.username;
+        final username =
+            usernameRaw.trim().isEmpty ? 'User' : usernameRaw.trim();
+        final body = msg.message;
+        final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: _colorForLiveUsername(username),
+              letterSpacing: -0.2,
+              shadows: legibilityShadows,
+            );
         return Padding(
           padding: const EdgeInsets.only(bottom: 14),
           child: Column(
@@ -563,30 +596,26 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
             children: [
               Text(
                 username,
-                style: textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: onChatText,
-                  height: 1.2,
-                  shadows: legibilityShadows,
-                ),
+                style: titleStyle,
               ),
               const SizedBox(height: 4),
               Text(
                 body,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: onChatText,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.white,
                   height: 1.4,
-                  fontWeight: FontWeight.w600,
-                  shadows: legibilityShadows,
+                  fontWeight: FontWeight.w500,
+                  fontFamilyFallback: _emojiFontFamilyFallback,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                _formatTime(context, _messageTime(msg)),
-                style: textTheme.bodySmall?.copyWith(
-                  color: onChatMuted,
+                _formatTime(context, msg.createdAt),
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
+                  color: onChatMuted,
                   shadows: legibilityShadows,
                 ),
               ),
@@ -607,30 +636,31 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
 
   Widget _messageTextField({
     required ColorScheme scheme,
-    required TextTheme textTheme,
   }) {
     return TextField(
       controller: _inputController,
       minLines: 1,
       maxLines: 4,
-      style: textTheme.bodyMedium?.copyWith(
-        color: Colors.black,
+      keyboardType: TextInputType.text,
+      style: const TextStyle(
+        fontSize: 15,
+        color: Colors.white,
         fontWeight: FontWeight.w500,
+        fontFamilyFallback: _emojiFontFamilyFallback,
       ),
       textInputAction: TextInputAction.send,
-      onSubmitted: (text) {
-        unawaited(_submitLiveMessage(text));
+      onSubmitted: (_) {
+        unawaited(_submitLiveMessage());
       },
       decoration: InputDecoration(
         hintText: 'Message…',
         hintStyle: const TextStyle(
-          color: Color(0x99000000),
+          color: Color(0x99FFFFFF),
           fontWeight: FontWeight.w400,
+          fontFamilyFallback: _emojiFontFamilyFallback,
         ),
         filled: true,
-        fillColor: Colors.white.withValues(
-          alpha: 0.92,
-        ),
+        fillColor: Colors.black.withValues(alpha: 0.45),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide.none,
@@ -734,36 +764,46 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Live Chat',
-                                style: textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: onChatText,
-                                  letterSpacing: -0.2,
-                                  shadows: legibilityShadows,
-                                ),
-                              ),
-                            ),
-                            StreamBuilder<int>(
-                              stream: _onlineUsersStream,
-                              builder: (context, snapshot) {
-                                final count = snapshot.data ?? 0;
-                                return Text(
-                                  '$count online',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.w700,
+                      Transform.translate(
+                        offset: const Offset(0, -10),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 12, 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Live Chat',
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontSize:
+                                        (textTheme.titleMedium?.fontSize ??
+                                                16) +
+                                            3,
+                                    fontWeight: FontWeight.w800,
+                                    color: onChatText,
+                                    letterSpacing: -0.2,
                                     shadows: legibilityShadows,
                                   ),
-                                );
-                              },
-                            ),
-                          ],
+                                ),
+                              ),
+                              StreamBuilder<int>(
+                                stream: _onlineUsersStream,
+                                builder: (context, snapshot) {
+                                  final count = snapshot.data ?? 0;
+                                  return Text(
+                                    '$count online',
+                                    style: textTheme.bodySmall?.copyWith(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.0,
+                                      shadows: legibilityShadows,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       Divider(
@@ -774,7 +814,6 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                       Expanded(
                         child: _buildLiveMessagesPanel(
                           scheme: scheme,
-                          textTheme: textTheme,
                           onChatText: onChatText,
                           onChatMuted: onChatMuted,
                           legibilityShadows: legibilityShadows,
@@ -818,11 +857,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                       const SizedBox(width: 8),
                       Expanded(
                         child: Padding(
-                          padding: EdgeInsets.only(
-                            right: widget.showComposerBack &&
-                                    widget.onComposerBack != null
-                                ? 8
-                                : 16,
+                          padding: const EdgeInsets.only(
+                            right: 8,
                             bottom: 12,
                           ),
                           child: ClipRect(
@@ -831,30 +867,63 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                               position: _composerSlide,
                               child: _messageTextField(
                                 scheme: scheme,
-                                textTheme: textTheme,
                               ),
                             ),
                           ),
                         ),
                       ),
-                      if (widget.showComposerBack &&
-                          widget.onComposerBack != null)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 16, bottom: 12),
-                          child: Material(
-                            elevation: 2,
-                            shape: const CircleBorder(),
-                            clipBehavior: Clip.antiAlias,
-                            color: scheme.surfaceContainerHighest
-                                .withValues(alpha: 0.95),
-                            child: IconButton(
-                              tooltip: MaterialLocalizations.of(context)
-                                  .backButtonTooltip,
-                              icon: const Icon(Icons.arrow_back),
-                              onPressed: widget.onComposerBack,
+                      Padding(
+                        padding: const EdgeInsets.only(right: 16, bottom: 12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            ValueListenableBuilder<bool>(
+                              valueListenable: widget.feedSoundMuted,
+                              builder: (context, muted, _) {
+                                return Material(
+                                  elevation: 2,
+                                  shape: const CircleBorder(),
+                                  clipBehavior: Clip.antiAlias,
+                                  color: scheme.surfaceContainerHighest
+                                      .withValues(alpha: 0.95),
+                                  child: IconButton(
+                                    tooltip: muted ? 'Unmute' : 'Mute',
+                                    icon: Icon(
+                                      muted
+                                          ? Icons.volume_off
+                                          : Icons.volume_up,
+                                    ),
+                                    onPressed: () {
+                                      final v = !widget.feedSoundMuted.value;
+                                      widget.feedSoundMuted.value = v;
+                                      TattsagramVideoSoundRegistry
+                                          .setUserSoundMuted(v);
+                                    },
+                                  ),
+                                );
+                              },
                             ),
-                          ),
+                            if (widget.showComposerBack &&
+                                widget.onComposerBack != null) ...[
+                              const SizedBox(height: 8),
+                              Material(
+                                elevation: 2,
+                                shape: const CircleBorder(),
+                                clipBehavior: Clip.antiAlias,
+                                color: scheme.surfaceContainerHighest
+                                    .withValues(alpha: 0.95),
+                                child: IconButton(
+                                  tooltip: MaterialLocalizations.of(context)
+                                      .backButtonTooltip,
+                                  icon: const Icon(Icons.arrow_back),
+                                  onPressed: widget.onComposerBack,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
+                      ),
                     ],
                   ),
                 ),

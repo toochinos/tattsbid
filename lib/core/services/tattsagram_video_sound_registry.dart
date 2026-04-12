@@ -8,6 +8,20 @@ class TattsagramVideoSoundRegistry {
 
   static VideoPlayerController? activeController;
 
+  /// User toggle: when true, the winning feed video stays at volume 0.
+  static bool _userSoundMuted = false;
+
+  static bool get userSoundMuted => _userSoundMuted;
+
+  static void setUserSoundMuted(bool muted) {
+    if (_userSoundMuted == muted) return;
+    _userSoundMuted = muted;
+    final a = activeController;
+    if (a != null && a.value.isInitialized) {
+      a.setVolume(muted ? 0 : 1);
+    }
+  }
+
   static Duration? _lastCollectFrameStamp;
   static double _bestDistance = double.infinity;
   static VideoPlayerController? _bestController;
@@ -65,7 +79,7 @@ class TattsagramVideoSoundRegistry {
     }
 
     activeController = c;
-    c.setVolume(1);
+    c.setVolume(_userSoundMuted ? 0 : 1);
     if (!c.value.isPlaying) {
       c.play();
     }

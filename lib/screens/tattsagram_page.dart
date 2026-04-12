@@ -84,6 +84,9 @@ class _TattsagramPageState extends State<TattsagramPage>
   /// Refreshes [live_online.last_seen] while this screen is visible.
   Timer? _onlineHeartbeat;
 
+  /// Shared with [TattsagramChatOverlay] so feed + live chat mute controls stay in sync.
+  late final ValueNotifier<bool> _feedSoundMuted;
+
   static const int _loopItemMultiplier = 400;
 
   /// Slow auto-advance; pauses while [_userGestureDrivingScroll] is true.
@@ -92,6 +95,8 @@ class _TattsagramPageState extends State<TattsagramPage>
   @override
   void initState() {
     super.initState();
+    _feedSoundMuted =
+        ValueNotifier(TattsagramVideoSoundRegistry.userSoundMuted);
     unawaited(LiveOnlineService.setOnline());
     _onlineHeartbeat = Timer.periodic(
       const Duration(seconds: 20),
@@ -163,6 +168,7 @@ class _TattsagramPageState extends State<TattsagramPage>
 
   @override
   void dispose() {
+    _feedSoundMuted.dispose();
     _onlineHeartbeat?.cancel();
     _autoScrollTicker?.dispose();
     _feedScrollController
@@ -477,22 +483,59 @@ class _TattsagramPageState extends State<TattsagramPage>
               child: _buildFeed(),
             ),
           ),
-          if (_showBackFab && !_chatOpen)
+          if (!_chatOpen)
             Positioned(
-              top: 0,
-              left: 0,
+              right: 0,
+              bottom: 0,
               child: SafeArea(
-                minimum: const EdgeInsets.only(top: 8, left: 8),
-                child: Material(
-                  elevation: 2,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.95),
-                  child: IconButton(
-                    tooltip: backTooltip,
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: _handleBack,
-                  ),
+                top: false,
+                left: false,
+                minimum: const EdgeInsets.only(right: 16, bottom: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _feedSoundMuted,
+                      builder: (context, muted, _) {
+                        return Material(
+                          elevation: 2,
+                          shape: const CircleBorder(),
+                          clipBehavior: Clip.antiAlias,
+                          color: scheme.surfaceContainerHighest
+                              .withValues(alpha: 0.95),
+                          child: IconButton(
+                            tooltip: muted ? 'Unmute' : 'Mute',
+                            icon: Icon(
+                              muted ? Icons.volume_off : Icons.volume_up,
+                            ),
+                            onPressed: () {
+                              final v = !_feedSoundMuted.value;
+                              _feedSoundMuted.value = v;
+                              TattsagramVideoSoundRegistry.setUserSoundMuted(
+                                v,
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                    if (_showBackFab) ...[
+                      const SizedBox(height: 8),
+                      Material(
+                        elevation: 2,
+                        shape: const CircleBorder(),
+                        clipBehavior: Clip.antiAlias,
+                        color: scheme.surfaceContainerHighest
+                            .withValues(alpha: 0.95),
+                        child: IconButton(
+                          tooltip: backTooltip,
+                          icon: const Icon(Icons.arrow_back),
+                          onPressed: _handleBack,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -519,6 +562,7 @@ class _TattsagramPageState extends State<TattsagramPage>
             isOpen: _chatOpen,
             onClose: () => setState(() => _chatOpen = false),
             onPhotoPostedToFeed: _onPhotoPostedFromLiveChat,
+            feedSoundMuted: _feedSoundMuted,
             showComposerBack: _showBackFab,
             onComposerBack: _handleBack,
           ),
