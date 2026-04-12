@@ -93,6 +93,24 @@ class ProfileService {
     }
   }
 
+  /// Auth metadata (`username` / `full_name`), then [profiles] display name, then email.
+  static Future<String> resolveLiveDisplayName() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return 'User';
+
+    final metaUser = user.userMetadata?['username'] as String?;
+    final metaName = user.userMetadata?['full_name'] as String?;
+    for (final s in [metaUser, metaName]) {
+      if (s != null && s.trim().isNotEmpty) return s.trim();
+    }
+
+    final profile = await getCurrentProfile();
+    final fromProfile = profile?.displayNameOrEmail.trim();
+    if (fromProfile != null && fromProfile.isNotEmpty) return fromProfile;
+
+    return 'User';
+  }
+
   /// Display names for many user ids (inbox, lists). Missing ids get "User".
   static Future<Map<String, String>> getDisplayNamesByUserIds(
     List<String> userIds,

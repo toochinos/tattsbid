@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/models/tattsagram_post.dart';
+import '../core/services/live_online_service.dart';
 import '../core/services/tattsagram_like_service.dart';
 import '../core/services/tattsagram_post_service.dart';
 import '../core/services/tattsagram_ranked_pool_feed.dart';
@@ -80,6 +81,9 @@ class _TattsagramPageState extends State<TattsagramPage>
   /// Dedupes concurrent like/unlike calls per post (id or mediaUrl for chat-only).
   final Set<String> _likePersistInFlight = {};
 
+  /// Refreshes [live_online.last_seen] while this screen is visible.
+  Timer? _onlineHeartbeat;
+
   static const int _loopItemMultiplier = 400;
 
   /// Slow auto-advance; pauses while [_userGestureDrivingScroll] is true.
@@ -88,6 +92,11 @@ class _TattsagramPageState extends State<TattsagramPage>
   @override
   void initState() {
     super.initState();
+    unawaited(LiveOnlineService.setOnline());
+    _onlineHeartbeat = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => unawaited(LiveOnlineService.setOnline()),
+    );
     _uniquePool = [];
     _feedSequence = [];
     _recomposeFeedAndWeights();
@@ -154,6 +163,7 @@ class _TattsagramPageState extends State<TattsagramPage>
 
   @override
   void dispose() {
+    _onlineHeartbeat?.cancel();
     _autoScrollTicker?.dispose();
     _feedScrollController
       ..removeListener(_onFeedScrollCombined)

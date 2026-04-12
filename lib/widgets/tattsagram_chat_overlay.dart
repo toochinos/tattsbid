@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,9 +7,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../core/models/tattsagram_post.dart';
+import '../core/services/live_messages_service.dart';
+import '../core/services/profile_service.dart';
+import '../core/services/live_online_service.dart';
 import '../core/services/photo_service.dart';
 import '../core/services/tattsagram_video_prepare.dart';
-import '../core/services/profile_service.dart';
 import '../l10n/app_localizations.dart';
 
 enum _TattsagramPickKind {
@@ -16,19 +19,6 @@ enum _TattsagramPickKind {
   galleryPhoto,
   cameraVideo,
   galleryVideo,
-}
-
-/// Mock line in Tattsagram live chat.
-class TattsagramChatMessage {
-  const TattsagramChatMessage({
-    required this.username,
-    required this.text,
-    required this.timestamp,
-  });
-
-  final String username;
-  final String text;
-  final DateTime timestamp;
 }
 
 /// Slides in from the left over the feed. The message field slides in from the right
@@ -62,30 +52,8 @@ class TattsagramChatOverlay extends StatefulWidget {
 
 class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     with SingleTickerProviderStateMixin {
-  static final List<TattsagramChatMessage> _seedMessages = [
-    TattsagramChatMessage(
-      username: 'Adam',
-      text: 'Sick tattoo',
-      timestamp: DateTime(2026, 4, 10, 12, 4),
-    ),
-    TattsagramChatMessage(
-      username: 'Kim',
-      text: 'Where is this studio?',
-      timestamp: DateTime(2026, 4, 10, 12, 6),
-    ),
-    TattsagramChatMessage(
-      username: 'Mike',
-      text: 'Phnom Penh looks good',
-      timestamp: DateTime(2026, 4, 10, 12, 8),
-    ),
-    TattsagramChatMessage(
-      username: 'You',
-      text: '🔥🔥🔥',
-      timestamp: DateTime(2026, 4, 10, 12, 9),
-    ),
-  ];
-
-  late List<TattsagramChatMessage> _messages;
+  late final Stream<List<Map<String, dynamic>>> _liveMessagesStream;
+  late final Stream<int> _onlineUsersStream;
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _messageScrollController = ScrollController();
 
@@ -95,10 +63,15 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   late final AnimationController _panelSlideController;
   late final Animation<Offset> _composerSlide;
 
+  /// Shown immediately on send; removed when the same row appears from [liveChatStream].
+  final List<Map<String, dynamic>> _pendingEcho = [];
+  int _echoSeq = 0;
+
   @override
   void initState() {
     super.initState();
-    _messages = List<TattsagramChatMessage>.from(_seedMessages);
+    _liveMessagesStream = LiveMessagesService.liveChatStream();
+    _onlineUsersStream = LiveOnlineService.onlineUsers();
     final initiallyVisible = widget.isOpen && _panelExpanded;
     _panelSlideController = AnimationController(
       vsync: this,
@@ -159,19 +132,57 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     return time;
   }
 
-  void _send() {
-    final text = _inputController.text.trim();
+  DateTime _messageTime(Map<String, dynamic> msg) {
+    final raw = msg['created_at'];
+    if (raw is String) {
+      return DateTime.tryParse(raw) ?? DateTime.now();
+    }
+    return DateTime.now();
+  }
+
+  bool _echoMatchesServer(Map<String, dynamic> echo, Map<String, dynamic> row) {
+    return (echo['username']?.toString() ?? '') ==
+            (row['username']?.toString() ?? '') &&
+        (echo['message']?.toString() ?? '') ==
+            (row['message']?.toString() ?? '');
+  }
+
+  Future<void> _submitLiveMessage(String raw) async {
+    final text = raw.trim();
     if (text.isEmpty) return;
+
+    final username = await ProfileService.resolveLiveDisplayName();
+    if (!mounted) return;
+
+    final echoId = ++_echoSeq;
+    final echo = <String, dynamic>{
+      '_echoId': echoId,
+      'username': username,
+      'message': text,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+    };
+
     setState(() {
-      _messages.add(
-        TattsagramChatMessage(
-          username: 'You',
-          text: text,
-          timestamp: DateTime.now(),
-        ),
-      );
+      _pendingEcho.add(echo);
       _inputController.clear();
     });
+    _scrollMessagesToBottom();
+
+    try {
+      await LiveMessagesService.sendLiveMessage(text, username: username);
+    } catch (e, st) {
+      debugPrint('Live message send failed: $e\n$st');
+      if (!mounted) return;
+      setState(() {
+        _pendingEcho.removeWhere((p) => p['_echoId'] == echoId);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not send message')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
     _scrollMessagesToBottom();
   }
 
@@ -307,15 +318,13 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       widget.onPhotoPostedToFeed?.call(post);
 
       if (!mounted) return;
-      setState(() {
-        _messages.add(
-          TattsagramChatMessage(
-            username: 'You',
-            text: l10n.tattsagramPhotoSharedInChat,
-            timestamp: DateTime.now(),
-          ),
-        );
-      });
+      try {
+        await LiveMessagesService.sendLiveMessage(
+            l10n.tattsagramPhotoSharedInChat);
+      } catch (e, st) {
+        debugPrint('Live chat line after photo: $e\n$st');
+      }
+      if (!mounted) return;
       _scrollMessagesToBottom();
     } catch (e) {
       if (!mounted) return;
@@ -398,15 +407,12 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       widget.onPhotoPostedToFeed?.call(post);
 
       if (!mounted) return;
-      setState(() {
-        _messages.add(
-          TattsagramChatMessage(
-            username: 'You',
-            text: '🎬 Video',
-            timestamp: DateTime.now(),
-          ),
-        );
-      });
+      try {
+        await LiveMessagesService.sendLiveMessage('🎬 Video');
+      } catch (e, st) {
+        debugPrint('Live chat line after video: $e\n$st');
+      }
+      if (!mounted) return;
       _scrollMessagesToBottom();
     } catch (e) {
       if (!mounted) return;
@@ -438,7 +444,9 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         fontWeight: FontWeight.w500,
       ),
       textInputAction: TextInputAction.send,
-      onSubmitted: (_) => _send(),
+      onSubmitted: (text) {
+        unawaited(_submitLiveMessage(text));
+      },
       decoration: InputDecoration(
         hintText: 'Message…',
         hintStyle: const TextStyle(
@@ -567,13 +575,19 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                                 ),
                               ),
                             ),
-                            Text(
-                              '12 online',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: Colors.green.shade700,
-                                fontWeight: FontWeight.w700,
-                                shadows: legibilityShadows,
-                              ),
+                            StreamBuilder<int>(
+                              stream: _onlineUsersStream,
+                              builder: (context, snapshot) {
+                                final count = snapshot.data ?? 0;
+                                return Text(
+                                  '$count online',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: Colors.green,
+                                    fontWeight: FontWeight.w700,
+                                    shadows: legibilityShadows,
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -584,53 +598,141 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                         color: Colors.black.withValues(alpha: 0.2),
                       ),
                       Expanded(
-                        child: ListView.builder(
-                          controller: _messageScrollController,
-                          padding: EdgeInsets.fromLTRB(
-                            16,
-                            12,
-                            16,
-                            12 + bottomReserve,
-                          ),
-                          itemCount: _messages.length,
-                          itemBuilder: (context, index) {
-                            final m = _messages[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    m.username,
-                                    style: textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: onChatText,
-                                      height: 1.2,
-                                      shadows: legibilityShadows,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    m.text,
+                        child: StreamBuilder<List<Map<String, dynamic>>>(
+                          stream: _liveMessagesStream,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Text(
+                                    '${snapshot.error}',
+                                    textAlign: TextAlign.center,
                                     style: textTheme.bodyMedium?.copyWith(
                                       color: onChatText,
-                                      height: 1.4,
-                                      fontWeight: FontWeight.w600,
-                                      shadows: legibilityShadows,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _formatTime(context, m.timestamp),
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: onChatMuted,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      shadows: legibilityShadows,
-                                    ),
+                                ),
+                              );
+                            }
+
+                            final server = snapshot.data;
+                            if (server == null) {
+                              return Center(
+                                child: SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: scheme.primary,
                                   ),
-                                ],
+                                ),
+                              );
+                            }
+
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) return;
+                              final before = _pendingEcho.length;
+                              _pendingEcho.removeWhere(
+                                (p) => server.any(
+                                  (s) => _echoMatchesServer(p, s),
+                                ),
+                              );
+                              if (before != _pendingEcho.length) {
+                                setState(() {});
+                              }
+                            });
+
+                            final combined = <Map<String, dynamic>>[...server];
+                            for (final p in _pendingEcho) {
+                              if (!server.any((s) => _echoMatchesServer(p, s))) {
+                                combined.add(p);
+                              }
+                            }
+                            combined.sort(
+                              (a, b) => _messageTime(a).compareTo(
+                                _messageTime(b),
                               ),
+                            );
+
+                            if (combined.isEmpty) {
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Text(
+                                    'No messages yet',
+                                    textAlign: TextAlign.center,
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      color: onChatMuted,
+                                      shadows: legibilityShadows,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            WidgetsBinding.instance.addPostFrameCallback(
+                              (_) {
+                                if (mounted) _scrollMessagesToBottom();
+                              },
+                            );
+
+                            return ListView.builder(
+                              controller: _messageScrollController,
+                              padding: EdgeInsets.fromLTRB(
+                                16,
+                                12,
+                                16,
+                                12 + bottomReserve,
+                              ),
+                              itemCount: combined.length,
+                              itemBuilder: (context, i) {
+                                final msg = combined[i];
+                                final username =
+                                    msg['username'] as String? ?? 'User';
+                                final body = msg['message'] as String? ?? '';
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 14),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        username,
+                                        style: textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: onChatText,
+                                          height: 1.2,
+                                          shadows: legibilityShadows,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        body,
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color: onChatText,
+                                          height: 1.4,
+                                          fontWeight: FontWeight.w600,
+                                          shadows: legibilityShadows,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _formatTime(
+                                          context,
+                                          _messageTime(msg),
+                                        ),
+                                        style: textTheme.bodySmall?.copyWith(
+                                          color: onChatMuted,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          shadows: legibilityShadows,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             );
                           },
                         ),
