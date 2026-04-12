@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/tattsagram_post.dart';
@@ -35,16 +36,23 @@ class TattsagramPostService {
     return _fromRow(row);
   }
 
+  /// Global shared feed: all posts visible under RLS (see `tattsagram_post` select policy).
+  ///
+  /// Never filter by `user_id` — every account sees the same ordering; new users see
+  /// existing videos. Only [limit]/[offset] paginate the result set.
   static Future<List<TattsagramPost>> fetchPosts({
     int limit = 20,
     int offset = 0,
   }) async {
-    final rows = await _client
-        .from(_table)
+    final posts = await _client
+        .from('tattsagram_post')
         .select()
         .order('created_at', ascending: false)
         .range(offset, offset + limit - 1);
-    return rows.map<TattsagramPost>(_fromRow).toList();
+    debugPrint(
+      'TattsagramPostService.fetchPosts: Fetched posts: ${posts.length} (limit=$limit offset=$offset)',
+    );
+    return posts.map<TattsagramPost>(_fromRow).toList();
   }
 
   static TattsagramPost _fromRow(Map<String, dynamic> row) {
@@ -52,10 +60,7 @@ class TattsagramPostService {
     final mediaType = rawType == 'video'
         ? TattsagramMediaType.video
         : TattsagramMediaType.image;
-    final likesRaw = row['likes_count'];
-    final likes = likesRaw is int
-        ? likesRaw
-        : int.tryParse(likesRaw?.toString() ?? '') ?? 0;
+    final likes = _parseLikesCount(row['likes_count']);
     return TattsagramPost(
       id: row['id'] as String?,
       mediaUrl: (row['media_url'] as String?) ?? '',
@@ -70,5 +75,12 @@ class TattsagramPostService {
           DateTime.now(),
       likesCount: likes < 0 ? 0 : likes,
     );
+  }
+
+  static int _parseLikesCount(dynamic raw) {
+    if (raw == null) return 0;
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw.toString()) ?? 0;
   }
 }

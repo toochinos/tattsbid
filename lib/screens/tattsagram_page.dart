@@ -1,8 +1,14 @@
+import 'dart:async';
+
+import 'package:flutter/animation.dart'; // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/models/tattsagram_post.dart';
+import '../core/services/tattsagram_like_service.dart';
+import '../core/services/tattsagram_post_service.dart';
 import '../core/services/tattsagram_ranked_pool_feed.dart';
 import '../core/services/tattsagram_video_sound_registry.dart';
 import '../widgets/tattsagram_chat_overlay.dart';
@@ -49,70 +55,17 @@ class _TattsagramPageState extends State<TattsagramPage>
 
   static const int _nearEndSlots = 10;
 
-  /// Shown when [_uniquePool] is empty so the loop still has images.
-  static final List<TattsagramPost> _placeholderLoopPosts = [
-    TattsagramPost(
-      id: 'ph_0',
-      mediaUrl: 'https://picsum.photos/seed/tattsagram_loop1/1080/1080',
-      artistName: 'Tattsagram',
-      location: '',
-      caption: '',
-      timestamp: DateTime(2026, 1, 1),
-      likesCount: 0,
-    ),
-    TattsagramPost(
-      id: 'ph_1',
-      mediaUrl: 'https://picsum.photos/seed/tattsagram_loop2/1080/1080',
-      artistName: 'Tattsagram',
-      location: '',
-      caption: '',
-      timestamp: DateTime(2026, 1, 1),
-      likesCount: 0,
-    ),
-    TattsagramPost(
-      id: 'ph_2',
-      mediaUrl: 'https://picsum.photos/seed/tattsagram_loop3/1080/1080',
-      artistName: 'Tattsagram',
-      location: '',
-      caption: '',
-      timestamp: DateTime(2026, 1, 1),
-      likesCount: 0,
-    ),
-  ];
+  /// Latest rows from Supabase `tattsagram_post`.
+  List<TattsagramPost> _remotePosts = [];
 
-  /// Demo pool: distinct [likesCount] → different weights (5+1, 1+1, 3+1).
-  static final List<TattsagramPost> _mockPosts = [
-    TattsagramPost(
-      id: 'mock_a',
-      mediaUrl: 'https://picsum.photos/seed/tattsagram1/1080/1080',
-      artistName: 'Alex Ink',
-      location: 'Melbourne, Australia',
-      caption: 'Fine line floral sleeve — session 2.',
-      timestamp: DateTime(2026, 4, 8, 14, 30),
-      likesCount: 5,
-    ),
-    TattsagramPost(
-      id: 'mock_b',
-      mediaUrl: 'https://picsum.photos/seed/tattsagram2/1080/1080',
-      artistName: 'Studio Nusa',
-      location: 'Bali, Indonesia',
-      caption: 'Traditional meets modern. Booking open April.',
-      timestamp: DateTime(2026, 4, 9, 9, 15),
-      likesCount: 1,
-    ),
-    TattsagramPost(
-      id: 'mock_c',
-      mediaUrl: 'https://picsum.photos/seed/tattsagram3/1080/1080',
-      artistName: 'River City Tattoos',
-      location: 'Phnom Penh, Cambodia',
-      caption: 'Healed blackwork geometric piece.',
-      timestamp: DateTime(2026, 4, 10, 18, 0),
-      likesCount: 3,
-    ),
-  ];
+  /// Live-chat uploads until the same [mediaUrl] exists in [_remotePosts].
+  final List<TattsagramPost> _chatPosts = [];
 
-  List<TattsagramPost> get _activeUniquePool =>
-      _uniquePool.isNotEmpty ? _uniquePool : _placeholderLoopPosts;
+  /// False until the first remote fetch attempt finishes (success or error).
+  bool _remoteLoadDone = false;
+
+  /// Dedupes concurrent like/unlike calls per post (id or mediaUrl for chat-only).
+  final Set<String> _likePersistInFlight = {};
 
   static const int _loopItemMultiplier = 400;
 
@@ -122,17 +75,68 @@ class _TattsagramPageState extends State<TattsagramPage>
   @override
   void initState() {
     super.initState();
-    _uniquePool = List<TattsagramPost>.from(_mockPosts);
-    _feedSequence =
-        TattsagramRankedPoolFeed.buildShuffledRankedSequence(_activeUniquePool);
+    _uniquePool = [];
+    _feedSequence = [];
+    _recomposeFeedAndWeights();
     _feedScrollController = ScrollController();
     _feedScrollController.addListener(_onFeedScrollCombined);
     _autoScrollTicker = createTicker(_onAutoScrollTick)..start();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _seedLoopScrollOffset();
-      TattsagramVideoSoundRegistry.beginScrollSoundPass();
-      TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
+      unawaited(_loadRemoteTattsagramPosts());
     });
+  }
+
+  void _mergeUniquePoolFromSources() {
+    final remoteUrls = _remotePosts.map((p) => p.mediaUrl).toSet();
+    final chat = _chatPosts
+        .where((p) => !remoteUrls.contains(p.mediaUrl))
+        .toList(growable: false);
+    _uniquePool = [...chat, ..._remotePosts];
+  }
+
+  /// Rebuilds [_uniquePool] from chat + remote and reshuffles the ranked expanded sequence.
+  void _recomposeFeedAndWeights() {
+    _mergeUniquePoolFromSources();
+    _feedSequence =
+        TattsagramRankedPoolFeed.buildShuffledRankedSequence(_uniquePool);
+    _needsSequenceRebuild = false;
+  }
+
+  Future<void> _loadRemoteTattsagramPosts() async {
+    try {
+      final posts = await TattsagramPostService.fetchPosts(limit: 100);
+      final ids = posts
+          .map((p) => p.id)
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toList();
+      final likedIds = await TattsagramLikeService.fetchLikedPostIds(ids);
+      final withLikes = posts.map((p) {
+        final id = p.id;
+        if (id == null || id.isEmpty) return p;
+        return p.copyWith(isLikedByMe: likedIds.contains(id));
+      }).toList(growable: false);
+      debugPrint('Fetched posts: ${withLikes.length}');
+      if (!mounted) return;
+      setState(() {
+        _remotePosts = withLikes;
+        _remoteLoadDone = true;
+        _recomposeFeedAndWeights();
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _seedLoopScrollOffset();
+        TattsagramVideoSoundRegistry.beginScrollSoundPass();
+        TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
+      });
+    } catch (e, st) {
+      debugPrint('Tattsagram remote load failed: $e\n$st');
+      if (mounted) {
+        setState(() {
+          _remoteLoadDone = true;
+        });
+      }
+    }
   }
 
   @override
@@ -199,7 +203,7 @@ class _TattsagramPageState extends State<TattsagramPage>
     final lap = oldL > 0 ? absIndex ~/ oldL : 0;
 
     _feedSequence =
-        TattsagramRankedPoolFeed.buildShuffledRankedSequence(_activeUniquePool);
+        TattsagramRankedPoolFeed.buildShuffledRankedSequence(_uniquePool);
     _needsSequenceRebuild = false;
 
     final newL = _feedSequence.length;
@@ -249,9 +253,10 @@ class _TattsagramPageState extends State<TattsagramPage>
     }
   }
 
-  /// Local like toggle (demo). Updates pool + in-place sequence refs; defers reshuffle.
-  void _onToggleLike(TattsagramPost post) {
-    final wasLiked = post.isLikedByMe;
+  String _likeDedupeKey(TattsagramPost post) =>
+      (post.id != null && post.id!.isNotEmpty) ? post.id! : post.mediaUrl;
+
+  void _applyOptimisticLike(TattsagramPost post, {required bool wasLiked}) {
     final delta = wasLiked ? -1 : 1;
     final nextCount = (post.likesCount + delta).clamp(0, 1 << 30);
     final updated = post.copyWith(
@@ -262,6 +267,89 @@ class _TattsagramPageState extends State<TattsagramPage>
     TattsagramRankedPoolFeed.syncPostInstances(_feedSequence, updated);
     _needsSequenceRebuild = true;
     setState(() {});
+  }
+
+  void _revertLikeTo(TattsagramPost snapshot) {
+    _replaceInUniquePool(snapshot);
+    TattsagramRankedPoolFeed.syncPostInstances(_feedSequence, snapshot);
+    _needsSequenceRebuild = true;
+    setState(() {});
+  }
+
+  /// Optimistic UI; persists to `tattsagram_likes` (triggers maintain `likes_count`).
+  void _onToggleLike(TattsagramPost post) {
+    final key = _likeDedupeKey(post);
+    if (_likePersistInFlight.contains(key)) return;
+
+    final wasLiked = post.isLikedByMe;
+    final serverId = post.id;
+    final hasServerRow = serverId != null && serverId.isNotEmpty;
+
+    if (!hasServerRow) {
+      _applyOptimisticLike(post, wasLiked: wasLiked);
+      return;
+    }
+
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in to like posts')),
+      );
+      return;
+    }
+
+    _likePersistInFlight.add(key);
+    final snapshot = post;
+    _applyOptimisticLike(post, wasLiked: wasLiked);
+
+    unawaited(_persistLikeToServer(
+      snapshot: snapshot,
+      serverId: serverId,
+      wasLiked: wasLiked,
+      dedupeKey: key,
+    ));
+  }
+
+  Future<void> _persistLikeToServer({
+    required TattsagramPost snapshot,
+    required String serverId,
+    required bool wasLiked,
+    required String dedupeKey,
+  }) async {
+    try {
+      if (wasLiked) {
+        await TattsagramLikeService.removeLike(postId: serverId);
+      } else {
+        await TattsagramLikeService.addLike(postId: serverId);
+      }
+    } on PostgrestException catch (e) {
+      if (!wasLiked && (e.code == '23505')) {
+        final aligned = snapshot.copyWith(isLikedByMe: true);
+        _replaceInUniquePool(aligned);
+        TattsagramRankedPoolFeed.syncPostInstances(_feedSequence, aligned);
+        _needsSequenceRebuild = true;
+        if (mounted) setState(() {});
+      } else {
+        debugPrint('Tattsagram like persist failed: $e');
+        if (mounted) _revertLikeTo(snapshot);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not update like: ${e.message}')),
+          );
+        }
+      }
+    } catch (e, st) {
+      debugPrint('Tattsagram like persist failed: $e\n$st');
+      if (mounted) {
+        _revertLikeTo(snapshot);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update like: $e')),
+        );
+      }
+    } finally {
+      _likePersistInFlight.remove(dedupeKey);
+    }
   }
 
   void _onAutoScrollTick(Duration elapsed) {
@@ -281,16 +369,24 @@ class _TattsagramPageState extends State<TattsagramPage>
 
   void _onPhotoPostedFromLiveChat(TattsagramPost post) {
     setState(() {
-      _uniquePool.insert(0, post);
+      _chatPosts.insert(0, post);
+      _mergeUniquePoolFromSources();
     });
-    _rebuildRankedSequencePreservingAnchor();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _rebuildRankedSequencePreservingAnchor();
+    });
   }
 
   Widget _buildFeed() {
+    if (!_remoteLoadDone) {
+      return const Center(child: CircularProgressIndicator());
+    }
     final seq = _feedSequence;
     final L = seq.length;
     if (L == 0) {
-      return const Center(child: Text('No posts'));
+      return const Center(
+        child: Text('No Tattsagram posts yet'),
+      );
     }
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -462,6 +558,7 @@ class _TattsagramFeedItem extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     final media = _media(scheme);
+    final likes = post['likes_count'] ?? 0;
 
     return AspectRatio(
       aspectRatio: 1,
@@ -499,7 +596,7 @@ class _TattsagramFeedItem extends StatelessWidget {
                             size: 28,
                           ),
                           Text(
-                            '${post.likesCount}',
+                            '$likes',
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: Colors.white),
                           ),

@@ -31,6 +31,15 @@ class TattsagramPost {
   /// Weight in ranked pool is [likesCount] + 1.
   final int likesCount;
 
+  /// Supabase-style key access; use `post['likes_count'] ?? 0` for display.
+  int? operator [](Object? key) {
+    if (key == 'likes_count') {
+      final n = likesCount;
+      return n < 0 ? 0 : n;
+    }
+    return null;
+  }
+
   final bool isLikedByMe;
 
   TattsagramPost copyWith({

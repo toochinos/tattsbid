@@ -43,12 +43,21 @@
 	<string></string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>We use the camera so you can upload tattoo references.</string>
+	<string>Tattsbid needs camera access to record tattoo videos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Tattsbid needs microphone access for video audio.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Tattsbid needs access to upload tattoo photos and videos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Tattsbid saves tattoo media.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We use your photo library to select tattoo images.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
