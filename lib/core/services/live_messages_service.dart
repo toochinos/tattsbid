@@ -20,8 +20,7 @@ class LiveMessagesService {
     final user = _client.auth.currentUser;
     if (user == null) throw StateError('User must be authenticated');
 
-    final resolved =
-        username ?? await ProfileService.resolveLiveDisplayName();
+    final resolved = username ?? await ProfileService.resolveLiveDisplayName();
 
     await _client.from(_table).insert({
       'user_id': user.id,
@@ -34,7 +33,21 @@ class LiveMessagesService {
   static Stream<List<Map<String, dynamic>>> liveChatStream() {
     return _client
         .from(_table)
-        .stream(primaryKey: ['id'])
-        .order('created_at', ascending: true);
+        .stream(primaryKey: ['id']).order('created_at', ascending: true);
+  }
+
+  /// REST fetch so UI updates even if the Realtime WebSocket misses events (polling backup).
+  static Future<List<Map<String, dynamic>>> fetchMessagesForChat({
+    int limit = 300,
+  }) async {
+    final rows = await _client
+        .from(_table)
+        .select()
+        .order('created_at', ascending: true)
+        .limit(limit);
+    final list = rows as List<dynamic>;
+    return list
+        .map((e) => Map<String, dynamic>.from(e as Map<dynamic, dynamic>))
+        .toList(growable: false);
   }
 }

@@ -52,10 +52,14 @@ class TattsagramChatOverlay extends StatefulWidget {
 
 class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     with SingleTickerProviderStateMixin {
-  late final Stream<List<Map<String, dynamic>>> _liveMessagesStream;
   late final Stream<int> _onlineUsersStream;
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _messageScrollController = ScrollController();
+
+  /// Server rows (Realtime + periodic REST refresh so other users appear without hot restart).
+  List<Map<String, dynamic>>? _serverMessages;
+  StreamSubscription<List<Map<String, dynamic>>>? _messagesSub;
+  Timer? _messagesPollTimer;
 
   /// When [widget.isOpen] is true: full slide panel + composer vs peek camera only.
   bool _panelExpanded = true;
@@ -70,8 +74,21 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   @override
   void initState() {
     super.initState();
-    _liveMessagesStream = LiveMessagesService.liveChatStream();
     _onlineUsersStream = LiveOnlineService.onlineUsers();
+    _messagesSub = LiveMessagesService.liveChatStream().listen(
+      (rows) {
+        if (!mounted) return;
+        _applyServerMessages(List<Map<String, dynamic>>.from(rows));
+      },
+      onError: (Object e, StackTrace st) {
+        debugPrint('live_messages stream error: $e\n$st');
+      },
+    );
+    _messagesPollTimer = Timer.periodic(
+      const Duration(seconds: 4),
+      (_) => unawaited(_pollMessagesFromServer()),
+    );
+    unawaited(_loadInitialMessages());
     final initiallyVisible = widget.isOpen && _panelExpanded;
     _panelSlideController = AnimationController(
       vsync: this,
@@ -105,10 +122,65 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
 
   @override
   void dispose() {
+    _messagesPollTimer?.cancel();
+    final sub = _messagesSub;
+    _messagesSub = null;
+    if (sub != null) {
+      unawaited(sub.cancel());
+    }
     _panelSlideController.dispose();
     _messageScrollController.dispose();
     _inputController.dispose();
     super.dispose();
+  }
+
+  bool _sameMessageRows(
+    List<Map<String, dynamic>> a,
+    List<Map<String, dynamic>> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i]['id'] != b[i]['id']) return false;
+    }
+    return true;
+  }
+
+  void _applyServerMessages(List<Map<String, dynamic>> rows) {
+    _pendingEcho.removeWhere(
+      (p) => rows.any((s) => _echoMatchesServer(p, s)),
+    );
+    if (_serverMessages != null && _sameMessageRows(_serverMessages!, rows)) {
+      return;
+    }
+    setState(() => _serverMessages = rows);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scrollMessagesToBottom();
+    });
+  }
+
+  Future<void> _loadInitialMessages() async {
+    try {
+      final rows = await LiveMessagesService.fetchMessagesForChat();
+      if (!mounted) return;
+      _applyServerMessages(rows);
+    } catch (e, st) {
+      debugPrint('live_messages initial load: $e\n$st');
+      if (mounted) {
+        setState(() {
+          _serverMessages = [];
+        });
+      }
+    }
+  }
+
+  Future<void> _pollMessagesFromServer() async {
+    try {
+      final rows = await LiveMessagesService.fetchMessagesForChat();
+      if (!mounted) return;
+      _applyServerMessages(rows);
+    } catch (e, st) {
+      debugPrint('live_messages poll: $e\n$st');
+    }
   }
 
   void _scrollMessagesToBottom() {
@@ -423,6 +495,108 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     }
   }
 
+  Widget _buildLiveMessagesPanel({
+    required ColorScheme scheme,
+    required TextTheme textTheme,
+    required Color onChatText,
+    required Color onChatMuted,
+    required List<Shadow> legibilityShadows,
+    required double bottomReserve,
+  }) {
+    final server = _serverMessages;
+    if (server == null) {
+      return Center(
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: scheme.primary,
+          ),
+        ),
+      );
+    }
+
+    final combined = <Map<String, dynamic>>[...server];
+    for (final p in _pendingEcho) {
+      if (!server.any((s) => _echoMatchesServer(p, s))) {
+        combined.add(p);
+      }
+    }
+    combined.sort(
+      (a, b) => _messageTime(a).compareTo(_messageTime(b)),
+    );
+
+    if (combined.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No messages yet',
+            textAlign: TextAlign.center,
+            style: textTheme.bodyMedium?.copyWith(
+              color: onChatMuted,
+              shadows: legibilityShadows,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: _messageScrollController,
+      padding: EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        12 + bottomReserve,
+      ),
+      itemCount: combined.length,
+      itemBuilder: (context, i) {
+        final msg = combined[i];
+        final username = msg['username'] as String? ?? 'User';
+        final body = msg['message'] as String? ?? '';
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                username,
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: onChatText,
+                  height: 1.2,
+                  shadows: legibilityShadows,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                body,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: onChatText,
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                  shadows: legibilityShadows,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _formatTime(context, _messageTime(msg)),
+                style: textTheme.bodySmall?.copyWith(
+                  color: onChatMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  shadows: legibilityShadows,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _collapseToPeek() {
     FocusScope.of(context).unfocus();
     setState(() => _panelExpanded = false);
@@ -598,143 +772,13 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                         color: Colors.black.withValues(alpha: 0.2),
                       ),
                       Expanded(
-                        child: StreamBuilder<List<Map<String, dynamic>>>(
-                          stream: _liveMessagesStream,
-                          builder: (context, snapshot) {
-                            if (snapshot.hasError) {
-                              return Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Text(
-                                    '${snapshot.error}',
-                                    textAlign: TextAlign.center,
-                                    style: textTheme.bodyMedium?.copyWith(
-                                      color: onChatText,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-
-                            final server = snapshot.data;
-                            if (server == null) {
-                              return Center(
-                                child: SizedBox(
-                                  width: 28,
-                                  height: 28,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: scheme.primary,
-                                  ),
-                                ),
-                              );
-                            }
-
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (!mounted) return;
-                              final before = _pendingEcho.length;
-                              _pendingEcho.removeWhere(
-                                (p) => server.any(
-                                  (s) => _echoMatchesServer(p, s),
-                                ),
-                              );
-                              if (before != _pendingEcho.length) {
-                                setState(() {});
-                              }
-                            });
-
-                            final combined = <Map<String, dynamic>>[...server];
-                            for (final p in _pendingEcho) {
-                              if (!server.any((s) => _echoMatchesServer(p, s))) {
-                                combined.add(p);
-                              }
-                            }
-                            combined.sort(
-                              (a, b) => _messageTime(a).compareTo(
-                                _messageTime(b),
-                              ),
-                            );
-
-                            if (combined.isEmpty) {
-                              return Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Text(
-                                    'No messages yet',
-                                    textAlign: TextAlign.center,
-                                    style: textTheme.bodyMedium?.copyWith(
-                                      color: onChatMuted,
-                                      shadows: legibilityShadows,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-
-                            WidgetsBinding.instance.addPostFrameCallback(
-                              (_) {
-                                if (mounted) _scrollMessagesToBottom();
-                              },
-                            );
-
-                            return ListView.builder(
-                              controller: _messageScrollController,
-                              padding: EdgeInsets.fromLTRB(
-                                16,
-                                12,
-                                16,
-                                12 + bottomReserve,
-                              ),
-                              itemCount: combined.length,
-                              itemBuilder: (context, i) {
-                                final msg = combined[i];
-                                final username =
-                                    msg['username'] as String? ?? 'User';
-                                final body = msg['message'] as String? ?? '';
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 14),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        username,
-                                        style: textTheme.titleSmall?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          color: onChatText,
-                                          height: 1.2,
-                                          shadows: legibilityShadows,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        body,
-                                        style: textTheme.bodyMedium?.copyWith(
-                                          color: onChatText,
-                                          height: 1.4,
-                                          fontWeight: FontWeight.w600,
-                                          shadows: legibilityShadows,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _formatTime(
-                                          context,
-                                          _messageTime(msg),
-                                        ),
-                                        style: textTheme.bodySmall?.copyWith(
-                                          color: onChatMuted,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          shadows: legibilityShadows,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            );
-                          },
+                        child: _buildLiveMessagesPanel(
+                          scheme: scheme,
+                          textTheme: textTheme,
+                          onChatText: onChatText,
+                          onChatMuted: onChatMuted,
+                          legibilityShadows: legibilityShadows,
+                          bottomReserve: bottomReserve,
                         ),
                       ),
                     ],
