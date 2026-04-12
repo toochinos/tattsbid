@@ -4,6 +4,7 @@ import 'package:flutter/animation.dart'; // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/models/tattsagram_post.dart';
@@ -13,6 +14,18 @@ import '../core/services/tattsagram_ranked_pool_feed.dart';
 import '../core/services/tattsagram_video_sound_registry.dart';
 import '../widgets/tattsagram_chat_overlay.dart';
 import '../widgets/video_player_widget.dart';
+
+const String _tattsagramPostBaseUrl = 'https://tattsagram.com/post';
+
+void sharePost(Map post) {
+  final id = post['id'];
+  if (id == null) return;
+  final s = id.toString().trim();
+  if (s.isEmpty) return;
+  unawaited(
+    Share.share('$_tattsagramPostBaseUrl/$s'),
+  );
+}
 
 /// Social-style vertical feed of tattoo posts (minimal UI).
 class TattsagramPage extends StatefulWidget {
@@ -558,7 +571,24 @@ class _TattsagramFeedItem extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     final media = _media(scheme);
-    final likes = post['likes_count'] ?? 0;
+    const actionStyle = TextStyle(
+      color: Colors.white,
+      fontSize: 13,
+      shadows: [
+        Shadow(
+          color: Color(0x80000000),
+          blurRadius: 8,
+          offset: Offset(0, 1),
+        ),
+      ],
+    );
+    const iconShadows = [
+      Shadow(
+        color: Color(0x80000000),
+        blurRadius: 8,
+        offset: Offset(0, 1),
+      ),
+    ];
 
     return AspectRatio(
       aspectRatio: 1,
@@ -577,16 +607,15 @@ class _TattsagramFeedItem extends StatelessWidget {
             child: SafeArea(
               child: Align(
                 alignment: Alignment.centerRight,
-                child: Material(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  shape: const StadiumBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: onLike,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: onLike,
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Icon(
                             post.isLikedByMe
@@ -594,16 +623,40 @@ class _TattsagramFeedItem extends StatelessWidget {
                                 : Icons.favorite_border,
                             color: Colors.white,
                             size: 28,
+                            shadows: iconShadows,
                           ),
+                          const SizedBox(height: 4),
                           Text(
-                            '$likes',
+                            '${post['likes_count'] ?? 0}',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white),
+                            style: actionStyle,
                           ),
                         ],
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 14),
+                    GestureDetector(
+                      onTap: () => sharePost({'id': post.id}),
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.share_outlined,
+                            color: Colors.white,
+                            size: 28,
+                            shadows: iconShadows,
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Share',
+                            textAlign: TextAlign.center,
+                            style: actionStyle,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
