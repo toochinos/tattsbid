@@ -696,7 +696,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
                 width: MediaQuery.sizeOf(context).width * 0.78,
                 height: MediaQuery.sizeOf(context).width * 0.78,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.yellow, width: 2),
+                  border: Border.all(color: Colors.transparent, width: 2),
                 ),
               ),
             ),
