@@ -8,16 +8,28 @@ import 'package:flutter/material.dart';
 class AppTheme {
   AppTheme._();
 
+  /// Material blue primary (buttons, selected nav, links) — explicit seed so M3
+  /// does not fall back to a purple default on some platforms.
+  static const Color _seedBlue = Color(0xFF1976D2);
+
   /// Global app theme mode state.
   static final ValueNotifier<ThemeMode> themeModeNotifier =
       ValueNotifier<ThemeMode>(ThemeMode.light);
 
   static ThemeData get light => ThemeData(
         useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: _seedBlue,
+          brightness: Brightness.light,
+        ),
       );
 
   static ThemeData get dark => ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: _seedBlue,
+          brightness: Brightness.dark,
+        ),
       );
 }
