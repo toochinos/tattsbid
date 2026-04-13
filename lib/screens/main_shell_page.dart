@@ -450,8 +450,12 @@ class _MainShellPageState extends State<MainShellPage> {
   /// Message: [ChatPage] uses in-page state for threads — [_messageInboxResetTrigger]
   /// forces return to the inbox list (same as the in-chat back button).
   void _onBottomNavTap(int index) {
-    // Do not clear [_exploreFeedScopeNotifier] when selecting Explore — that would
-    // drop Australia/Cambodia/Indonesia scoped feeds and hide the Upload (plus) tab.
+    // Explore icon always returns to the default Explore root page.
+    if (index == 0) {
+      _exploreFeedScopeNotifier.value = null;
+      _exploreCountryLockedByPicker = false;
+      _exploreRefreshTrigger.value++;
+    }
     setState(() => _currentIndex = index);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
