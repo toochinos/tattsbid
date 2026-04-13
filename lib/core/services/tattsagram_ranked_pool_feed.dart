@@ -30,7 +30,10 @@ class TattsagramRankedPoolFeed {
     final idA = a.id;
     final idB = b.id;
     if (idA != null && idB != null) return idA == idB;
-    return a.mediaUrl == b.mediaUrl && a.mediaType == b.mediaType;
+    if (a.mediaType != b.mediaType) return false;
+    final ca = a.canonicalRemoteUrl;
+    final cb = b.canonicalRemoteUrl;
+    return ca.isNotEmpty && ca == cb;
   }
 
   /// After a like, keep the same sequence order but point slots at [updated].

@@ -9,6 +9,20 @@ class TattsagramPostService {
   static SupabaseClient get _client => Supabase.instance.client;
   static const String _table = 'tattsagram_post';
 
+  /// Maps a Realtime / JSON row to [TattsagramPost] (same shape as REST [fetchPosts]).
+  static TattsagramPost postFromRealtimeRow(Map<String, dynamic> row) {
+    final normalized = Map<String, dynamic>.from(row);
+    final id = normalized['id'];
+    if (id != null) {
+      normalized['id'] = id.toString();
+    }
+    final created = normalized['created_at'];
+    if (created != null && created is! String) {
+      normalized['created_at'] = created.toString();
+    }
+    return _fromRow(normalized);
+  }
+
   static Future<TattsagramPost> createPost({
     required String mediaUrl,
     required TattsagramMediaType mediaType,
@@ -61,10 +75,14 @@ class TattsagramPostService {
         ? TattsagramMediaType.video
         : TattsagramMediaType.image;
     final likes = _parseLikesCount(row['likes_count']);
+    final mediaUrl = (row['media_url'] as String?) ?? '';
     return TattsagramPost(
       id: row['id'] as String?,
-      mediaUrl: (row['media_url'] as String?) ?? '',
+      mediaUrl: mediaUrl,
       mediaType: mediaType,
+      videoUrl: mediaType == TattsagramMediaType.video && mediaUrl.isNotEmpty
+          ? mediaUrl
+          : null,
       artistName: (row['artist_name'] as String?)?.trim().isNotEmpty == true
           ? (row['artist_name'] as String)
           : 'Unknown',

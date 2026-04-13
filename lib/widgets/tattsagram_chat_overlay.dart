@@ -34,6 +34,9 @@ class TattsagramChatOverlay extends StatefulWidget {
     required this.feedSoundMuted,
     this.animationDuration = const Duration(milliseconds: 820),
     this.onPhotoPostedToFeed,
+    required this.onInsertTempVideoAtTop,
+    required this.onReplaceTempVideoWhenFinished,
+    this.onPendingVideoUploadFailed,
     this.showComposerBack = false,
     this.onComposerBack,
   });
@@ -47,6 +50,17 @@ class TattsagramChatOverlay extends StatefulWidget {
 
   /// After a successful storage upload, adds the post to the Tattsagram scroll feed.
   final void Function(TattsagramPost post)? onPhotoPostedToFeed;
+
+  /// Step 2 — feed should `_chatPosts.insert(0, TattsagramPost.tempVideoUpload(...))`.
+  final void Function(String tempPostId, String localVideoPath)
+      onInsertTempVideoAtTop;
+
+  /// Step 4 — same slot as the temp row: `isUploading: false`, `uploadProgress: 1.0`, URLs set.
+  final void Function(String tempPostId, String videoUrl, String artistName)
+      onReplaceTempVideoWhenFinished;
+
+  /// Removes the optimistic row when background video upload fails ([tempPost.id]).
+  final void Function(String localTempPostId)? onPendingVideoUploadFailed;
 
   /// Circular back control to the right of the message field (e.g. leave Tattsagram).
   final bool showComposerBack;
@@ -481,12 +495,26 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
     final messenger = ScaffoldMessenger.of(context);
+
+    final tempId = DateTime.now().millisecondsSinceEpoch.toString();
+    final tempBase =
+        TattsagramPost.tempVideoUpload(id: tempId, localVideo: file.path);
+    widget.onInsertTempVideoAtTop(tempId, file.path);
+
     messenger.showSnackBar(
       const SnackBar(content: Text('Uploading video…')),
     );
 
     try {
-      final url = await PhotoService.uploadVideo(file);
+      final url = await PhotoService.uploadVideo(
+        file,
+        onUploadProgress: (p) {
+          if (!mounted) return;
+          widget.onPhotoPostedToFeed?.call(
+            tempBase.copyWith(uploadProgress: p),
+          );
+        },
+      );
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
 
@@ -495,15 +523,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       final artistName =
           (displayName != null && displayName.isNotEmpty) ? displayName : 'You';
 
-      final post = TattsagramPost(
-        mediaUrl: url,
-        mediaType: TattsagramMediaType.video,
-        artistName: artistName,
-        location: '',
-        caption: '',
-        timestamp: DateTime.now(),
-      );
-      widget.onPhotoPostedToFeed?.call(post);
+      widget.onReplaceTempVideoWhenFinished(tempId, url, artistName);
 
       if (!mounted) return;
       try {
@@ -516,6 +536,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     } catch (e) {
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
+      widget.onPendingVideoUploadFailed?.call(tempId);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.tattsagramPhotoUploadFailed)),
       );

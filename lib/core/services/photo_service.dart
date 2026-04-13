@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Uploads customer reference photos to Supabase storage (posts bucket).
@@ -74,17 +76,93 @@ class PhotoService {
   /// Image uploads only — same behavior as [uploadPhoto]; does not handle video.
   static Future<String> uploadImage(File file) => uploadPhoto(file);
 
-  /// Uploads video to Tattsagram storage (`videos/…`) and inserts [tattsagram_post].
-  /// Returns the public media URL.
-  static Future<String> uploadVideo(File file) async {
+  static const String _tattsagramBucket = 'tattsagram';
+
+  /// Same endpoint and multipart shape as [StorageFileApi.upload], but streams the file
+  /// so [onUploadProgress] receives byte-based progress in \[0, 1\] (Dart `storage_client`
+  /// does not expose `onUploadProgress` on `.upload()` yet).
+  static Future<void> _uploadStorageObjectWithProgress({
+    required SupabaseClient supabase,
+    required String bucket,
+    required String objectRelativePath,
+    required File file,
+    required FileOptions fileOptions,
+    void Function(double progress)? onUploadProgress,
+  }) async {
+    final api = supabase.storage.from(bucket);
+    final finalPath = '$bucket/$objectRelativePath';
+    final uri = Uri.parse('${api.url}/object/$finalPath');
+
+    final total = await file.length();
+    if (total <= 0) {
+      onUploadProgress?.call(0.88);
+      throw ArgumentError('Video file is empty');
+    }
+
+    var sent = 0;
+    Stream<List<int>> trackedOpenRead() async* {
+      await for (final chunk in file.openRead()) {
+        sent += chunk.length;
+        onUploadProgress?.call((sent / total).clamp(0.0, 1.0));
+        yield chunk;
+      }
+    }
+
+    final contentType = http.MediaType.parse(
+      fileOptions.contentType ?? 'application/octet-stream',
+    );
+
+    final filename = objectRelativePath.contains('/')
+        ? objectRelativePath.substring(objectRelativePath.lastIndexOf('/') + 1)
+        : objectRelativePath;
+
+    final multipartFile = http.MultipartFile(
+      '',
+      trackedOpenRead(),
+      total,
+      filename: filename,
+      contentType: contentType,
+    );
+
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll(api.headers)
+      ..files.add(multipartFile)
+      ..fields['cacheControl'] = fileOptions.cacheControl
+      ..headers['x-upsert'] = fileOptions.upsert.toString();
+    if (fileOptions.metadata != null) {
+      request.fields['metadata'] = json.encode(fileOptions.metadata);
+    }
+    if (fileOptions.headers != null) {
+      request.headers.addAll(fileOptions.headers!);
+    }
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+    if (response.statusCode < 200 || response.statusCode > 299) {
+      throw Exception(
+        'Storage upload failed (${response.statusCode}): ${response.body}',
+      );
+    }
+  }
+
+  /// Uploads video to Supabase Storage ([_tattsagramBucket], path `videos/<ts>.mp4`)
+  /// and inserts [tattsagram_post]. Returns the public media URL.
+  ///
+  /// Step 3 — [onUploadProgress] is driven by bytes streamed to Storage (then a short
+  /// bump for DB insert), matching JS-style upload progress for the `tattsagram` bucket.
+  static Future<String> uploadVideo(
+    File file, {
+    void Function(double progress)? onUploadProgress,
+  }) async {
     final supabase = Supabase.instance.client;
 
-    debugPrint('USER: ${supabase.auth.currentUser}');
-    debugPrint('FILE PATH: ${file.path}');
-    debugPrint('FILE SIZE: ${file.lengthSync()}');
+    // Same as [uploadPhoto]: yield + refresh so Storage RLS sees a JWT (avoids null user).
+    await _userIdForUpload();
 
     final user = supabase.auth.currentUser;
     if (user == null) {
+      // ignore: avoid_print
+      print('User not logged in');
       throw Exception('User not logged in');
     }
 
@@ -93,33 +171,44 @@ class PhotoService {
       throw ArgumentError('Invalid video format. Use mp4 or mov.');
     }
 
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}.mp4';
-    final path = 'videos/$fileName';
-
+    final ms = DateTime.now().millisecondsSinceEpoch;
+    final path = 'videos/$ms.mp4';
     final contentType = ext == 'mov' ? 'video/quicktime' : 'video/mp4';
 
+    void bump(double p) => onUploadProgress?.call(p.clamp(0.0, 1.0));
+
+    final fileOptions = FileOptions(
+      upsert: true,
+      contentType: contentType,
+    );
+
     try {
-      await supabase.storage.from('tattsagram').upload(
-            path,
-            file,
-            fileOptions: FileOptions(
-              upsert: true,
-              contentType: contentType,
-            ),
-          );
+      bump(0.0);
+      await _uploadStorageObjectWithProgress(
+        supabase: supabase,
+        bucket: _tattsagramBucket,
+        objectRelativePath: path,
+        file: file,
+        fileOptions: fileOptions,
+        onUploadProgress: onUploadProgress,
+      );
 
-      final url = supabase.storage.from('tattsagram').getPublicUrl(path);
+      final videoUrl =
+          supabase.storage.from(_tattsagramBucket).getPublicUrl(path);
 
+      // Canonical table is [tattsagram_post] (media_url + media_type); Realtime picks up INSERT.
+      bump(0.97);
       await supabase.from('tattsagram_post').insert({
-        'media_url': url,
+        'media_url': videoUrl,
         'media_type': 'video',
         'user_id': user.id,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
       });
 
-      return url;
+      bump(1.0);
+      return videoUrl;
     } catch (e, s) {
-      debugPrint('VIDEO UPLOAD ERROR: $e');
-      debugPrint('$s');
+      debugPrint('VIDEO UPLOAD ERROR: $e\n$s');
       rethrow;
     }
   }
