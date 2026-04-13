@@ -19,6 +19,7 @@ class VideoPlayerWidget extends StatefulWidget {
     required this.soundSlotId,
     this.scrollController,
     this.feedPlaybackListenable,
+    this.soundMutedListenable,
     this.thumbnailUrl,
 
     /// When set (e.g. pending Tattsagram upload), plays from disk instead of [mediaUrl].
@@ -33,6 +34,7 @@ class VideoPlayerWidget extends StatefulWidget {
   final Object soundSlotId;
   final ScrollController? scrollController;
   final ValueListenable<bool>? feedPlaybackListenable;
+  final ValueListenable<bool>? soundMutedListenable;
 
   @override
   State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
@@ -43,6 +45,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   bool _videoListenerAdded = false;
 
   bool get _feedAllowsPlayback => widget.feedPlaybackListenable?.value ?? true;
+  bool get _userMuted => widget.soundMutedListenable?.value ?? false;
 
   void _onVideoControllerUpdate() {
     final c = _controller;
@@ -101,7 +104,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     if (!mounted || c == null || !c.value.isInitialized) return;
 
     if (_feedAllowsPlayback) {
-      await c.setVolume(TattsagramVideoSoundRegistry.userSoundMuted ? 0 : 1);
+      await c.setVolume(_userMuted ? 0 : 1);
       if (!c.value.isPlaying) {
         await c.play();
       }
@@ -147,6 +150,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     _applySoundFromLayout();
   }
 
+  void _onSoundMuteChanged() => unawaited(_applySnapLockedPlayback());
+
   VideoPlayerController? _createController() {
     final path = widget.filePath;
     if (path != null && path.isNotEmpty) {
@@ -162,6 +167,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     super.initState();
     widget.scrollController?.addListener(_onScrollRecomputeSound);
     widget.feedPlaybackListenable?.addListener(_onFeedPlaybackGateChanged);
+    widget.soundMutedListenable?.addListener(_onSoundMuteChanged);
     _controller = _createController();
     _controller?.initialize().then((_) async {
       if (!mounted) return;
@@ -195,6 +201,11 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       oldWidget.feedPlaybackListenable
           ?.removeListener(_onFeedPlaybackGateChanged);
       widget.feedPlaybackListenable?.addListener(_onFeedPlaybackGateChanged);
+      playbackSourceChanged = true;
+    }
+    if (oldWidget.soundMutedListenable != widget.soundMutedListenable) {
+      oldWidget.soundMutedListenable?.removeListener(_onSoundMuteChanged);
+      widget.soundMutedListenable?.addListener(_onSoundMuteChanged);
       playbackSourceChanged = true;
     }
     if (oldWidget.mediaUrl != widget.mediaUrl ||
@@ -236,6 +247,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   void dispose() {
     widget.scrollController?.removeListener(_onScrollRecomputeSound);
     widget.feedPlaybackListenable?.removeListener(_onFeedPlaybackGateChanged);
+    widget.soundMutedListenable?.removeListener(_onSoundMuteChanged);
     final c = _controller;
     if (c != null) {
       c.setVolume(0);

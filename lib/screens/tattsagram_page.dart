@@ -655,6 +655,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
           post: p,
           isCenter: index == _currentIndex,
           centerPlaybackListenable: _feedPlaybackGate,
+          soundMutedListenable: _feedSoundMuted,
           onLike: () => _onToggleLike(p),
         );
       },
@@ -799,12 +800,14 @@ class _TattsagramFeedItem extends StatelessWidget {
     required this.post,
     required this.isCenter,
     required this.centerPlaybackListenable,
+    required this.soundMutedListenable,
     required this.onLike,
   });
 
   final TattsagramPost post;
   final bool isCenter;
   final ValueListenable<bool> centerPlaybackListenable;
+  final ValueListenable<bool> soundMutedListenable;
   final VoidCallback onLike;
 
   Widget _media(ColorScheme scheme) {
@@ -818,6 +821,7 @@ class _TattsagramFeedItem extends StatelessWidget {
         feedPlaybackListenable: isCenter
             ? centerPlaybackListenable
             : const AlwaysStoppedAnimation<bool>(false),
+        soundMutedListenable: soundMutedListenable,
       );
     }
     return Image.network(
