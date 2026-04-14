@@ -100,10 +100,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     }
   }
 
-  void _onScrollRecomputeSound() {
-    _applySoundFromLayout();
-  }
-
   Future<void> _applySnapLockedPlayback() async {
     final c = _controller;
     if (!mounted || c == null || !c.value.isInitialized) return;
@@ -121,38 +117,18 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     }
   }
 
-  void _applySoundFromLayout() {
-    if (!mounted) return;
+  void _onFeedPlaybackGateChanged() async {
+    await _applySnapLockedPlayback();
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
-
-    if (!_feedAllowsPlayback) {
+    if (_feedAllowsPlayback) {
+      TattsagramVideoSoundRegistry.setSingleActiveController(c);
+    } else {
       TattsagramVideoSoundRegistry.applyFeedPlaybackGate(
         controller: c,
         allow: false,
       );
-      return;
     }
-
-    final ro = context.findRenderObject();
-    if (ro is! RenderBox || !ro.hasSize) return;
-
-    final offset = ro.localToGlobal(Offset.zero);
-    final top = offset.dy;
-    final bottom = top + ro.size.height;
-    final tileCenter = top + (bottom - top) / 2;
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final screenCenter = screenHeight / 2;
-    final distance = (tileCenter - screenCenter).abs();
-
-    TattsagramVideoSoundRegistry.beginScrollSoundPass();
-    TattsagramVideoSoundRegistry.submitSoundCandidate(c, distance);
-    TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
-  }
-
-  void _onFeedPlaybackGateChanged() async {
-    await _applySnapLockedPlayback();
-    _applySoundFromLayout();
   }
 
   void _onSoundMuteChanged() => unawaited(_applySnapLockedPlayback());
@@ -170,7 +146,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   @override
   void initState() {
     super.initState();
-    widget.scrollController?.addListener(_onScrollRecomputeSound);
     widget.feedPlaybackListenable?.addListener(_onFeedPlaybackGateChanged);
     widget.soundMutedListenable?.addListener(_onSoundMuteChanged);
     _controller = _createController();
@@ -180,28 +155,23 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       if (ctrl == null) return;
       _attachAndConfigure(ctrl);
       await _applySnapLockedPlayback();
+      if (_feedAllowsPlayback) {
+        TattsagramVideoSoundRegistry.setSingleActiveController(ctrl);
+      } else {
+        TattsagramVideoSoundRegistry.applyFeedPlaybackGate(
+          controller: ctrl,
+          allow: false,
+        );
+      }
       if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _applySoundFromLayout();
-      });
       setState(() {});
     });
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _applySoundFromLayout();
   }
 
   @override
   void didUpdateWidget(covariant VideoPlayerWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     var playbackSourceChanged = false;
-    if (oldWidget.scrollController != widget.scrollController) {
-      oldWidget.scrollController?.removeListener(_onScrollRecomputeSound);
-      widget.scrollController?.addListener(_onScrollRecomputeSound);
-    }
     if (oldWidget.feedPlaybackListenable != widget.feedPlaybackListenable) {
       oldWidget.feedPlaybackListenable
           ?.removeListener(_onFeedPlaybackGateChanged);
@@ -228,10 +198,15 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         if (ctrl == null) return;
         _attachAndConfigure(ctrl);
         await _applySnapLockedPlayback();
+        if (_feedAllowsPlayback) {
+          TattsagramVideoSoundRegistry.setSingleActiveController(ctrl);
+        } else {
+          TattsagramVideoSoundRegistry.applyFeedPlaybackGate(
+            controller: ctrl,
+            allow: false,
+          );
+        }
         if (!mounted) return;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _applySoundFromLayout();
-        });
         setState(() {});
       });
       if (_controller == null && mounted) setState(() {});
@@ -239,18 +214,22 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       final c = _controller;
       if (c != null) {
         TattsagramVideoSoundRegistry.disposeSlot(c);
+        if (_feedAllowsPlayback && c.value.isInitialized) {
+          TattsagramVideoSoundRegistry.setSingleActiveController(c);
+        }
       }
-      _applySoundFromLayout();
     }
     if (playbackSourceChanged) {
       unawaited(_applySnapLockedPlayback());
-      _applySoundFromLayout();
+      final c = _controller;
+      if (c != null && c.value.isInitialized && _feedAllowsPlayback) {
+        TattsagramVideoSoundRegistry.setSingleActiveController(c);
+      }
     }
   }
 
   @override
   void dispose() {
-    widget.scrollController?.removeListener(_onScrollRecomputeSound);
     widget.feedPlaybackListenable?.removeListener(_onFeedPlaybackGateChanged);
     widget.soundMutedListenable?.removeListener(_onSoundMuteChanged);
     final c = _controller;

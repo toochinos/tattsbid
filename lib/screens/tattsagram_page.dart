@@ -207,8 +207,6 @@ class _TattsagramPageState extends State<TattsagramPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _seedLoopScrollOffset();
-        TattsagramVideoSoundRegistry.beginScrollSoundPass();
-        TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
       });
     } catch (e, st) {
       debugPrint('Tattsagram remote load failed: $e\n$st');
@@ -247,11 +245,6 @@ class _TattsagramPageState extends State<TattsagramPage> {
       _currentIndex = i;
       _isTikTokFullscreen = true;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _onFeedScrollSoundPass();
-      TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
-    });
   }
 
   void _exitTikTokMode() {
@@ -270,11 +263,6 @@ class _TattsagramPageState extends State<TattsagramPage> {
     setState(() {
       _currentIndex = i;
       _isTikTokFullscreen = false;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _onFeedScrollSoundPass();
-      TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
     });
   }
 
@@ -295,18 +283,11 @@ class _TattsagramPageState extends State<TattsagramPage> {
   int get _sequenceLength => _feedSequence.length;
 
   void _onFeedScrollCombined() {
-    _onFeedScrollSoundPass();
     _repositionInfiniteScroll();
     _maybeRebuildRankedSequenceNearEnd();
   }
 
   double _itemExtentForWidth(double width) => width;
-
-  void _onFeedScrollSoundPass() {
-    if (!_feedPlaybackGate.value) return;
-    TattsagramVideoSoundRegistry.beginScrollSoundPass();
-    TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
-  }
 
   void _seedLoopScrollOffset() {
     final c = _feedScrollController;
@@ -521,12 +502,6 @@ class _TattsagramPageState extends State<TattsagramPage> {
     // Run after layout settles so the snapped tile is measured in the yellow zone.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _onFeedScrollSoundPass();
-      // Extra pass helps when scroll metrics update one frame later.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _onFeedScrollSoundPass();
-      });
     });
   }
 
@@ -708,8 +683,6 @@ class _TattsagramPageState extends State<TattsagramPage> {
         itemCount: L,
         onPageChanged: (index) {
           setState(() => _currentIndex = index);
-          _onFeedScrollSoundPass();
-          TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
         },
         itemBuilder: (context, index) {
           final p = seq[index];
@@ -743,8 +716,6 @@ class _TattsagramPageState extends State<TattsagramPage> {
         setState(() {
           _currentIndex = index;
         });
-        _onFeedScrollSoundPass();
-        TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
       },
       itemBuilder: (context, index) {
         final p = seq[index];

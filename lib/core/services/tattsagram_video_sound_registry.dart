@@ -141,4 +141,25 @@ class TattsagramVideoSoundRegistry {
       activeController = null;
     }
   }
+
+  /// Single-active mode for feeds where only one decoder should own sound.
+  /// Call this when the page/index settles (e.g. onPageChanged), not per frame.
+  static void setSingleActiveController(VideoPlayerController c) {
+    _registeredControllers.add(c);
+    activeController = c;
+    _tiers[c] = TattsagramPlaybackTier.center;
+    if (c.value.isInitialized) {
+      c.setVolume(_userSoundMuted ? 0 : 1);
+      if (!c.value.isPlaying) c.play();
+    }
+
+    for (final other in _registeredControllers) {
+      if (identical(other, c)) continue;
+      _tiers[other] = TattsagramPlaybackTier.far;
+      if (other.value.isInitialized) {
+        other.setVolume(0);
+        if (other.value.isPlaying) other.pause();
+      }
+    }
+  }
 }
