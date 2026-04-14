@@ -61,8 +61,11 @@ class _TattsagramPageState extends State<TattsagramPage> {
   bool _needsSequenceRebuild = false;
 
   late final ScrollController _feedScrollController;
-  late final PageController _feedPageController;
+  late PageController _feedPageController;
   late final ValueNotifier<bool> _feedPlaybackGate;
+
+  /// Full-screen vertical feed (TikTok-style); entered by tapping a video on the landing feed.
+  bool _isTikTokFullscreen = false;
   bool _snapPlaybackEnabled = true;
   bool _isSnapping = false;
   int? _gestureStartAbsIndex;
@@ -229,6 +232,64 @@ class _TattsagramPageState extends State<TattsagramPage> {
       ..dispose();
     _feedPageController.dispose();
     super.dispose();
+  }
+
+  void _enterTikTokMode(int index) {
+    final L = _feedSequence.length;
+    if (L == 0) return;
+    final i = index.clamp(0, L - 1);
+    _feedPageController.dispose();
+    _feedPageController = PageController(
+      initialPage: i,
+      viewportFraction: 1.0,
+    );
+    setState(() {
+      _currentIndex = i;
+      _isTikTokFullscreen = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _onFeedScrollSoundPass();
+      TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
+    });
+  }
+
+  void _exitTikTokMode() {
+    if (!_isTikTokFullscreen) return;
+    final L = _feedSequence.length;
+    if (L == 0) {
+      setState(() => _isTikTokFullscreen = false);
+      return;
+    }
+    final i = _currentIndex.clamp(0, L - 1);
+    _feedPageController.dispose();
+    _feedPageController = PageController(
+      initialPage: i,
+      viewportFraction: _pageViewportFraction,
+    );
+    setState(() {
+      _currentIndex = i;
+      _isTikTokFullscreen = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _onFeedScrollSoundPass();
+      TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
+    });
+  }
+
+  void _onVideoCellTapped(int index) {
+    if (_isTikTokFullscreen) {
+      unawaited(
+        _feedPageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    } else {
+      _enterTikTokMode(index);
+    }
   }
 
   int get _sequenceLength => _feedSequence.length;
@@ -636,6 +697,42 @@ class _TattsagramPageState extends State<TattsagramPage> {
       );
     }
     if (_currentIndex >= L) _currentIndex = L - 1;
+
+    if (_isTikTokFullscreen) {
+      return PageView.builder(
+        controller: _feedPageController,
+        scrollDirection: Axis.vertical,
+        padEnds: false,
+        allowImplicitScrolling: false,
+        pageSnapping: true,
+        itemCount: L,
+        onPageChanged: (index) {
+          setState(() => _currentIndex = index);
+          _onFeedScrollSoundPass();
+          TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
+        },
+        itemBuilder: (context, index) {
+          final p = seq[index];
+          final isActive = index == _currentIndex;
+          final mountDecoder =
+              isActive && p.mediaType == TattsagramMediaType.video;
+          return _TattsagramFeedItem(
+            key: ValueKey('tt-$index-${p.id ?? p.canonicalRemoteUrl}'),
+            post: p,
+            isCenter: isActive,
+            mountVideoDecoder: mountDecoder,
+            onVideoSurfaceTap: null,
+            onVideoThumbnailTap: p.mediaType == TattsagramMediaType.video
+                ? () => _onVideoCellTapped(index)
+                : null,
+            centerPlaybackListenable: _feedPlaybackGate,
+            soundMutedListenable: _feedSoundMuted,
+            onLike: () => _onToggleLike(p),
+          );
+        },
+      );
+    }
+
     return PageView.builder(
       controller: _feedPageController,
       scrollDirection: Axis.vertical,
@@ -646,6 +743,8 @@ class _TattsagramPageState extends State<TattsagramPage> {
         setState(() {
           _currentIndex = index;
         });
+        _onFeedScrollSoundPass();
+        TattsagramVideoSoundRegistry.scheduleFinalizeSoundPass();
       },
       itemBuilder: (context, index) {
         final p = seq[index];
@@ -654,6 +753,11 @@ class _TattsagramPageState extends State<TattsagramPage> {
               ValueKey('${p.id ?? p.canonicalRemoteUrl}-${p.mediaType}-$index'),
           post: p,
           isCenter: index == _currentIndex,
+          mountVideoDecoder: p.mediaType == TattsagramMediaType.video,
+          onVideoSurfaceTap: p.mediaType == TattsagramMediaType.video
+              ? () => _enterTikTokMode(index)
+              : null,
+          onVideoThumbnailTap: null,
           centerPlaybackListenable: _feedPlaybackGate,
           soundMutedListenable: _feedSoundMuted,
           onLike: () => _onToggleLike(p),
@@ -678,120 +782,226 @@ class _TattsagramPageState extends State<TattsagramPage> {
     final scheme = Theme.of(context).colorScheme;
     final backTooltip = MaterialLocalizations.of(context).backButtonTooltip;
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      body: Stack(
-        clipBehavior: Clip.none,
-        fit: StackFit.expand,
-        children: [
-          Positioned.fill(
-            child: MediaQuery.removeViewInsets(
-              removeBottom: true,
-              context: context,
-              child: _buildFeed(),
+    return PopScope(
+      canPop: !_isTikTokFullscreen,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isTikTokFullscreen) {
+          _exitTikTokMode();
+        }
+      },
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        body: Stack(
+          clipBehavior: Clip.none,
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: MediaQuery.removeViewInsets(
+                removeBottom: true,
+                context: context,
+                child: _buildFeed(),
+              ),
             ),
-          ),
-          IgnorePointer(
-            child: Center(
-              child: Container(
-                width: MediaQuery.sizeOf(context).width * 0.78,
-                height: MediaQuery.sizeOf(context).width * 0.78,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.transparent, width: 2),
+            IgnorePointer(
+              child: Center(
+                child: Container(
+                  width: MediaQuery.sizeOf(context).width * 0.78,
+                  height: MediaQuery.sizeOf(context).width * 0.78,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.transparent, width: 2),
+                  ),
                 ),
               ),
             ),
-          ),
-          if (!_chatOpen)
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: SafeArea(
-                top: false,
-                left: false,
-                minimum: const EdgeInsets.only(right: 16, bottom: 12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ValueListenableBuilder<bool>(
-                      valueListenable: _feedSoundMuted,
-                      builder: (context, muted, _) {
-                        return Material(
-                          elevation: 2,
-                          shape: const CircleBorder(),
-                          clipBehavior: Clip.antiAlias,
-                          color: scheme.surfaceContainerHighest
-                              .withValues(alpha: 0.95),
-                          child: IconButton(
-                            tooltip: muted ? 'Unmute' : 'Mute',
-                            icon: Icon(
-                              muted ? Icons.volume_off : Icons.volume_up,
-                            ),
-                            onPressed: () {
-                              final v = !_feedSoundMuted.value;
-                              _feedSoundMuted.value = v;
-                              TattsagramVideoSoundRegistry.setUserSoundMuted(
-                                v,
-                              );
-                            },
-                          ),
-                        );
-                      },
+            if (_isTikTokFullscreen)
+              Positioned(
+                top: 0,
+                left: 0,
+                child: SafeArea(
+                  minimum: const EdgeInsets.only(top: 8, left: 8),
+                  child: Material(
+                    elevation: 2,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    color:
+                        scheme.surfaceContainerHighest.withValues(alpha: 0.95),
+                    child: IconButton(
+                      tooltip: 'Close fullscreen',
+                      icon: const Icon(Icons.fullscreen_exit),
+                      onPressed: _exitTikTokMode,
                     ),
-                    if (_showBackFab) ...[
-                      const SizedBox(height: 8),
-                      Material(
+                  ),
+                ),
+              ),
+            if (_isTikTokFullscreen)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: SafeArea(
+                  top: false,
+                  left: false,
+                  minimum: const EdgeInsets.only(right: 16, bottom: 12),
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _feedSoundMuted,
+                    builder: (context, muted, _) {
+                      return Material(
                         elevation: 2,
                         shape: const CircleBorder(),
                         clipBehavior: Clip.antiAlias,
                         color: scheme.surfaceContainerHighest
                             .withValues(alpha: 0.95),
                         child: IconButton(
-                          tooltip: backTooltip,
-                          icon: const Icon(Icons.arrow_back),
-                          onPressed: _handleBack,
+                          tooltip: muted ? 'Unmute' : 'Mute',
+                          icon: Icon(
+                            muted ? Icons.volume_off : Icons.volume_up,
+                          ),
+                          onPressed: () {
+                            final v = !_feedSoundMuted.value;
+                            _feedSoundMuted.value = v;
+                            TattsagramVideoSoundRegistry.setUserSoundMuted(v);
+                          },
                         ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          if (!_chatOpen)
-            Positioned(
-              top: 0,
-              right: 0,
-              child: SafeArea(
-                minimum: const EdgeInsets.only(top: 8, right: 8),
-                child: Material(
-                  elevation: 2,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.95),
-                  child: IconButton(
-                    tooltip: 'Live chat',
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    onPressed: () => setState(() => _chatOpen = true),
+                      );
+                    },
                   ),
                 ),
               ),
-            ),
-          TattsagramChatOverlay(
-            isOpen: _chatOpen,
-            onClose: () => setState(() => _chatOpen = false),
-            onPhotoPostedToFeed: _onPhotoPostedFromLiveChat,
-            onInsertTempVideoAtTop: _onInsertTempVideoAtTop,
-            onReplaceTempVideoWhenFinished: _onReplaceTempVideoWhenFinished,
-            onPendingVideoUploadFailed: _onPendingVideoUploadFailed,
-            feedSoundMuted: _feedSoundMuted,
-            showComposerBack: _showBackFab,
-            onComposerBack: _handleBack,
-          ),
-        ],
+            if (!_isTikTokFullscreen && !_chatOpen)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: SafeArea(
+                  top: false,
+                  left: false,
+                  minimum: const EdgeInsets.only(right: 16, bottom: 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _feedSoundMuted,
+                        builder: (context, muted, _) {
+                          return Material(
+                            elevation: 2,
+                            shape: const CircleBorder(),
+                            clipBehavior: Clip.antiAlias,
+                            color: scheme.surfaceContainerHighest
+                                .withValues(alpha: 0.95),
+                            child: IconButton(
+                              tooltip: muted ? 'Unmute' : 'Mute',
+                              icon: Icon(
+                                muted ? Icons.volume_off : Icons.volume_up,
+                              ),
+                              onPressed: () {
+                                final v = !_feedSoundMuted.value;
+                                _feedSoundMuted.value = v;
+                                TattsagramVideoSoundRegistry.setUserSoundMuted(
+                                  v,
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                      if (_showBackFab) ...[
+                        const SizedBox(height: 8),
+                        Material(
+                          elevation: 2,
+                          shape: const CircleBorder(),
+                          clipBehavior: Clip.antiAlias,
+                          color: scheme.surfaceContainerHighest
+                              .withValues(alpha: 0.95),
+                          child: IconButton(
+                            tooltip: backTooltip,
+                            icon: const Icon(Icons.arrow_back),
+                            onPressed: _handleBack,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            if (!_isTikTokFullscreen && !_chatOpen)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: SafeArea(
+                  minimum: const EdgeInsets.only(top: 8, right: 8),
+                  child: Material(
+                    elevation: 2,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    color:
+                        scheme.surfaceContainerHighest.withValues(alpha: 0.95),
+                    child: IconButton(
+                      tooltip: 'Live chat',
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      onPressed: () => setState(() => _chatOpen = true),
+                    ),
+                  ),
+                ),
+              ),
+            if (!_isTikTokFullscreen)
+              TattsagramChatOverlay(
+                isOpen: _chatOpen,
+                onClose: () => setState(() => _chatOpen = false),
+                onPhotoPostedToFeed: _onPhotoPostedFromLiveChat,
+                onInsertTempVideoAtTop: _onInsertTempVideoAtTop,
+                onReplaceTempVideoWhenFinished: _onReplaceTempVideoWhenFinished,
+                onPendingVideoUploadFailed: _onPendingVideoUploadFailed,
+                feedSoundMuted: _feedSoundMuted,
+                showComposerBack: _showBackFab,
+                onComposerBack: _handleBack,
+              ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _TattsagramVideoThumbnailOnly extends StatelessWidget {
+  const _TattsagramVideoThumbnailOnly({
+    required this.post,
+    required this.scheme,
+  });
+
+  final TattsagramPost post;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final thumb = post.thumbnailUrl?.trim();
+    if (thumb != null && thumb.isNotEmpty) {
+      return Image.network(
+        thumb,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return ColoredBox(
+            color: scheme.surfaceContainerHighest,
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        },
+        errorBuilder: (_, __, ___) => _fallback,
+      );
+    }
+    return _fallback;
+  }
+
+  Widget get _fallback => ColoredBox(
+        color: scheme.surfaceContainerHighest,
+        child: Center(
+          child: Icon(
+            Icons.videocam_outlined,
+            size: 56,
+            color: scheme.outline,
+          ),
+        ),
+      );
 }
 
 class _TattsagramFeedItem extends StatelessWidget {
@@ -799,6 +1009,9 @@ class _TattsagramFeedItem extends StatelessWidget {
     super.key,
     required this.post,
     required this.isCenter,
+    required this.mountVideoDecoder,
+    this.onVideoSurfaceTap,
+    this.onVideoThumbnailTap,
     required this.centerPlaybackListenable,
     required this.soundMutedListenable,
     required this.onLike,
@@ -806,23 +1019,29 @@ class _TattsagramFeedItem extends StatelessWidget {
 
   final TattsagramPost post;
   final bool isCenter;
+  final bool mountVideoDecoder;
+  final VoidCallback? onVideoSurfaceTap;
+  final VoidCallback? onVideoThumbnailTap;
   final ValueListenable<bool> centerPlaybackListenable;
   final ValueListenable<bool> soundMutedListenable;
   final VoidCallback onLike;
 
   Widget _media(ColorScheme scheme) {
     if (post.mediaType == TattsagramMediaType.video) {
-      return VideoPlayerWidget(
-        (post.videoUrl ?? post.mediaUrl).trim(),
-        filePath: post.localVideo,
-        thumbnailUrl: post.thumbnailUrl,
-        soundSlotId: post.id ?? post.canonicalRemoteUrl,
-        // Only center page autoplays; top/bottom previews remain paused.
-        feedPlaybackListenable: isCenter
-            ? centerPlaybackListenable
-            : const AlwaysStoppedAnimation<bool>(false),
-        soundMutedListenable: soundMutedListenable,
-      );
+      if (mountVideoDecoder) {
+        return VideoPlayerWidget(
+          (post.videoUrl ?? post.mediaUrl).trim(),
+          filePath: post.localVideo,
+          thumbnailUrl: post.thumbnailUrl,
+          soundSlotId: post.id ?? post.canonicalRemoteUrl,
+          feedPlaybackListenable: isCenter
+              ? centerPlaybackListenable
+              : const AlwaysStoppedAnimation<bool>(false),
+          soundMutedListenable: soundMutedListenable,
+          onSurfaceTap: onVideoSurfaceTap,
+        );
+      }
+      return _TattsagramVideoThumbnailOnly(post: post, scheme: scheme);
     }
     return Image.network(
       post.mediaUrl,
@@ -852,6 +1071,12 @@ class _TattsagramFeedItem extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     final media = _media(scheme);
+    final mediaWithGestures = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onVideoThumbnailTap,
+      onDoubleTap: onLike,
+      child: media,
+    );
     const actionStyle = TextStyle(
       color: Colors.white,
       fontSize: 13,
@@ -875,11 +1100,7 @@ class _TattsagramFeedItem extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onDoubleTap: onLike,
-            child: media,
-          ),
+          mediaWithGestures,
           if (post.isUploading)
             Positioned(
               bottom: 20,

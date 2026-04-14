@@ -24,6 +24,9 @@ class VideoPlayerWidget extends StatefulWidget {
 
     /// When set (e.g. pending Tattsagram upload), plays from disk instead of [mediaUrl].
     this.filePath,
+
+    /// When set, tap / play affordance invokes this instead of toggling playback (e.g. open fullscreen feed).
+    this.onSurfaceTap,
   });
 
   final String mediaUrl;
@@ -31,6 +34,8 @@ class VideoPlayerWidget extends StatefulWidget {
 
   /// Local file path; takes precedence over [mediaUrl] when non-empty.
   final String? filePath;
+
+  final VoidCallback? onSurfaceTap;
   final Object soundSlotId;
   final ScrollController? scrollController;
   final ValueListenable<bool>? feedPlaybackListenable;
@@ -332,7 +337,13 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         width: c.value.size.width,
         height: c.value.size.height,
         child: GestureDetector(
-          onTap: () => unawaited(_onUserPlayOrResume()),
+          onTap: () {
+            if (widget.onSurfaceTap != null) {
+              widget.onSurfaceTap!();
+            } else {
+              unawaited(_onUserPlayOrResume());
+            }
+          },
           behavior: HitTestBehavior.opaque,
           child: Stack(
             fit: StackFit.expand,
@@ -353,7 +364,11 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   ),
                   icon: const Icon(Icons.play_arrow),
                   onPressed: () async {
-                    await _onUserPlayOrResume();
+                    if (widget.onSurfaceTap != null) {
+                      widget.onSurfaceTap!();
+                    } else {
+                      await _onUserPlayOrResume();
+                    }
                   },
                 ),
             ],
