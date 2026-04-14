@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -246,11 +247,11 @@ class _TattsagramPageState extends State<TattsagramPage> {
         final id = p.id;
         if (id == null || id.isEmpty) return p;
         return p.copyWith(isLikedByMe: likedIds.contains(id));
-      }).toList(growable: false);
+      }).toList(growable: true);
       debugPrint('Fetched posts: ${withLikes.length}');
       if (!mounted) return;
       setState(() {
-        _remotePosts = withLikes;
+        _remotePosts = List<TattsagramPost>.from(withLikes);
         _remoteLoadDone = true;
         _recomposeFeedAndWeights();
       });
@@ -684,17 +685,29 @@ class _TattsagramPageState extends State<TattsagramPage> {
   void _onPhotoPostedFromLiveChat(TattsagramPost post) {
     if (!mounted) return;
     setState(() {
-      if (post.mediaType == TattsagramMediaType.image &&
-          post.canonicalRemoteUrl.isNotEmpty) {
-        // Ensure growable local feed before inserting new image at top.
-        _remotePosts = List<TattsagramPost>.from(_remotePosts);
-        _remotePosts.removeWhere(
-          (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
-        );
-        _remotePosts.insert(0, post);
-        _chatPosts.removeWhere(
-          (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
-        );
+      if (post.mediaType == TattsagramMediaType.image) {
+        if (post.isUploading && (post.id?.isNotEmpty ?? false)) {
+          final pid = post.id!;
+          final i = _chatPosts.indexWhere((p) => p.id == pid);
+          if (i >= 0) {
+            _chatPosts[i] = post;
+          } else {
+            _chatPosts.insert(0, post);
+          }
+        } else {
+          final replaceId = post.replacesLocalUploadId;
+          if (replaceId != null && replaceId.isNotEmpty) {
+            _chatPosts.removeWhere((p) => p.id == replaceId);
+          }
+          _remotePosts = List<TattsagramPost>.from(_remotePosts);
+          _remotePosts.removeWhere(
+            (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
+          );
+          _remotePosts.insert(0, post);
+          _chatPosts.removeWhere(
+            (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
+          );
+        }
       } else {
         final pid = post.id;
         if (pid != null && pid.isNotEmpty) {
@@ -1078,6 +1091,25 @@ class _TattsagramFeedItem extends StatelessWidget {
         );
       }
       return _TattsagramVideoThumbnailOnly(post: post, scheme: scheme);
+    }
+    final imagePath = post.mediaUrl.trim();
+    final uri = Uri.tryParse(imagePath);
+    final isRemote =
+        uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+    if (!isRemote && imagePath.isNotEmpty) {
+      return Image.file(
+        File(imagePath),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (_, __, ___) => ColoredBox(
+          color: scheme.surfaceContainerHighest,
+          child: Icon(
+            Icons.broken_image_outlined,
+            size: 48,
+            color: scheme.outline,
+          ),
+        ),
+      );
     }
     return Image.network(
       post.mediaUrl,

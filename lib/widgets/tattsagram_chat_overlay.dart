@@ -437,6 +437,23 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       SnackBar(content: Text(l10n.tattsagramUploadingPhoto)),
     );
 
+    final tempId = 'img_${DateTime.now().millisecondsSinceEpoch}';
+    final tempPost = TattsagramPost(
+      id: tempId,
+      mediaUrl: file.path,
+      mediaType: TattsagramMediaType.image,
+      artistName: 'You',
+      location: '',
+      caption: '',
+      timestamp: DateTime.now(),
+      isUploading: true,
+      uploadProgress: 0.0,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.onPhotoPostedToFeed?.call(tempPost);
+    });
+
     try {
       final original = File(file.path);
       final compressed = await FlutterImageCompress.compressWithFile(
@@ -466,6 +483,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         location: '',
         caption: '',
         timestamp: DateTime.now(),
+        isUploading: false,
+        replacesLocalUploadId: tempId,
       );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
