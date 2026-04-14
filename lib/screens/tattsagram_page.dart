@@ -99,6 +99,15 @@ class _TattsagramPageState extends State<TattsagramPage> {
 
   static const int _loopItemMultiplier = 400;
   bool _refreshingAuthSession = false;
+  String? _tempOverlayImagePath;
+  bool _tempOverlayVisible = false;
+  bool _tempOverlayAtTop = false;
+  Timer? _tempOverlayHideTimer;
+
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
 
   @override
   void initState() {
@@ -249,8 +258,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
         return p.copyWith(isLikedByMe: likedIds.contains(id));
       }).toList(growable: true);
       debugPrint('Fetched posts: ${withLikes.length}');
-      if (!mounted) return;
-      setState(() {
+      _safeSetState(() {
         _remotePosts = List<TattsagramPost>.from(withLikes);
         _remoteLoadDone = true;
         _recomposeFeedAndWeights();
@@ -261,16 +269,15 @@ class _TattsagramPageState extends State<TattsagramPage> {
       });
     } catch (e, st) {
       debugPrint('Tattsagram remote load failed: $e\n$st');
-      if (mounted) {
-        setState(() {
-          _remoteLoadDone = true;
-        });
-      }
+      _safeSetState(() {
+        _remoteLoadDone = true;
+      });
     }
   }
 
   @override
   void dispose() {
+    _tempOverlayHideTimer?.cancel();
     _authStateSub?.cancel();
     _tattsagramPostsChannel?.unsubscribe();
     widget.feedPlaybackListenable?.removeListener(_recomputeFeedPlaybackGate);
@@ -284,6 +291,40 @@ class _TattsagramPageState extends State<TattsagramPage> {
     super.dispose();
   }
 
+  void _showOptimisticPhotoOverlay(String path) {
+    _tempOverlayHideTimer?.cancel();
+    _safeSetState(() {
+      _tempOverlayImagePath = path;
+      _tempOverlayVisible = true;
+      _tempOverlayAtTop = false;
+    });
+    _tempOverlayHideTimer = Timer(const Duration(milliseconds: 5000), () {
+      if (!mounted) return;
+      setState(() {
+        _tempOverlayAtTop = true;
+      });
+    });
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 5220)).then((_) {
+        if (!mounted) return;
+        setState(() {
+          _tempOverlayVisible = false;
+        });
+      }),
+    );
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 5440)).then((_) {
+        if (!mounted) return;
+        if (!_tempOverlayVisible) {
+          setState(() {
+            _tempOverlayImagePath = null;
+            _tempOverlayAtTop = false;
+          });
+        }
+      }),
+    );
+  }
+
   void _enterTikTokMode(int index) {
     final L = _feedSequence.length;
     if (L == 0) return;
@@ -293,7 +334,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
       initialPage: i,
       viewportFraction: 1.0,
     );
-    setState(() {
+    _safeSetState(() {
       _currentIndex = i;
       _isTikTokFullscreen = true;
     });
@@ -303,7 +344,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
     if (!_isTikTokFullscreen) return;
     final L = _feedSequence.length;
     if (L == 0) {
-      setState(() => _isTikTokFullscreen = false);
+      _safeSetState(() => _isTikTokFullscreen = false);
       return;
     }
     final i = _currentIndex.clamp(0, L - 1);
@@ -312,7 +353,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
       initialPage: i,
       viewportFraction: _pageViewportFraction,
     );
-    setState(() {
+    _safeSetState(() {
       _currentIndex = i;
       _isTikTokFullscreen = false;
     });
@@ -387,7 +428,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
     _needsSequenceRebuild = false;
 
     final newL = _feedSequence.length;
-    setState(() {});
+    _safeSetState(() {});
 
     if (!c.hasClients || w <= 0 || newL == 0 || anchor == null) {
       return;
@@ -449,14 +490,14 @@ class _TattsagramPageState extends State<TattsagramPage> {
     _replaceInUniquePool(updated);
     TattsagramRankedPoolFeed.syncPostInstances(_feedSequence, updated);
     _needsSequenceRebuild = true;
-    setState(() {});
+    _safeSetState(() {});
   }
 
   void _revertLikeTo(TattsagramPost snapshot) {
     _replaceInUniquePool(snapshot);
     TattsagramRankedPoolFeed.syncPostInstances(_feedSequence, snapshot);
     _needsSequenceRebuild = true;
-    setState(() {});
+    _safeSetState(() {});
   }
 
   /// Optimistic UI; persists to `tattsagram_likes` (triggers maintain `likes_count`).
@@ -684,10 +725,33 @@ class _TattsagramPageState extends State<TattsagramPage> {
 
   void _onPhotoPostedFromLiveChat(TattsagramPost post) {
     if (!mounted) return;
+    String? overlayPathToShow;
     setState(() {
       if (post.mediaType == TattsagramMediaType.image) {
         if (post.isUploading && (post.id?.isNotEmpty ?? false)) {
+          if (_chatOpen) {
+            _chatOpen = false;
+          }
+          final localPath = post.mediaUrl.trim();
+          if (localPath.isNotEmpty) {
+            final uri = Uri.tryParse(localPath);
+            final isRemote =
+                uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+            if (!isRemote) {
+              overlayPathToShow = (uri != null && uri.scheme == 'file')
+                  ? uri.toFilePath()
+                  : localPath;
+            }
+          }
           final pid = post.id!;
+          // Insert optimistic image directly into page-level feed sources immediately.
+          _remotePosts = List<TattsagramPost>.from(_remotePosts);
+          final remoteI = _remotePosts.indexWhere((p) => p.id == pid);
+          if (remoteI >= 0) {
+            _remotePosts[remoteI] = post;
+          } else {
+            _remotePosts.add(post);
+          }
           final i = _chatPosts.indexWhere((p) => p.id == pid);
           if (i >= 0) {
             _chatPosts[i] = post;
@@ -697,13 +761,25 @@ class _TattsagramPageState extends State<TattsagramPage> {
         } else {
           final replaceId = post.replacesLocalUploadId;
           if (replaceId != null && replaceId.isNotEmpty) {
+            _remotePosts = List<TattsagramPost>.from(_remotePosts);
+            final tempRemoteI =
+                _remotePosts.indexWhere((p) => p.id == replaceId);
             _chatPosts.removeWhere((p) => p.id == replaceId);
+            if (tempRemoteI >= 0) {
+              _remotePosts[tempRemoteI] = post;
+            } else {
+              _remotePosts.removeWhere(
+                (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
+              );
+              _remotePosts.insert(0, post);
+            }
+          } else {
+            _remotePosts = List<TattsagramPost>.from(_remotePosts);
+            _remotePosts.removeWhere(
+              (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
+            );
+            _remotePosts.insert(0, post);
           }
-          _remotePosts = List<TattsagramPost>.from(_remotePosts);
-          _remotePosts.removeWhere(
-            (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
-          );
-          _remotePosts.insert(0, post);
           _chatPosts.removeWhere(
             (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
           );
@@ -723,6 +799,9 @@ class _TattsagramPageState extends State<TattsagramPage> {
       }
       _mergeUniquePoolFromSources();
     });
+    if (overlayPathToShow != null && overlayPathToShow!.isNotEmpty) {
+      _showOptimisticPhotoOverlay(overlayPathToShow!);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _rebuildRankedSequencePreservingAnchor();
     });
@@ -851,6 +930,50 @@ class _TattsagramPageState extends State<TattsagramPage> {
                 child: _buildFeed(),
               ),
             ),
+            if (_tempOverlayImagePath != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedAlign(
+                    alignment: _tempOverlayAtTop
+                        ? Alignment.topCenter
+                        : Alignment.center,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        top: _tempOverlayAtTop
+                            ? MediaQuery.paddingOf(context).top + 10
+                            : 0,
+                      ),
+                      child: AnimatedOpacity(
+                        opacity: _tempOverlayVisible ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOut,
+                        child: AnimatedScale(
+                          scale: _tempOverlayVisible ? 1.0 : 0.92,
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOutBack,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: SizedBox(
+                              width: MediaQuery.sizeOf(context).width * 0.78,
+                              child: AspectRatio(
+                                aspectRatio: 9 / 16,
+                                child: Image.file(
+                                  File(_tempOverlayImagePath!),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const SizedBox.shrink(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             IgnorePointer(
               child: Center(
                 child: Container(
@@ -1096,9 +1219,11 @@ class _TattsagramFeedItem extends StatelessWidget {
     final uri = Uri.tryParse(imagePath);
     final isRemote =
         uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
-    if (!isRemote && imagePath.isNotEmpty) {
+    final localPath =
+        (uri != null && uri.scheme == 'file') ? uri.toFilePath() : imagePath;
+    if (!isRemote && localPath.isNotEmpty) {
       return Image.file(
-        File(imagePath),
+        File(localPath),
         fit: BoxFit.cover,
         width: double.infinity,
         errorBuilder: (_, __, ___) => ColoredBox(

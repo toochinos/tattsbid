@@ -104,6 +104,11 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   final List<LiveMessage> _pendingEcho = [];
   int _echoSeq = 0;
 
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -124,8 +129,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     _liveChatBlinkTimer = Timer.periodic(
       const Duration(milliseconds: 900),
       (_) {
-        if (!mounted) return;
-        setState(() => _liveChatBlinkDim = !_liveChatBlinkDim);
+        _safeSetState(() => _liveChatBlinkDim = !_liveChatBlinkDim);
       },
     );
     unawaited(_loadInitialMessages());
@@ -190,7 +194,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     if (_serverMessages != null && _sameMessageRows(_serverMessages!, rows)) {
       return;
     }
-    setState(() => _serverMessages = rows);
+    _safeSetState(() => _serverMessages = rows);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _scrollMessagesToBottom();
     });
@@ -203,11 +207,9 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       _applyServerMessages(rows);
     } catch (e, st) {
       debugPrint('live_messages initial load: $e\n$st');
-      if (mounted) {
-        setState(() {
-          _serverMessages = [];
-        });
-      }
+      _safeSetState(() {
+        _serverMessages = [];
+      });
     }
   }
 
@@ -301,7 +303,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       createdAt: DateTime.now().toUtc(),
     );
 
-    setState(() {
+    _safeSetState(() {
       _pendingEcho.add(echo);
       _inputController.clear();
     });
@@ -312,7 +314,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     } catch (e, st) {
       debugPrint('Live message send failed: $e\n$st');
       if (!mounted) return;
-      setState(() {
+      _safeSetState(() {
         _pendingEcho.removeWhere((p) => p.localEchoId == echoId);
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -437,10 +439,11 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       SnackBar(content: Text(l10n.tattsagramUploadingPhoto)),
     );
 
+    final original = File(file.path);
     final tempId = 'img_${DateTime.now().millisecondsSinceEpoch}';
     final tempPost = TattsagramPost(
       id: tempId,
-      mediaUrl: file.path,
+      mediaUrl: original.path,
       mediaType: TattsagramMediaType.image,
       artistName: 'You',
       location: '',
@@ -449,29 +452,41 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       isUploading: true,
       uploadProgress: 0.0,
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.onPhotoPostedToFeed?.call(tempPost);
-    });
+    if (!mounted) return;
+    debugPrint('insert temp post');
+    widget.onPhotoPostedToFeed?.call(tempPost);
 
     try {
-      final original = File(file.path);
+      debugPrint('compressing...');
       final compressed = await FlutterImageCompress.compressWithFile(
         original.path,
         minWidth: 720,
         minHeight: 1280,
         quality: 80,
       );
+      if (!mounted) return;
       final uploadFile = compressed == null
           ? original
           : await File('${original.path}.feed_720.jpg')
               .writeAsBytes(compressed);
-
-      final url = await PhotoService.uploadTattsagramPhoto(uploadFile);
       if (!mounted) return;
+
+      debugPrint('uploading...');
+      String? url;
+      try {
+        url = await PhotoService.uploadTattsagramPhoto(uploadFile);
+      } catch (e, st) {
+        debugPrint('Photo upload failed (keeping temp post): $e\n$st');
+        if (!mounted) return;
+        messenger.hideCurrentSnackBar();
+        return;
+      }
+      if (!mounted) return;
+      if (url.isEmpty) return;
       messenger.hideCurrentSnackBar();
 
       final profile = await ProfileService.getCurrentProfile();
+      if (!mounted) return;
       final displayName = profile?.displayNameOrEmail.trim();
       final artistName =
           (displayName != null && displayName.isNotEmpty) ? displayName : 'You';
@@ -580,6 +595,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       messenger.hideCurrentSnackBar();
 
       final profile = await ProfileService.getCurrentProfile();
+      if (!mounted) return;
       final displayName = profile?.displayNameOrEmail.trim();
       final artistName =
           (displayName != null && displayName.isNotEmpty) ? displayName : 'You';
@@ -710,7 +726,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
 
   void _collapseToPeek() {
     FocusScope.of(context).unfocus();
-    setState(() => _panelExpanded = false);
+    _safeSetState(() => _panelExpanded = false);
     _panelSlideController.reverse();
   }
 
