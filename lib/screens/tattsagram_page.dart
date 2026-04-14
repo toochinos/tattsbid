@@ -91,11 +91,13 @@ class _TattsagramPageState extends State<TattsagramPage> {
   Timer? _onlineHeartbeat;
 
   RealtimeChannel? _tattsagramPostsChannel;
+  StreamSubscription<AuthState>? _authStateSub;
 
   /// Shared with [TattsagramChatOverlay] so feed + live chat mute controls stay in sync.
   late final ValueNotifier<bool> _feedSoundMuted;
 
   static const int _loopItemMultiplier = 400;
+  bool _refreshingAuthSession = false;
 
   @override
   void initState() {
@@ -117,43 +119,91 @@ class _TattsagramPageState extends State<TattsagramPage> {
     _feedScrollController.addListener(_onFeedScrollCombined);
     _feedPageController =
         PageController(viewportFraction: _pageViewportFraction);
+    _connectPostsRealtime();
+    _authStateSub = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) async {
+      final event = data.event;
+      if (event == AuthChangeEvent.signedOut) {
+        _tattsagramPostsChannel?.unsubscribe();
+        _tattsagramPostsChannel = null;
+      } else if (event == AuthChangeEvent.tokenRefreshed) {
+        _reconnectPostsRealtime();
+      }
+    });
+    unawaited(_recoverAuthSessionOnStart());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadRemoteTattsagramPosts());
+    });
+  }
+
+  void _connectPostsRealtime() {
     _tattsagramPostsChannel = Supabase.instance.client
         .channel('posts')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'tattsagram_post',
-          callback: (payload) {
-            if (!mounted) return;
-            final row = Map<String, dynamic>.from(payload.newRecord);
-            final post = TattsagramPostService.postFromRealtimeRow(row);
-
-            if (post.id != null && post.id!.isNotEmpty) {
-              if (_remotePosts.any((p) => p.id == post.id)) return;
-              if (_chatPosts.any((p) => p.id == post.id)) return;
-            }
-            final remoteKey = post.canonicalRemoteUrl;
-            if (remoteKey.isNotEmpty) {
-              if (_remotePosts.any((p) => p.canonicalRemoteUrl == remoteKey)) {
-                return;
-              }
-              if (_chatPosts.any((p) => p.canonicalRemoteUrl == remoteKey)) {
-                return;
-              }
-            }
-
-            setState(() {
-              _remotePosts.insert(0, post);
-              _mergeUniquePoolFromSources();
-            });
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _rebuildRankedSequencePreservingAnchor();
-            });
-          },
+          callback: _onRealtimePostInserted,
         )
         .subscribe();
+  }
+
+  void _reconnectPostsRealtime() {
+    _tattsagramPostsChannel?.unsubscribe();
+    _connectPostsRealtime();
+  }
+
+  Future<void> _silentlyRefreshSession() async {
+    if (_refreshingAuthSession) return;
+    final auth = Supabase.instance.client.auth;
+    if (auth.currentSession != null) return;
+    _refreshingAuthSession = true;
+    try {
+      await auth.refreshSession();
+    } catch (_) {
+      try {
+        await auth.signOut();
+      } catch (_) {
+        // Silent recovery only.
+      }
+    } finally {
+      _refreshingAuthSession = false;
+    }
+  }
+
+  Future<void> _recoverAuthSessionOnStart() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) return;
+    await _silentlyRefreshSession();
+  }
+
+  void _onRealtimePostInserted(PostgresChangePayload payload) {
+    if (!mounted) return;
+    final row = Map<String, dynamic>.from(payload.newRecord);
+    final post = TattsagramPostService.postFromRealtimeRow(row);
+
+    if (post.id != null && post.id!.isNotEmpty) {
+      if (_remotePosts.any((p) => p.id == post.id)) return;
+      if (_chatPosts.any((p) => p.id == post.id)) return;
+    }
+    final remoteKey = post.canonicalRemoteUrl;
+    if (remoteKey.isNotEmpty) {
+      if (_remotePosts.any((p) => p.canonicalRemoteUrl == remoteKey)) {
+        return;
+      }
+      if (_chatPosts.any((p) => p.canonicalRemoteUrl == remoteKey)) {
+        return;
+      }
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_loadRemoteTattsagramPosts());
+      if (!mounted) return;
+      setState(() {
+        _remotePosts.insert(0, post);
+        _mergeUniquePoolFromSources();
+      });
+      _rebuildRankedSequencePreservingAnchor();
     });
   }
 
@@ -220,6 +270,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
 
   @override
   void dispose() {
+    _authStateSub?.cancel();
     _tattsagramPostsChannel?.unsubscribe();
     widget.feedPlaybackListenable?.removeListener(_recomputeFeedPlaybackGate);
     _feedPlaybackGate.dispose();
@@ -631,17 +682,31 @@ class _TattsagramPageState extends State<TattsagramPage> {
   }
 
   void _onPhotoPostedFromLiveChat(TattsagramPost post) {
+    if (!mounted) return;
     setState(() {
-      final pid = post.id;
-      if (pid != null && pid.isNotEmpty) {
-        final i = _chatPosts.indexWhere((p) => p.id == pid);
-        if (i >= 0) {
-          _chatPosts[i] = post;
+      if (post.mediaType == TattsagramMediaType.image &&
+          post.canonicalRemoteUrl.isNotEmpty) {
+        // Ensure growable local feed before inserting new image at top.
+        _remotePosts = List<TattsagramPost>.from(_remotePosts);
+        _remotePosts.removeWhere(
+          (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
+        );
+        _remotePosts.insert(0, post);
+        _chatPosts.removeWhere(
+          (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
+        );
+      } else {
+        final pid = post.id;
+        if (pid != null && pid.isNotEmpty) {
+          final i = _chatPosts.indexWhere((p) => p.id == pid);
+          if (i >= 0) {
+            _chatPosts[i] = post;
+          } else {
+            _chatPosts.insert(0, post);
+          }
         } else {
           _chatPosts.insert(0, post);
         }
-      } else {
-        _chatPosts.insert(0, post);
       }
       _mergeUniquePoolFromSources();
     });

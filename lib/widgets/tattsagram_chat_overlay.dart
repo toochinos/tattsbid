@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -72,6 +73,8 @@ class TattsagramChatOverlay extends StatefulWidget {
 
 class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     with SingleTickerProviderStateMixin {
+  static const bool _cameraUploadEnabled = true;
+
   /// After primary platform font so emoji resolve (Apple / Windows / Android).
   static const List<String> _emojiFontFamilyFallback = [
     'Apple Color Emoji',
@@ -87,6 +90,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   List<LiveMessage>? _serverMessages;
   StreamSubscription<List<LiveMessage>>? _messagesSub;
   Timer? _messagesPollTimer;
+  bool _messagesPollRetryScheduled = false;
   Timer? _liveChatBlinkTimer;
   bool _liveChatBlinkDim = false;
 
@@ -212,8 +216,20 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       final rows = await LiveMessagesService.fetchMessagesForChat();
       if (!mounted) return;
       _applyServerMessages(rows);
-    } catch (e, st) {
-      debugPrint('live_messages poll: $e\n$st');
+      _messagesPollRetryScheduled = false;
+    } catch (e) {
+      final asText = e.toString().toLowerCase();
+      final isNetworkLookupFailure =
+          e is SocketException || asText.contains('failed host lookup');
+      if (!isNetworkLookupFailure) {
+        return;
+      }
+      if (_messagesPollRetryScheduled) return;
+      _messagesPollRetryScheduled = true;
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      _messagesPollRetryScheduled = false;
+      unawaited(_pollMessagesFromServer());
     }
   }
 
@@ -364,6 +380,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   }
 
   Future<void> _openCamera() async {
+    if (!_cameraUploadEnabled) return;
     if (!mounted) return;
     final kind = await _showTattsagramPickSheet();
     if (!mounted || kind == null) return;
@@ -421,7 +438,19 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     );
 
     try {
-      final url = await PhotoService.uploadPhoto(File(file.path));
+      final original = File(file.path);
+      final compressed = await FlutterImageCompress.compressWithFile(
+        original.path,
+        minWidth: 720,
+        minHeight: 1280,
+        quality: 80,
+      );
+      final uploadFile = compressed == null
+          ? original
+          : await File('${original.path}.feed_720.jpg')
+              .writeAsBytes(compressed);
+
+      final url = await PhotoService.uploadTattsagramPhoto(uploadFile);
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
 
@@ -438,7 +467,10 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         caption: '',
         timestamp: DateTime.now(),
       );
-      widget.onPhotoPostedToFeed?.call(post);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.onPhotoPostedToFeed?.call(post);
+      });
 
       if (!mounted) return;
       try {
@@ -905,21 +937,23 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 16, bottom: 12),
-                        child: Material(
-                          elevation: 4,
-                          shape: const CircleBorder(),
-                          clipBehavior: Clip.antiAlias,
-                          color: Colors.white.withValues(alpha: 0.95),
-                          child: IconButton(
-                            icon: const Icon(Icons.add_a_photo),
-                            tooltip: l10n.tattsagramFabShowTattoo,
-                            onPressed: () => _openCamera(),
+                      if (_cameraUploadEnabled) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16, bottom: 12),
+                          child: Material(
+                            elevation: 4,
+                            shape: const CircleBorder(),
+                            clipBehavior: Clip.antiAlias,
+                            color: Colors.white.withValues(alpha: 0.95),
+                            child: IconButton(
+                              icon: const Icon(Icons.add_a_photo),
+                              tooltip: l10n.tattsagramFabShowTattoo,
+                              onPressed: () => _openCamera(),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
+                        const SizedBox(width: 8),
+                      ],
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.only(

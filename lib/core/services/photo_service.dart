@@ -14,11 +14,32 @@ class PhotoService {
 
   static const String _bucket = 'posts';
 
+  static Future<void> _ensureSessionValid(SupabaseClient supabase) async {
+    final session = supabase.auth.currentSession;
+    if (session != null) return;
+    try {
+      await supabase.auth.refreshSession();
+    } catch (e, st) {
+      debugPrint('PhotoService session refresh failed: $e\n$st');
+      try {
+        await supabase.auth.signOut();
+      } catch (_) {}
+    }
+  }
+
+  static Future<void> _requireAuthenticatedSession(
+      SupabaseClient supabase) async {
+    if (supabase.auth.currentSession == null) {
+      throw Exception('User not authenticated');
+    }
+  }
+
   /// Same Supabase client as storage/DB; awaits session if [currentUser] is still null.
   static Future<String> _userIdForUpload() async {
     final supabase = Supabase.instance.client;
     // Yield so pending auth hydration (e.g. after [Supabase.initialize]) can finish.
     await Future<void>.delayed(Duration.zero);
+    await _ensureSessionValid(supabase);
 
     var user = supabase.auth.currentUser;
     if (user == null) {
@@ -54,6 +75,8 @@ class PhotoService {
   /// Path format: posts/{userId}/{timestamp}.jpg
   static Future<String> uploadPhoto(File file) async {
     final supabase = Supabase.instance.client;
+    await _ensureSessionValid(supabase);
+    await _requireAuthenticatedSession(supabase);
     final userId = await _userIdForUpload();
 
     final ext = file.path.split('.').last.toLowerCase();
@@ -77,6 +100,52 @@ class PhotoService {
   static Future<String> uploadImage(File file) => uploadPhoto(file);
 
   static const String _tattsagramBucket = 'tattsagram';
+
+  /// Uploads a Tattsagram feed image and inserts a row into `tattsagram_post`
+  /// so realtime feed subscribers receive the new post without manual refresh.
+  static Future<String> uploadTattsagramPhoto(File file) async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      throw Exception('User not signed in');
+    }
+    final userId = user.id;
+
+    final ext = file.path.split('.').last.toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'webp', 'gif'].contains(ext)) {
+      throw ArgumentError('Invalid image format. Use jpg, png, webp, or gif.');
+    }
+
+    final ms = DateTime.now().millisecondsSinceEpoch;
+    final path = 'images/$ms.$ext';
+    final contentType = switch (ext) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'gif' => 'image/gif',
+      _ => 'image/jpeg',
+    };
+
+    await supabase.storage.from(_tattsagramBucket).upload(
+          path,
+          file,
+          fileOptions: FileOptions(
+            upsert: true,
+            contentType: contentType,
+          ),
+        );
+
+    final imageUrl =
+        supabase.storage.from(_tattsagramBucket).getPublicUrl(path);
+
+    await supabase.from('tattsagram_post').insert({
+      'media_url': imageUrl,
+      'media_type': 'image',
+      'user_id': userId,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+    });
+
+    return imageUrl;
+  }
 
   /// Same endpoint and multipart shape as [StorageFileApi.upload], but streams the file
   /// so [onUploadProgress] receives byte-based progress in \[0, 1\] (Dart `storage_client`
@@ -155,16 +224,11 @@ class PhotoService {
     void Function(double progress)? onUploadProgress,
   }) async {
     final supabase = Supabase.instance.client;
-
-    // Same as [uploadPhoto]: yield + refresh so Storage RLS sees a JWT (avoids null user).
-    await _userIdForUpload();
-
     final user = supabase.auth.currentUser;
     if (user == null) {
-      // ignore: avoid_print
-      print('User not logged in');
-      throw Exception('User not logged in');
+      throw Exception('User not signed in');
     }
+    final userId = user.id;
 
     final ext = file.path.split('.').last.toLowerCase();
     if (!['mp4', 'mov'].contains(ext)) {
@@ -201,7 +265,7 @@ class PhotoService {
       await supabase.from('tattsagram_post').insert({
         'media_url': videoUrl,
         'media_type': 'video',
-        'user_id': user.id,
+        'user_id': userId,
         'created_at': DateTime.now().toUtc().toIso8601String(),
       });
 
