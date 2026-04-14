@@ -862,6 +862,35 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
               ),
             ),
           ),
+          if (widget.isOpen && !_panelExpanded)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: AnimatedOpacity(
+                    opacity: _liveChatBlinkDim ? 0.2 : 1.0,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeInOut,
+                    child: const Text(
+                      'PRESS + SLIDE',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                        shadows: [
+                          Shadow(
+                            color: Color(0xB3000000),
+                            blurRadius: 10,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (widget.isOpen)
             Positioned(
               left: 0,
