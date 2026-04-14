@@ -87,6 +87,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   List<LiveMessage>? _serverMessages;
   StreamSubscription<List<LiveMessage>>? _messagesSub;
   Timer? _messagesPollTimer;
+  Timer? _liveChatBlinkTimer;
+  bool _liveChatBlinkDim = false;
 
   /// When [widget.isOpen] is true: full slide panel + composer vs peek camera only.
   bool _panelExpanded = true;
@@ -114,6 +116,13 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     _messagesPollTimer = Timer.periodic(
       const Duration(seconds: 4),
       (_) => unawaited(_pollMessagesFromServer()),
+    );
+    _liveChatBlinkTimer = Timer.periodic(
+      const Duration(milliseconds: 900),
+      (_) {
+        if (!mounted) return;
+        setState(() => _liveChatBlinkDim = !_liveChatBlinkDim);
+      },
     );
     unawaited(_loadInitialMessages());
     final initiallyVisible = widget.isOpen && _panelExpanded;
@@ -150,6 +159,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   @override
   void dispose() {
     _messagesPollTimer?.cancel();
+    _liveChatBlinkTimer?.cancel();
     final sub = _messagesSub;
     _messagesSub = null;
     if (sub != null) {
@@ -794,17 +804,22 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                             textBaseline: TextBaseline.alphabetic,
                             children: [
                               Expanded(
-                                child: Text(
-                                  'Live Chat',
-                                  style: textTheme.titleMedium?.copyWith(
-                                    fontSize:
-                                        (textTheme.titleMedium?.fontSize ??
-                                                16) +
-                                            3,
-                                    fontWeight: FontWeight.w800,
-                                    color: onChatText,
-                                    letterSpacing: -0.2,
-                                    shadows: legibilityShadows,
+                                child: AnimatedOpacity(
+                                  opacity: _liveChatBlinkDim ? 0.45 : 1.0,
+                                  duration: const Duration(milliseconds: 420),
+                                  curve: Curves.easeInOut,
+                                  child: Text(
+                                    'Live Chat',
+                                    style: textTheme.titleMedium?.copyWith(
+                                      fontSize:
+                                          (textTheme.titleMedium?.fontSize ??
+                                                  16) +
+                                              3,
+                                      fontWeight: FontWeight.w800,
+                                      color: onChatText,
+                                      letterSpacing: -0.2,
+                                      shadows: legibilityShadows,
+                                    ),
                                   ),
                                 ),
                               ),
