@@ -48,7 +48,8 @@ class TattsagramPage extends StatefulWidget {
 
 class _TattsagramPageState extends State<TattsagramPage> {
   // 1-2-3 stack: previous / active / next visible together.
-  static const double _pageViewportFraction = 0.36;
+  // Show a full stacked set (top/middle/bottom) more clearly on landing.
+  static const double _pageViewportFraction = 0.3334;
 
   /// Open on entry so users immediately see Live Chat, composer, and camera affordances.
   bool _chatOpen = true;

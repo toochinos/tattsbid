@@ -55,11 +55,13 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     if (path != null && path.isNotEmpty) {
       return VideoPlayerController.file(File(path));
     }
-    return null;
+    final media = widget.mediaUrl.trim();
+    if (media.isEmpty) return null;
+    return VideoPlayerController.networkUrl(Uri.parse(media));
   }
 
   Future<void> _initVideo() async {
-    if (_controller != null || !_feedAllowsPlayback) return;
+    if (_controller != null) return;
     final created = _createController();
     if (created == null) return;
     _controller = created;
@@ -72,8 +74,12 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       setState(() {
         _isInitialized = true;
       });
-      // Start playback as soon as initialization completes.
-      await created.play();
+      // Center item plays; previews stay paused but still show a video frame.
+      if (_feedAllowsPlayback) {
+        await created.play();
+      } else {
+        await created.pause();
+      }
     } catch (e, st) {
       debugPrint('VideoPlayerWidget init: $e\n$st');
       if (!mounted) return;
@@ -93,9 +99,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   void _onFeedPlaybackGateChanged() {
     final c = _controller;
     if (!_feedAllowsPlayback) {
+      // Keep initialized controller so paused previews remain visible.
       c?.pause();
-      _disposeVideo();
-      if (mounted) setState(() {});
       return;
     }
     if (_isVisible) {
@@ -162,7 +167,11 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         if (info.visibleFraction > 0.6) {
           _isVisible = true;
           unawaited(_initVideo());
-          _controller?.play();
+          if (_feedAllowsPlayback) {
+            _controller?.play();
+          } else {
+            _controller?.pause();
+          }
         } else {
           _isVisible = false;
           _controller?.pause();
@@ -187,9 +196,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                 child: VideoPlayer(_controller!),
               ),
             )
-          : (widget.mediaUrl.trim().isNotEmpty && _feedAllowsPlayback)
-              ? SmartVideoPlayer(videoUrl: widget.mediaUrl)
-              : _buildLoadingPreview(networkThumb),
+          : _buildLoadingPreview(networkThumb),
     );
   }
 
