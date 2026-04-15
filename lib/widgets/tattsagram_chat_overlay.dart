@@ -6,16 +6,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:video_compress/video_compress.dart';
+import 'package:video_player/video_player.dart';
 
 import '../core/models/live_message.dart';
 import '../core/models/tattsagram_post.dart';
 import '../core/services/live_messages_service.dart';
-import '../core/services/profile_service.dart';
 import '../core/services/live_online_service.dart';
 import '../core/services/photo_service.dart';
-import '../core/services/tattsagram_video_prepare.dart';
+import '../core/services/profile_service.dart';
+import '../core/services/tattsagram_post_service.dart';
 import '../core/services/tattsagram_video_sound_registry.dart';
 import '../l10n/app_localizations.dart';
+import '../screens/record_page.dart';
 
 enum _TattsagramPickKind {
   cameraPhoto,
@@ -38,6 +41,8 @@ class TattsagramChatOverlay extends StatefulWidget {
     required this.onInsertTempVideoAtTop,
     required this.onReplaceTempVideoWhenFinished,
     this.onPendingVideoUploadFailed,
+    this.onCameraVideoCaptureStart,
+    this.onCameraVideoCaptureCancelled,
     this.showComposerBack = false,
     this.onComposerBack,
   });
@@ -62,6 +67,8 @@ class TattsagramChatOverlay extends StatefulWidget {
 
   /// Removes the optimistic row when background video upload fails ([tempPost.id]).
   final void Function(String localTempPostId)? onPendingVideoUploadFailed;
+  final VoidCallback? onCameraVideoCaptureStart;
+  final VoidCallback? onCameraVideoCaptureCancelled;
 
   /// Circular back control to the right of the message field (e.g. leave Tattsagram).
   final bool showComposerBack;
@@ -103,6 +110,12 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   /// Shown immediately on send; removed when the same row appears from [liveChatStream].
   final List<LiveMessage> _pendingEcho = [];
   int _echoSeq = 0;
+  static const int _networkRetryDelaySeconds = 2;
+  static const int _maxUploadAttempts = 2;
+  static const int _maxVideoDurationSeconds = 10;
+  static const int _maxPreferredUploadSizeBytes = 5 * 1024 * 1024;
+  int _lastUploadProgressPercent = -1;
+  bool _isUploading = false;
 
   void _safeSetState(VoidCallback fn) {
     if (!mounted) return;
@@ -472,9 +485,9 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       if (!mounted) return;
 
       debugPrint('uploading...');
-      String? url;
+      late final Map<String, dynamic> insertedRow;
       try {
-        url = await PhotoService.uploadTattsagramPhoto(uploadFile);
+        insertedRow = await PhotoService.uploadTattsagramPhoto(uploadFile);
       } catch (e, st) {
         debugPrint('Photo upload failed (keeping temp post): $e\n$st');
         if (!mounted) return;
@@ -482,25 +495,9 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         return;
       }
       if (!mounted) return;
-      if (url.isEmpty) return;
       messenger.hideCurrentSnackBar();
-
-      final profile = await ProfileService.getCurrentProfile();
-      if (!mounted) return;
-      final displayName = profile?.displayNameOrEmail.trim();
-      final artistName =
-          (displayName != null && displayName.isNotEmpty) ? displayName : 'You';
-
-      final post = TattsagramPost(
-        mediaUrl: url,
-        mediaType: TattsagramMediaType.image,
-        artistName: artistName,
-        location: '',
-        caption: '',
-        timestamp: DateTime.now(),
-        isUploading: false,
-        replacesLocalUploadId: tempId,
-      );
+      final post = TattsagramPostService.postFromRealtimeRow(insertedRow)
+          .copyWith(replacesLocalUploadId: tempId);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         widget.onPhotoPostedToFeed?.call(post);
@@ -524,21 +521,29 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     }
   }
 
-  /// Picks a video: camera max 8s (picker); gallery any length, trimmed to 15s + compressed.
+  /// Picks video from camera (dedicated record page) or gallery.
   Future<void> _pickVideo(ImageSource source) async {
     if (!mounted) return;
-    final picker = ImagePicker();
+    final fromCamera = source == ImageSource.camera;
+    if (fromCamera) {
+      widget.onCameraVideoCaptureStart?.call();
+      final result = await Navigator.of(context).push<RecordPageResult>(
+        MaterialPageRoute(builder: (_) => const RecordPage()),
+      );
+      if (!mounted) return;
+      if (result == null) {
+        widget.onCameraVideoCaptureCancelled?.call();
+        return;
+      }
+      await _handleRecordedVideoUploadResult(result.videoUrl);
+      widget.onCameraVideoCaptureCancelled?.call();
+      return;
+    }
 
+    final picker = ImagePicker();
     XFile? video;
     try {
-      if (source == ImageSource.camera) {
-        video = await picker.pickVideo(
-          source: source,
-          maxDuration: const Duration(seconds: 8),
-        );
-      } else {
-        video = await picker.pickVideo(source: source);
-      }
+      video = await picker.pickVideo(source: source);
     } on PlatformException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -548,27 +553,25 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     }
 
     if (video == null || !mounted) return;
-
-    final fromCamera = source == ImageSource.camera;
-    File toUpload;
-    try {
-      toUpload = await TattsagramVideoPrepare.prepareForUpload(
-        File(video.path),
-        fromCamera: fromCamera,
-      );
-    } catch (e) {
-      if (!mounted) return;
+    final pickedFile = File(video.path);
+    final tooLong = await _isVideoLongerThanLimit(
+      pickedFile,
+      maxSeconds: _maxVideoDurationSeconds,
+    );
+    if (!mounted) return;
+    if (tooLong) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not process video: $e')),
+        const SnackBar(content: Text('Video must be 15 seconds or less')),
       );
       return;
     }
-
-    await _uploadVideo(toUpload);
+    await _uploadVideo(pickedFile);
   }
 
   Future<void> _uploadVideo(File file) async {
     if (!mounted) return;
+    if (_isUploading) return;
+    _isUploading = true;
     final l10n = AppLocalizations.of(context)!;
     final messenger = ScaffoldMessenger.of(context);
 
@@ -576,16 +579,29 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     final tempBase =
         TattsagramPost.tempVideoUpload(id: tempId, localVideo: file.path);
     widget.onInsertTempVideoAtTop(tempId, file.path);
+    _lastUploadProgressPercent = -1;
+    debugPrint('[ Uploading... 0% ]');
 
     messenger.showSnackBar(
       const SnackBar(content: Text('Uploading video…')),
     );
 
     try {
-      final url = await PhotoService.uploadVideo(
-        file,
+      final uploadFile = await _compressVideoForUpload(file);
+      print('FINAL VIDEO SIZE MB: ${uploadFile.lengthSync() / 1024 / 1024}');
+      if (uploadFile.lengthSync() > 5 * 1024 * 1024) {
+        throw Exception('Video too large (>5MB)');
+      }
+      if (!mounted) return;
+      final url = await _uploadVideoWithRetry(
+        uploadFile,
         onUploadProgress: (p) {
           if (!mounted) return;
+          final percent = (p * 100).clamp(0, 100).round();
+          if (percent != _lastUploadProgressPercent) {
+            _lastUploadProgressPercent = percent;
+            debugPrint('Uploading... $percent%');
+          }
           widget.onPhotoPostedToFeed?.call(
             tempBase.copyWith(uploadProgress: p),
           );
@@ -593,6 +609,10 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       );
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
+      if (_lastUploadProgressPercent < 100) {
+        _lastUploadProgressPercent = 100;
+        debugPrint('Uploading... 100%');
+      }
 
       final profile = await ProfileService.getCurrentProfile();
       if (!mounted) return;
@@ -600,7 +620,19 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       final artistName =
           (displayName != null && displayName.isNotEmpty) ? displayName : 'You';
 
+      await _showUploadedVideoPopup(url);
+      if (!mounted) return;
       widget.onReplaceTempVideoWhenFinished(tempId, url, artistName);
+      unawaited(
+        PhotoService.insertUploadedVideoPost(url).then((row) {
+          if (!mounted) return;
+          final inserted = TattsagramPostService.postFromRealtimeRow(row)
+              .copyWith(replacesLocalUploadId: tempId);
+          widget.onPhotoPostedToFeed?.call(inserted);
+        }).catchError((e, st) {
+          debugPrint('Background video DB insert failed: $e\n$st');
+        }),
+      );
 
       if (!mounted) return;
       try {
@@ -617,7 +649,171 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.tattsagramPhotoUploadFailed)),
       );
+    } finally {
+      _isUploading = false;
     }
+  }
+
+  Future<String> _uploadVideoWithRetry(
+    File file, {
+    void Function(double progress)? onUploadProgress,
+  }) async {
+    Object? lastError;
+    for (var attempt = 1; attempt <= _maxUploadAttempts; attempt++) {
+      try {
+        return await PhotoService.uploadVideo(
+          file,
+          onUploadProgress: onUploadProgress,
+        );
+      } catch (e) {
+        lastError = e;
+        if (!_isRecoverableNetworkUploadError(e) ||
+            attempt == _maxUploadAttempts) {
+          rethrow;
+        }
+        await Future<void>.delayed(
+          const Duration(seconds: _networkRetryDelaySeconds),
+        );
+      }
+    }
+    throw lastError ?? Exception('Video upload failed');
+  }
+
+  bool _isRecoverableNetworkUploadError(Object e) {
+    if (e is SocketException) return true;
+    final t = e.toString().toLowerCase();
+    return t.contains('socketexception') || t.contains('failed host lookup');
+  }
+
+  Future<File> _compressVideoForUpload(File source) async {
+    final compressed = await VideoCompress.compressVideo(
+      source.path,
+      quality: VideoQuality.LowQuality,
+      deleteOrigin: false,
+    );
+    var out = compressed?.file;
+    if (out == null) {
+      throw Exception('Video compression failed');
+    }
+    if (out.lengthSync() > _maxPreferredUploadSizeBytes) {
+      final lower = await VideoCompress.compressVideo(
+        source.path,
+        quality: VideoQuality.LowQuality,
+        deleteOrigin: false,
+      );
+      final lowerOut = lower?.file;
+      if (lowerOut != null) {
+        out = lowerOut;
+      }
+    }
+    return out;
+  }
+
+  Future<bool> _isVideoLongerThanLimit(
+    File file, {
+    required int maxSeconds,
+  }) async {
+    try {
+      final info = await VideoCompress.getMediaInfo(file.path);
+      final durationMs = info.duration;
+      if (durationMs == null) return false;
+      return durationMs > maxSeconds * 1000;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _handleRecordedVideoUploadResult(String videoUrl) async {
+    if (!mounted) return;
+    final profile = await ProfileService.getCurrentProfile();
+    if (!mounted) return;
+    final displayName = profile?.displayNameOrEmail.trim();
+    final artistName =
+        (displayName != null && displayName.isNotEmpty) ? displayName : 'You';
+    final post = TattsagramPost(
+      mediaUrl: videoUrl,
+      mediaType: TattsagramMediaType.video,
+      artistName: artistName,
+      location: '',
+      caption: '',
+      timestamp: DateTime.now(),
+      isUploading: false,
+      uploadProgress: 1.0,
+      videoUrl: videoUrl,
+    );
+    await _showUploadedVideoPopup(videoUrl);
+    if (!mounted) return;
+    widget.onPhotoPostedToFeed?.call(post);
+    unawaited(
+      PhotoService.insertUploadedVideoPost(videoUrl).then((row) {
+        if (!mounted) return;
+        final inserted = TattsagramPostService.postFromRealtimeRow(row);
+        widget.onPhotoPostedToFeed?.call(inserted);
+      }).catchError((e, st) {
+        debugPrint('Background video DB insert failed: $e\n$st');
+      }),
+    );
+
+    try {
+      await LiveMessagesService.sendLiveMessage('🎬 Video');
+    } catch (e, st) {
+      debugPrint('Live chat line after video: $e\n$st');
+    }
+    if (!mounted) return;
+    _scrollMessagesToBottom();
+  }
+
+  Future<void> _showUploadedVideoPopup(String videoUrl) async {
+    if (!mounted || videoUrl.trim().isEmpty) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: ColoredBox(
+                  color: Colors.black,
+                  child: const AspectRatio(
+                    aspectRatio: 9 / 16,
+                    child: SizedBox.shrink(),
+                  ),
+                ),
+              ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AspectRatio(
+                  aspectRatio: 9 / 16,
+                  child: _UploadedVideoDialogPlayer(videoUrl: videoUrl),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Material(
+                  color: Colors.black54,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Icon(Icons.close, color: Colors.white, size: 18),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildLiveMessagesPanel({
@@ -668,6 +864,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
 
     return ListView.builder(
       controller: _messageScrollController,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
       padding: EdgeInsets.fromLTRB(
         16,
         12,
@@ -1064,6 +1262,72 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _UploadedVideoDialogPlayer extends StatefulWidget {
+  const _UploadedVideoDialogPlayer({required this.videoUrl});
+
+  final String videoUrl;
+
+  @override
+  State<_UploadedVideoDialogPlayer> createState() =>
+      _UploadedVideoDialogPlayerState();
+}
+
+class _UploadedVideoDialogPlayerState
+    extends State<_UploadedVideoDialogPlayer> {
+  VideoPlayerController? _controller;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    final c = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+    _controller = c;
+    try {
+      await c.initialize();
+      await c.setLooping(true);
+      await c.setVolume(1.0);
+      await c.play();
+      if (!mounted) return;
+      setState(() => _ready = true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _ready = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    final c = _controller;
+    _controller = null;
+    if (c != null) {
+      c.pause();
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _controller;
+    if (!_ready || c == null || !c.value.isInitialized) {
+      return const ColoredBox(color: Colors.black);
+    }
+    return FittedBox(
+      fit: BoxFit.cover,
+      clipBehavior: Clip.hardEdge,
+      child: SizedBox(
+        width: c.value.size.width,
+        height: c.value.size.height,
+        child: VideoPlayer(c),
       ),
     );
   }

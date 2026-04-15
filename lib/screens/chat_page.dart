@@ -648,6 +648,8 @@ class _ChatPageState extends State<ChatPage> {
 
     return ListView.builder(
       controller: _scrollController,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
       itemCount: chronological.length,
       itemBuilder: (context, index) {

@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/tattsagram_post.dart';
 import '../core/services/live_online_service.dart';
 import '../core/services/tattsagram_like_service.dart';
+import '../core/services/tattsagram_next_video_preload.dart';
 import '../core/services/tattsagram_post_service.dart';
 import '../core/services/tattsagram_ranked_pool_feed.dart';
 import '../core/services/tattsagram_video_sound_registry.dart';
@@ -90,6 +91,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
 
   /// Refreshes [live_online.last_seen] while this screen is visible.
   Timer? _onlineHeartbeat;
+  Timer? _realtimeRetryTimer;
 
   RealtimeChannel? _tattsagramPostsChannel;
   StreamSubscription<AuthState>? _authStateSub;
@@ -103,6 +105,8 @@ class _TattsagramPageState extends State<TattsagramPage> {
   bool _tempOverlayVisible = false;
   bool _tempOverlayAtTop = false;
   Timer? _tempOverlayHideTimer;
+  bool _cameraCaptureGateActive = false;
+  Timer? _cameraCaptureReleaseTimer;
 
   void _safeSetState(VoidCallback fn) {
     if (!mounted) return;
@@ -148,20 +152,43 @@ class _TattsagramPageState extends State<TattsagramPage> {
   }
 
   void _connectPostsRealtime() {
-    _tattsagramPostsChannel = Supabase.instance.client
-        .channel('posts')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'tattsagram_post',
-          callback: _onRealtimePostInserted,
-        )
-        .subscribe();
+    _realtimeRetryTimer?.cancel();
+    try {
+      _tattsagramPostsChannel = Supabase.instance.client
+          .channel('posts')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'tattsagram_post',
+            callback: _onRealtimePostInserted,
+          )
+          .subscribe((status, [Object? error]) {
+        final statusText = status.toString().toLowerCase();
+        final failed = statusText.contains('channelerror') ||
+            statusText.contains('timedout') ||
+            _isRecoverableRealtimeError(error);
+        if (!failed) return;
+        _scheduleRealtimeReconnect();
+      });
+    } catch (e) {
+      if (_isRecoverableRealtimeError(e)) {
+        _scheduleRealtimeReconnect();
+        return;
+      }
+    }
   }
 
   void _reconnectPostsRealtime() {
     _tattsagramPostsChannel?.unsubscribe();
     _connectPostsRealtime();
+  }
+
+  void _scheduleRealtimeReconnect() {
+    _realtimeRetryTimer?.cancel();
+    _realtimeRetryTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      _reconnectPostsRealtime();
+    });
   }
 
   Future<void> _silentlyRefreshSession() async {
@@ -172,14 +199,21 @@ class _TattsagramPageState extends State<TattsagramPage> {
     try {
       await auth.refreshSession();
     } catch (_) {
-      try {
-        await auth.signOut();
-      } catch (_) {
-        // Silent recovery only.
-      }
+      // Keep existing session state; do not force sign out on transient failures.
     } finally {
       _refreshingAuthSession = false;
     }
+  }
+
+  bool _isRecoverableRealtimeError(Object? error) {
+    if (error == null) return false;
+    if (error is RealtimeSubscribeException || error is SocketException) {
+      return true;
+    }
+    final t = error.toString().toLowerCase();
+    return t.contains('failed host lookup') ||
+        t.contains('socketexception') ||
+        t.contains('network');
   }
 
   Future<void> _recoverAuthSessionOnStart() async {
@@ -191,6 +225,10 @@ class _TattsagramPageState extends State<TattsagramPage> {
   void _onRealtimePostInserted(PostgresChangePayload payload) {
     if (!mounted) return;
     final row = Map<String, dynamic>.from(payload.newRecord);
+    final postDebug = <String, dynamic>{
+      'video_url': row['video_url'] ?? row['media_url'],
+    };
+    print("FEED VIDEO URL: ${postDebug['video_url']}");
     final post = TattsagramPostService.postFromRealtimeRow(row);
 
     if (post.id != null && post.id!.isNotEmpty) {
@@ -277,6 +315,8 @@ class _TattsagramPageState extends State<TattsagramPage> {
 
   @override
   void dispose() {
+    _realtimeRetryTimer?.cancel();
+    _cameraCaptureReleaseTimer?.cancel();
     _tempOverlayHideTimer?.cancel();
     _authStateSub?.cancel();
     _tattsagramPostsChannel?.unsubscribe();
@@ -578,10 +618,39 @@ class _TattsagramPageState extends State<TattsagramPage> {
 
   void _recomputeFeedPlaybackGate() {
     final externalAllows = widget.feedPlaybackListenable?.value ?? true;
-    final next = externalAllows && _snapPlaybackEnabled;
+    final next =
+        externalAllows && _snapPlaybackEnabled && !_cameraCaptureGateActive;
     if (_feedPlaybackGate.value != next) {
       _feedPlaybackGate.value = next;
     }
+  }
+
+  void _pauseFeedForCameraCapture() {
+    _cameraCaptureReleaseTimer?.cancel();
+    _cameraCaptureGateActive = true;
+    _recomputeFeedPlaybackGate();
+  }
+
+  void _pauseAllFeedVideos() {
+    print('VIDEO_RECORDING_STARTED — pausing all media');
+    _pauseFeedForCameraCapture();
+  }
+
+  void _cancelCameraCapturePause() {
+    _cameraCaptureReleaseTimer?.cancel();
+    _cameraCaptureGateActive = false;
+    _recomputeFeedPlaybackGate();
+  }
+
+  void _animateFeedToTopAfterInsert() {
+    if (!_feedPageController.hasClients) return;
+    unawaited(
+      _feedPageController.animateToPage(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      ),
+    );
   }
 
   void _setSnapPlaybackEnabled(bool enabled) {
@@ -688,6 +757,17 @@ class _TattsagramPageState extends State<TattsagramPage> {
     String artistName,
   ) {
     setState(() {
+      final completedVideoPost = TattsagramPost(
+        mediaUrl: videoUrl,
+        mediaType: TattsagramMediaType.video,
+        artistName: artistName,
+        location: '',
+        caption: '',
+        timestamp: DateTime.now(),
+        isUploading: false,
+        uploadProgress: 1.0,
+        videoUrl: videoUrl,
+      );
       final i = _chatPosts.indexWhere((p) => p.id == tempPostId);
       if (i >= 0) {
         _chatPosts[i] = _chatPosts[i].copyWith(
@@ -700,24 +780,18 @@ class _TattsagramPageState extends State<TattsagramPage> {
           timestamp: DateTime.now(),
         );
       } else {
-        _chatPosts.insert(
-          0,
-          TattsagramPost(
-            mediaUrl: videoUrl,
-            mediaType: TattsagramMediaType.video,
-            artistName: artistName,
-            location: '',
-            caption: '',
-            timestamp: DateTime.now(),
-            isUploading: false,
-            uploadProgress: 1.0,
-            videoUrl: videoUrl,
-          ),
-        );
+        _chatPosts.insert(0, completedVideoPost);
       }
+      _remotePosts = List<TattsagramPost>.from(_remotePosts);
+      _remotePosts.removeWhere(
+        (p) => p.canonicalRemoteUrl == completedVideoPost.canonicalRemoteUrl,
+      );
+      _remotePosts.insert(0, completedVideoPost);
       _chatPosts.removeWhere((p) => p.isUploading);
       _mergeUniquePoolFromSources();
     });
+    _animateFeedToTopAfterInsert();
+    _cancelCameraCapturePause();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _rebuildRankedSequencePreservingAnchor();
     });
@@ -750,7 +824,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
           if (remoteI >= 0) {
             _remotePosts[remoteI] = post;
           } else {
-            _remotePosts.add(post);
+            _remotePosts.insert(0, post);
           }
           final i = _chatPosts.indexWhere((p) => p.id == pid);
           if (i >= 0) {
@@ -785,7 +859,15 @@ class _TattsagramPageState extends State<TattsagramPage> {
           );
         }
       } else {
+        _chatPosts.removeWhere(
+          (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
+        );
         final pid = post.id;
+        _remotePosts = List<TattsagramPost>.from(_remotePosts);
+        _remotePosts.removeWhere(
+          (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
+        );
+        _remotePosts.insert(0, post);
         if (pid != null && pid.isNotEmpty) {
           final i = _chatPosts.indexWhere((p) => p.id == pid);
           if (i >= 0) {
@@ -812,6 +894,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
       _chatPosts.removeWhere((p) => p.id == localTempPostId);
       _mergeUniquePoolFromSources();
     });
+    _cancelCameraCapturePause();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _rebuildRankedSequencePreservingAnchor();
     });
@@ -843,6 +926,13 @@ class _TattsagramPageState extends State<TattsagramPage> {
         },
         itemBuilder: (context, index) {
           final p = seq[index];
+          if (index == _currentIndex + 1 &&
+              p.mediaType == TattsagramMediaType.video) {
+            final preloadUrl = (p.videoUrl?.trim().isNotEmpty ?? false)
+                ? p.videoUrl!
+                : p.mediaUrl;
+            TattsagramNextVideoPreload.schedule(preloadUrl);
+          }
           final isActive = index == _currentIndex;
           final mountDecoder =
               isActive && p.mediaType == TattsagramMediaType.video;
@@ -876,6 +966,13 @@ class _TattsagramPageState extends State<TattsagramPage> {
       },
       itemBuilder: (context, index) {
         final p = seq[index];
+        if (index == _currentIndex + 1 &&
+            p.mediaType == TattsagramMediaType.video) {
+          final preloadUrl = (p.videoUrl?.trim().isNotEmpty ?? false)
+              ? p.videoUrl!
+              : p.mediaUrl;
+          TattsagramNextVideoPreload.schedule(preloadUrl);
+        }
         return _TattsagramFeedItem(
           key:
               ValueKey('${p.id ?? p.canonicalRemoteUrl}-${p.mediaType}-$index'),
@@ -1122,6 +1219,8 @@ class _TattsagramPageState extends State<TattsagramPage> {
                 onInsertTempVideoAtTop: _onInsertTempVideoAtTop,
                 onReplaceTempVideoWhenFinished: _onReplaceTempVideoWhenFinished,
                 onPendingVideoUploadFailed: _onPendingVideoUploadFailed,
+                onCameraVideoCaptureStart: _pauseAllFeedVideos,
+                onCameraVideoCaptureCancelled: _cancelCameraCapturePause,
                 feedSoundMuted: _feedSoundMuted,
                 showComposerBack: _showBackFab,
                 onComposerBack: _handleBack,

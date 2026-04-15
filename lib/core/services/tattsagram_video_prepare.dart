@@ -25,7 +25,7 @@ class TattsagramVideoPrepare {
     if (fromCamera) {
       final out = await VideoCompress.compressVideo(
         path,
-        quality: VideoQuality.MediumQuality,
+        quality: VideoQuality.LowQuality,
         deleteOrigin: false,
       );
       return _fileFromMediaInfo(out, fallback: original);
@@ -36,7 +36,7 @@ class TattsagramVideoPrepare {
     if (durMs <= 0) {
       final out = await VideoCompress.compressVideo(
         path,
-        quality: VideoQuality.MediumQuality,
+        quality: VideoQuality.LowQuality,
         deleteOrigin: false,
       );
       return _fileFromMediaInfo(out, fallback: original);
@@ -45,7 +45,7 @@ class TattsagramVideoPrepare {
     if (durMs > _galleryMaxDurationMs) {
       final out = await VideoCompress.compressVideo(
         path,
-        quality: VideoQuality.MediumQuality,
+        quality: VideoQuality.LowQuality,
         deleteOrigin: false,
         startTime: 0,
         duration: _galleryMaxDurationSec,
@@ -55,7 +55,7 @@ class TattsagramVideoPrepare {
 
     final out = await VideoCompress.compressVideo(
       path,
-      quality: VideoQuality.MediumQuality,
+      quality: VideoQuality.LowQuality,
       deleteOrigin: false,
     );
     return _fileFromMediaInfo(out, fallback: original);
