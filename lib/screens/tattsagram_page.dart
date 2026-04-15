@@ -800,6 +800,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
   void _onPhotoPostedFromLiveChat(TattsagramPost post) {
     if (!mounted) return;
     String? overlayPathToShow;
+    var shouldScrollToTop = false;
     setState(() {
       if (post.mediaType == TattsagramMediaType.image) {
         if (post.isUploading && (post.id?.isNotEmpty ?? false)) {
@@ -878,9 +879,13 @@ class _TattsagramPageState extends State<TattsagramPage> {
         } else {
           _chatPosts.insert(0, post);
         }
+        shouldScrollToTop = true;
       }
       _mergeUniquePoolFromSources();
     });
+    if (shouldScrollToTop) {
+      _animateFeedToTopAfterInsert();
+    }
     if (overlayPathToShow != null && overlayPathToShow!.isNotEmpty) {
       _showOptimisticPhotoOverlay(overlayPathToShow!);
     }

@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/models/live_message.dart';
 import '../core/models/tattsagram_post.dart';
@@ -620,8 +621,12 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       final artistName =
           (displayName != null && displayName.isNotEmpty) ? displayName : 'You';
 
-      await _showUploadedVideoPopup(url);
+      final shouldSendToFeed = await _showUploadedVideoPopup(url);
       if (!mounted) return;
+      if (!shouldSendToFeed) {
+        widget.onPendingVideoUploadFailed?.call(tempId);
+        return;
+      }
       widget.onReplaceTempVideoWhenFinished(tempId, url, artistName);
       unawaited(
         PhotoService.insertUploadedVideoPost(url).then((row) {
@@ -636,7 +641,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
 
       if (!mounted) return;
       try {
-        await LiveMessagesService.sendLiveMessage('🎬 Video');
+        await LiveMessagesService.sendLiveMessage('🎬 Live video $url');
       } catch (e, st) {
         debugPrint('Live chat line after video: $e\n$st');
       }
@@ -741,8 +746,9 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       uploadProgress: 1.0,
       videoUrl: videoUrl,
     );
-    await _showUploadedVideoPopup(videoUrl);
+    final shouldSendToFeed = await _showUploadedVideoPopup(videoUrl);
     if (!mounted) return;
+    if (!shouldSendToFeed) return;
     widget.onPhotoPostedToFeed?.call(post);
     unawaited(
       PhotoService.insertUploadedVideoPost(videoUrl).then((row) {
@@ -755,7 +761,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     );
 
     try {
-      await LiveMessagesService.sendLiveMessage('🎬 Video');
+      await LiveMessagesService.sendLiveMessage('🎬 Live video $videoUrl');
     } catch (e, st) {
       debugPrint('Live chat line after video: $e\n$st');
     }
@@ -763,9 +769,9 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     _scrollMessagesToBottom();
   }
 
-  Future<void> _showUploadedVideoPopup(String videoUrl) async {
-    if (!mounted || videoUrl.trim().isEmpty) return;
-    await showDialog<void>(
+  Future<bool> _showUploadedVideoPopup(String videoUrl) async {
+    if (!mounted || videoUrl.trim().isEmpty) return false;
+    final decision = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       barrierColor: Colors.black54,
@@ -774,39 +780,61 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
           backgroundColor: Colors.transparent,
           insetPadding:
               const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Stack(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: ColoredBox(
-                  color: Colors.black,
-                  child: const AspectRatio(
-                    aspectRatio: 9 / 16,
-                    child: SizedBox.shrink(),
-                  ),
-                ),
-              ),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: AspectRatio(
-                  aspectRatio: 9 / 16,
-                  child: _UploadedVideoDialogPlayer(videoUrl: videoUrl),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Material(
-                  color: Colors.black54,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: () => Navigator.of(context).maybePop(),
-                    child: const Padding(
-                      padding: EdgeInsets.all(6),
-                      child: Icon(Icons.close, color: Colors.white, size: 18),
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: ColoredBox(
+                      color: Colors.black,
+                      child: const AspectRatio(
+                        aspectRatio: 9 / 16,
+                        child: SizedBox.shrink(),
+                      ),
                     ),
                   ),
+                  ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: AspectRatio(
+                      aspectRatio: 9 / 16,
+                      child: _UploadedVideoDialogPlayer(videoUrl: videoUrl),
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Material(
+                      color: Colors.black54,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => Navigator.of(context).pop(false),
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child:
+                              Icon(Icons.close, color: Colors.white, size: 18),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    shape: const RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.vertical(bottom: Radius.circular(16)),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('Send it to feed'),
                 ),
               ),
             ],
@@ -814,6 +842,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         );
       },
     );
+    return decision ?? false;
   }
 
   Widget _buildLiveMessagesPanel({
@@ -879,6 +908,11 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         final username =
             usernameRaw.trim().isEmpty ? 'User' : usernameRaw.trim();
         final body = msg.message;
+        final videoUrl = _extractFirstUrl(body);
+        final isLiveVideoPost = videoUrl != null && body.contains('Live video');
+        final renderedBody = isLiveVideoPost
+            ? 'User just Posted a new Video into the MIXX!'
+            : body;
         final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
               color: _colorForLiveUsername(username),
@@ -895,14 +929,29 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                 style: titleStyle,
               ),
               const SizedBox(height: 4),
-              Text(
-                body,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.white,
-                  height: 1.4,
-                  fontWeight: FontWeight.w500,
-                  fontFamilyFallback: _emojiFontFamilyFallback,
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: videoUrl == null
+                    ? null
+                    : () => unawaited(_openLiveVideoUrl(videoUrl)),
+                child: AnimatedOpacity(
+                  opacity: isLiveVideoPost
+                      ? (_liveChatBlinkDim ? 0.35 : 1.0)
+                      : 1.0,
+                  duration: const Duration(milliseconds: 420),
+                  child: Text(
+                    renderedBody,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                      height: 1.4,
+                      fontWeight: FontWeight.w500,
+                      fontFamilyFallback: _emojiFontFamilyFallback,
+                      decoration: videoUrl == null
+                          ? TextDecoration.none
+                          : TextDecoration.underline,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 4),
@@ -929,6 +978,20 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   }
 
   static const double _composerReserveHeight = 108;
+
+  String? _extractFirstUrl(String input) {
+    final m = RegExp(r'(https?:\/\/\S+)').firstMatch(input);
+    if (m == null) return null;
+    final url = m.group(1)?.trim();
+    if (url == null || url.isEmpty) return null;
+    return url;
+  }
+
+  Future<void> _openLiveVideoUrl(String rawUrl) async {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 
   Widget _messageTextField({
     required ColorScheme scheme,
