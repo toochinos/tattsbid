@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:video_compress/video_compress.dart';
@@ -26,6 +28,8 @@ class _RecordPageState extends State<RecordPage> {
   bool _recording = false;
   bool _uploading = false;
   double _uploadProgress = 0.0;
+  double _uploadProgressTarget = 0.0;
+  Timer? _uploadProgressTicker;
   String? _initError;
 
   @override
@@ -117,7 +121,9 @@ class _RecordPageState extends State<RecordPage> {
       _recording = false;
       _uploading = true;
       _uploadProgress = 0.0;
+      _uploadProgressTarget = 0.0;
     });
+    _startUploadProgressTicker();
 
     try {
       final compressed = await VideoCompress.compressVideo(
@@ -140,8 +146,7 @@ class _RecordPageState extends State<RecordPage> {
           uploadFile = lowerOut;
         }
       }
-      print(
-          'FINAL VIDEO SIZE MB: ${uploadFile.lengthSync() / 1024 / 1024}');
+      print('FINAL VIDEO SIZE MB: ${uploadFile.lengthSync() / 1024 / 1024}');
       if (uploadFile.lengthSync() > 5 * 1024 * 1024) {
         throw Exception('Video too large (>5MB)');
       }
@@ -149,14 +154,17 @@ class _RecordPageState extends State<RecordPage> {
         uploadFile,
         onUploadProgress: (p) {
           if (!mounted) return;
-          setState(() => _uploadProgress = p.clamp(0.0, 1.0));
+          _setUploadProgressTarget(p);
         },
       );
       if (!mounted) return;
+      _setUploadProgressTarget(1.0);
+      await _drainUploadProgressToTarget();
       Navigator.of(context).pop(RecordPageResult(videoUrl: url));
     } catch (e) {
       if (!mounted) return;
       setState(() => _uploading = false);
+      _stopUploadProgressTicker();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Video upload failed: $e')),
       );
@@ -166,8 +174,43 @@ class _RecordPageState extends State<RecordPage> {
 
   @override
   void dispose() {
+    _stopUploadProgressTicker();
     _controller?.dispose();
     super.dispose();
+  }
+
+  void _setUploadProgressTarget(double value) {
+    final next = value.clamp(0.0, 1.0);
+    if (next <= _uploadProgressTarget) return;
+    _uploadProgressTarget = next;
+  }
+
+  void _startUploadProgressTicker() {
+    _uploadProgressTicker?.cancel();
+    _uploadProgressTicker =
+        Timer.periodic(const Duration(milliseconds: 40), (_) {
+      if (!mounted || !_uploading) return;
+      final currentPercent = (_uploadProgress * 100).round();
+      final targetPercent = (_uploadProgressTarget * 100).round();
+      if (currentPercent >= targetPercent) return;
+      final nextPercent = (currentPercent + 1).clamp(0, 100);
+      setState(() => _uploadProgress = nextPercent / 100.0);
+    });
+  }
+
+  Future<void> _drainUploadProgressToTarget() async {
+    final start = DateTime.now();
+    while (mounted && _uploadProgress < _uploadProgressTarget) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      if (DateTime.now().difference(start).inMilliseconds > 1200) {
+        break;
+      }
+    }
+  }
+
+  void _stopUploadProgressTicker() {
+    _uploadProgressTicker?.cancel();
+    _uploadProgressTicker = null;
   }
 
   @override

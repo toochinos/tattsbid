@@ -69,16 +69,9 @@ class PhotoService {
 
   static const String _tattsagramBucket = 'tattsagram';
 
-  /// Uploads a Tattsagram feed image and inserts a row into `tattsagram_post`
-  /// so realtime feed subscribers receive the new post without manual refresh.
-  /// Returns the inserted DB row from Supabase.
-  static Future<Map<String, dynamic>> uploadTattsagramPhoto(File file) async {
+  /// Uploads a Tattsagram feed image and returns the public URL.
+  static Future<String> uploadTattsagramPhoto(File file) async {
     final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      throw Exception('User not signed in');
-    }
-    final userId = user.id;
 
     final ms = DateTime.now().millisecondsSinceEpoch;
     final path = 'images/$ms.jpg';
@@ -89,20 +82,7 @@ class PhotoService {
           fileOptions: const FileOptions(upsert: true),
         );
 
-    final imageUrl =
-        supabase.storage.from(_tattsagramBucket).getPublicUrl(path);
-
-    final inserted = await supabase
-        .from('tattsagram_post')
-        .insert({
-          'media_url': imageUrl,
-          'media_type': 'image',
-          'user_id': userId,
-        })
-        .select()
-        .single();
-
-    return Map<String, dynamic>.from(inserted);
+    return supabase.storage.from(_tattsagramBucket).getPublicUrl(path);
   }
 
   /// Uploads video to Supabase Storage ([_tattsagramBucket], path `videos/<ts>.mp4`)
@@ -167,6 +147,26 @@ class PhotoService {
         .insert({
           'media_url': videoUrl,
           'media_type': 'video',
+          'user_id': user.id,
+        })
+        .select()
+        .single();
+    return Map<String, dynamic>.from(inserted);
+  }
+
+  /// Persists uploaded image URL to [tattsagram_post] and returns inserted row.
+  static Future<Map<String, dynamic>> insertUploadedPhotoPost(
+      String imageUrl) async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      throw Exception('User not signed in');
+    }
+    final inserted = await supabase
+        .from('tattsagram_post')
+        .insert({
+          'media_url': imageUrl,
+          'media_type': 'image',
           'user_id': user.id,
         })
         .select()

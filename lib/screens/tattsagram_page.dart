@@ -897,6 +897,8 @@ class _TattsagramPageState extends State<TattsagramPage> {
   void _onPendingVideoUploadFailed(String localTempPostId) {
     setState(() {
       _chatPosts.removeWhere((p) => p.id == localTempPostId);
+      _remotePosts = List<TattsagramPost>.from(_remotePosts);
+      _remotePosts.removeWhere((p) => p.id == localTempPostId);
       _mergeUniquePoolFromSources();
     });
     _cancelCameraCapturePause();
@@ -1224,6 +1226,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
                 onInsertTempVideoAtTop: _onInsertTempVideoAtTop,
                 onReplaceTempVideoWhenFinished: _onReplaceTempVideoWhenFinished,
                 onPendingVideoUploadFailed: _onPendingVideoUploadFailed,
+                onPendingPhotoUploadFailed: _onPendingVideoUploadFailed,
                 onCameraVideoCaptureStart: _pauseAllFeedVideos,
                 onCameraVideoCaptureCancelled: _cancelCameraCapturePause,
                 feedSoundMuted: _feedSoundMuted,

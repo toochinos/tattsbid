@@ -8,7 +8,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../core/models/live_message.dart';
 import '../core/models/tattsagram_post.dart';
@@ -42,6 +41,7 @@ class TattsagramChatOverlay extends StatefulWidget {
     required this.onInsertTempVideoAtTop,
     required this.onReplaceTempVideoWhenFinished,
     this.onPendingVideoUploadFailed,
+    this.onPendingPhotoUploadFailed,
     this.onCameraVideoCaptureStart,
     this.onCameraVideoCaptureCancelled,
     this.showComposerBack = false,
@@ -68,6 +68,7 @@ class TattsagramChatOverlay extends StatefulWidget {
 
   /// Removes the optimistic row when background video upload fails ([tempPost.id]).
   final void Function(String localTempPostId)? onPendingVideoUploadFailed;
+  final void Function(String localTempPostId)? onPendingPhotoUploadFailed;
   final VoidCallback? onCameraVideoCaptureStart;
   final VoidCallback? onCameraVideoCaptureCancelled;
 
@@ -162,6 +163,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         curve: Curves.easeInOutQuart,
       ),
     );
+    _panelSlideController.addListener(_stickMessagesToBottomDuringSlide);
   }
 
   @override
@@ -173,6 +175,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     if (widget.isOpen && !oldWidget.isOpen) {
       _panelExpanded = true;
       _panelSlideController.forward();
+      _scrollMessagesToBottom();
     } else if (!widget.isOpen && oldWidget.isOpen) {
       _panelSlideController.reverse();
     }
@@ -187,6 +190,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     if (sub != null) {
       unawaited(sub.cancel());
     }
+    _panelSlideController.removeListener(_stickMessagesToBottomDuringSlide);
     _panelSlideController.dispose();
     _messageScrollController.dispose();
     _inputController.dispose();
@@ -259,6 +263,14 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         curve: Curves.easeOutCubic,
       );
     });
+  }
+
+  void _stickMessagesToBottomDuringSlide() {
+    if (!mounted || !widget.isOpen || !_panelExpanded) return;
+    if (!_messageScrollController.hasClients) return;
+    final max = _messageScrollController.position.maxScrollExtent;
+    if ((_messageScrollController.offset - max).abs() <= 0.5) return;
+    _messageScrollController.jumpTo(max);
   }
 
   String _formatTime(BuildContext context, DateTime t) {
@@ -486,9 +498,9 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       if (!mounted) return;
 
       debugPrint('uploading...');
-      late final Map<String, dynamic> insertedRow;
+      late final String imageUrl;
       try {
-        insertedRow = await PhotoService.uploadTattsagramPhoto(uploadFile);
+        imageUrl = await PhotoService.uploadTattsagramPhoto(uploadFile);
       } catch (e, st) {
         debugPrint('Photo upload failed (keeping temp post): $e\n$st');
         if (!mounted) return;
@@ -497,6 +509,13 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       }
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
+      final shouldSendToFeed = await _showUploadedPhotoPopup(uploadFile.path);
+      if (!mounted) return;
+      if (!shouldSendToFeed) {
+        widget.onPendingPhotoUploadFailed?.call(tempId);
+        return;
+      }
+      final insertedRow = await PhotoService.insertUploadedPhotoPost(imageUrl);
       final post = TattsagramPostService.postFromRealtimeRow(insertedRow)
           .copyWith(replacesLocalUploadId: tempId);
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -776,69 +795,188 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       barrierDismissible: true,
       barrierColor: Colors.black54,
       builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
+        var sent = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  ClipRRect(
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(16)),
-                    child: ColoredBox(
-                      color: Colors.black,
-                      child: const AspectRatio(
-                        aspectRatio: 9 / 16,
-                        child: SizedBox.shrink(),
-                      ),
-                    ),
-                  ),
-                  ClipRRect(
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(16)),
-                    child: AspectRatio(
-                      aspectRatio: 9 / 16,
-                      child: _UploadedVideoDialogPlayer(videoUrl: videoUrl),
-                    ),
-                  ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Material(
-                      color: Colors.black54,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: () => Navigator.of(context).pop(false),
-                        child: const Padding(
-                          padding: EdgeInsets.all(6),
-                          child:
-                              Icon(Icons.close, color: Colors.white, size: 18),
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16)),
+                        child: ColoredBox(
+                          color: Colors.black,
+                          child: const AspectRatio(
+                            aspectRatio: 9 / 16,
+                            child: SizedBox.shrink(),
+                          ),
                         ),
+                      ),
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16)),
+                        child: AspectRatio(
+                          aspectRatio: 9 / 16,
+                          child: _UploadedVideoDialogPlayer(videoUrl: videoUrl),
+                        ),
+                      ),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Material(
+                          color: Colors.black54,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () => Navigator.of(context).pop(false),
+                            child: const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: sent
+                          ? null
+                          : () async {
+                              setDialogState(() => sent = true);
+                              await Future<void>.delayed(
+                                const Duration(milliseconds: 450),
+                              );
+                              if (!context.mounted) return;
+                              Navigator.of(context).pop(true);
+                            },
+                      style: ElevatedButton.styleFrom(
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                              bottom: Radius.circular(16)),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        sent ? 'sent!' : 'Throw it into the MIXX?',
                       ),
                     ),
                   ),
                 ],
               ),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  style: ElevatedButton.styleFrom(
-                    shape: const RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.vertical(bottom: Radius.circular(16)),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+            );
+          },
+        );
+      },
+    );
+    return decision ?? false;
+  }
+
+  Future<bool> _showUploadedPhotoPopup(String imagePath) async {
+    if (!mounted || imagePath.trim().isEmpty) return false;
+    final decision = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      builder: (context) {
+        var sent = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius:
+                            const BorderRadius.vertical(top: Radius.circular(16)),
+                        child: ColoredBox(
+                          color: Colors.black,
+                          child: const AspectRatio(
+                            aspectRatio: 9 / 16,
+                            child: SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                      ClipRRect(
+                        borderRadius:
+                            const BorderRadius.vertical(top: Radius.circular(16)),
+                        child: AspectRatio(
+                          aspectRatio: 9 / 16,
+                          child: Image.file(
+                            File(imagePath),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const ColoredBox(color: Colors.black),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Material(
+                          color: Colors.black54,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () => Navigator.of(context).pop(false),
+                            child: const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Text('Send it to feed'),
-                ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: sent
+                          ? null
+                          : () async {
+                              setDialogState(() => sent = true);
+                              await Future<void>.delayed(
+                                const Duration(milliseconds: 450),
+                              );
+                              if (!context.mounted) return;
+                              Navigator.of(context).pop(true);
+                            },
+                      style: ElevatedButton.styleFrom(
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                              bottom: Radius.circular(16)),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        sent ? 'sent!' : 'Throw it into the MIXX?',
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -935,9 +1073,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                     ? null
                     : () => unawaited(_openLiveVideoUrl(videoUrl)),
                 child: AnimatedOpacity(
-                  opacity: isLiveVideoPost
-                      ? (_liveChatBlinkDim ? 0.35 : 1.0)
-                      : 1.0,
+                  opacity:
+                      isLiveVideoPost ? (_liveChatBlinkDim ? 0.35 : 1.0) : 1.0,
                   duration: const Duration(milliseconds: 420),
                   child: Text(
                     renderedBody,
@@ -990,7 +1127,46 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   Future<void> _openLiveVideoUrl(String rawUrl) async {
     final uri = Uri.tryParse(rawUrl);
     if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AspectRatio(
+                  aspectRatio: 9 / 16,
+                  child: _UploadedVideoDialogPlayer(videoUrl: uri.toString()),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Material(
+                  color: Colors.black54,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Icon(Icons.close, color: Colors.white, size: 18),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Widget _messageTextField({
