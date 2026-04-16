@@ -47,4 +47,20 @@ class TattsagramLikeService {
         .eq('user_id', user.id)
         .eq('post_id', postId);
   }
+
+  /// Fallback resolver used when feed entries are still missing server ids
+  /// (e.g. immediately after optimistic upload reconciliation).
+  static Future<String?> resolvePostIdByMediaUrl(String mediaUrl) async {
+    final trimmed = mediaUrl.trim();
+    if (trimmed.isEmpty) return null;
+    final rows = await _client
+        .from('tattsagram_post')
+        .select('id')
+        .eq('media_url', trimmed)
+        .order('created_at', ascending: false)
+        .limit(1);
+    if (rows.isEmpty) return null;
+    final id = rows.first['id'];
+    return id?.toString();
+  }
 }

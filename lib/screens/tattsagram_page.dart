@@ -285,18 +285,8 @@ class _TattsagramPageState extends State<TattsagramPage> {
   Future<void> _loadRemoteTattsagramPosts() async {
     try {
       final posts = await TattsagramPostService.fetchPosts(limit: 100);
-      final ids = posts
-          .map((p) => p.id)
-          .whereType<String>()
-          .where((id) => id.isNotEmpty)
-          .toList();
-      final likedIds = await TattsagramLikeService.fetchLikedPostIds(ids);
-      final withLikes = posts.map((p) {
-        final id = p.id;
-        if (id == null || id.isEmpty) return p;
-        return p.copyWith(isLikedByMe: likedIds.contains(id));
-      }).toList(growable: true);
-      debugPrint('Fetched posts: ${withLikes.length}');
+      final withLikes = List<TattsagramPost>.from(posts, growable: true);
+      debugPrint('Fetched posts: ${posts.length}');
       _safeSetState(() {
         _remotePosts = List<TattsagramPost>.from(withLikes);
         _remoteLoadDone = true;
@@ -551,7 +541,20 @@ class _TattsagramPageState extends State<TattsagramPage> {
     final hasServerRow = serverId != null && serverId.isNotEmpty;
 
     if (!hasServerRow) {
+      final remoteUrl = post.canonicalRemoteUrl;
+      _likePersistInFlight.add(key);
+      final snapshot = post;
       _applyOptimisticLike(post, wasLiked: wasLiked);
+      if (remoteUrl.isNotEmpty) {
+        unawaited(_persistLikeByResolvedMediaUrl(
+          snapshot: snapshot,
+          remoteUrl: remoteUrl,
+          wasLiked: wasLiked,
+          dedupeKey: key,
+        ));
+      } else {
+        _likePersistInFlight.remove(key);
+      }
       return;
     }
 
@@ -574,6 +577,41 @@ class _TattsagramPageState extends State<TattsagramPage> {
       wasLiked: wasLiked,
       dedupeKey: key,
     ));
+  }
+
+  Future<void> _persistLikeByResolvedMediaUrl({
+    required TattsagramPost snapshot,
+    required String remoteUrl,
+    required bool wasLiked,
+    required String dedupeKey,
+  }) async {
+    try {
+      final resolvedId =
+          await TattsagramLikeService.resolvePostIdByMediaUrl(remoteUrl);
+      if (resolvedId == null || resolvedId.isEmpty) {
+        if (mounted) _revertLikeTo(snapshot);
+        return;
+      }
+      if (wasLiked) {
+        await TattsagramLikeService.removeLike(postId: resolvedId);
+      } else {
+        await TattsagramLikeService.addLike(postId: resolvedId);
+      }
+    } on PostgrestException catch (e) {
+      if (!wasLiked && (e.code == '23505')) {
+        final aligned = snapshot.copyWith(isLikedByMe: true);
+        _replaceInUniquePool(aligned);
+        TattsagramRankedPoolFeed.syncPostInstances(_feedSequence, aligned);
+        _needsSequenceRebuild = true;
+        if (mounted) setState(() {});
+      } else {
+        if (mounted) _revertLikeTo(snapshot);
+      }
+    } catch (_) {
+      if (mounted) _revertLikeTo(snapshot);
+    } finally {
+      _likePersistInFlight.remove(dedupeKey);
+    }
   }
 
   Future<void> _persistLikeToServer({

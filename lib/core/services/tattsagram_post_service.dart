@@ -58,15 +58,46 @@ class TattsagramPostService {
     int limit = 20,
     int offset = 0,
   }) async {
-    final posts = await _client
+    final rows = await _client
         .from('tattsagram_post')
         .select()
         .order('created_at', ascending: false)
         .range(offset, offset + limit - 1);
+    final posts = rows.map<TattsagramPost>(_fromRow).toList(growable: true);
+    final ids = posts
+        .map((p) => p.id)
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+    if (ids.isNotEmpty) {
+      final likesRows = await _client
+          .from('tattsagram_likes')
+          .select('post_id, user_id')
+          .inFilter('post_id', ids);
+      final myUserId = _client.auth.currentUser?.id;
+      final likeCounts = <String, int>{};
+      final likedByMe = <String>{};
+      for (final row in likesRows) {
+        final postId = row['post_id']?.toString();
+        if (postId == null || postId.isEmpty) continue;
+        likeCounts.update(postId, (v) => v + 1, ifAbsent: () => 1);
+        if (myUserId != null && row['user_id']?.toString() == myUserId) {
+          likedByMe.add(postId);
+        }
+      }
+      for (var i = 0; i < posts.length; i++) {
+        final id = posts[i].id;
+        if (id == null || id.isEmpty) continue;
+        posts[i] = posts[i].copyWith(
+          likesCount: likeCounts[id] ?? 0,
+          isLikedByMe: likedByMe.contains(id),
+        );
+      }
+    }
     debugPrint(
       'TattsagramPostService.fetchPosts: Fetched posts: ${posts.length} (limit=$limit offset=$offset)',
     );
-    return posts.map<TattsagramPost>(_fromRow).toList();
+    return posts;
   }
 
   static TattsagramPost _fromRow(Map<String, dynamic> row) {
