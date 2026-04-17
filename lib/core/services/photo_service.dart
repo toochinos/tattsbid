@@ -134,20 +134,61 @@ class PhotoService {
     }
   }
 
+  static Future<String> _resolveArtistNameForInsert(
+    SupabaseClient supabase, {
+    String? preferred,
+  }) async {
+    final preferredName = preferred?.trim() ?? '';
+    if (preferredName.isNotEmpty) return preferredName;
+
+    final user = supabase.auth.currentUser;
+    if (user == null) return 'Unknown';
+
+    try {
+      final profile = await supabase
+          .from('profiles')
+          .select('display_name, username')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (profile != null) {
+        final displayName = profile['display_name']?.toString().trim() ?? '';
+        if (displayName.isNotEmpty) return displayName;
+        final username = profile['username']?.toString().trim() ?? '';
+        if (username.isNotEmpty) return username;
+      }
+    } catch (_) {
+      // Fall through to auth metadata fallbacks.
+    }
+
+    final meta = user.userMetadata ?? const <String, dynamic>{};
+    final metaDisplay = meta['display_name']?.toString().trim() ?? '';
+    if (metaDisplay.isNotEmpty) return metaDisplay;
+    final metaUsername = meta['username']?.toString().trim() ?? '';
+    if (metaUsername.isNotEmpty) return metaUsername;
+    final emailPrefix = (user.email ?? '').split('@').first.trim();
+    if (emailPrefix.isNotEmpty) return emailPrefix;
+    return 'Unknown';
+  }
+
   /// Persists uploaded video URL to [tattsagram_post] and returns inserted row.
   static Future<Map<String, dynamic>> insertUploadedVideoPost(
-      String videoUrl) async {
+    String videoUrl, {
+    String? artistName,
+  }) async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw Exception('User not signed in');
     }
+    final resolvedArtistName =
+        await _resolveArtistNameForInsert(supabase, preferred: artistName);
     final inserted = await supabase
         .from('tattsagram_post')
         .insert({
           'media_url': videoUrl,
           'media_type': 'video',
           'user_id': user.id,
+          'artist_name': resolvedArtistName,
         })
         .select()
         .single();
@@ -156,18 +197,23 @@ class PhotoService {
 
   /// Persists uploaded image URL to [tattsagram_post] and returns inserted row.
   static Future<Map<String, dynamic>> insertUploadedPhotoPost(
-      String imageUrl) async {
+    String imageUrl, {
+    String? artistName,
+  }) async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw Exception('User not signed in');
     }
+    final resolvedArtistName =
+        await _resolveArtistNameForInsert(supabase, preferred: artistName);
     final inserted = await supabase
         .from('tattsagram_post')
         .insert({
           'media_url': imageUrl,
           'media_type': 'image',
           'user_id': user.id,
+          'artist_name': resolvedArtistName,
         })
         .select()
         .single();

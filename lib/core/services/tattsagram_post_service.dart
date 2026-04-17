@@ -63,7 +63,56 @@ class TattsagramPostService {
         .select()
         .order('created_at', ascending: false)
         .range(offset, offset + limit - 1);
-    final posts = rows.map<TattsagramPost>(_fromRow).toList(growable: true);
+    final normalizedRows = rows
+        .map<Map<String, dynamic>>((row) => Map<String, dynamic>.from(row))
+        .toList(growable: false);
+    final posts =
+        normalizedRows.map<TattsagramPost>(_fromRow).toList(growable: true);
+
+    // Fill missing artist names from profiles by user_id to avoid "Unknown".
+    final unresolvedUserIds = <String>{};
+    for (var i = 0; i < normalizedRows.length; i++) {
+      final currentName = posts[i].artistName.trim().toLowerCase();
+      final needsResolve = currentName.isEmpty || currentName == 'unknown';
+      if (!needsResolve) continue;
+      final userId = normalizedRows[i]['user_id']?.toString().trim() ?? '';
+      if (userId.isNotEmpty) {
+        unresolvedUserIds.add(userId);
+      }
+    }
+    if (unresolvedUserIds.isNotEmpty) {
+      try {
+        final profileRows = await _client
+            .from('profiles')
+            .select('id, username, display_name')
+            .inFilter('id', unresolvedUserIds.toList(growable: false));
+        final nameByUserId = <String, String>{};
+        for (final profile in profileRows) {
+          final id = profile['id']?.toString().trim() ?? '';
+          if (id.isEmpty) continue;
+          final username = profile['username']?.toString().trim() ?? '';
+          final displayName = profile['display_name']?.toString().trim() ?? '';
+          final resolved = displayName.isNotEmpty
+              ? displayName
+              : (username.isNotEmpty ? username : '');
+          if (resolved.isNotEmpty) {
+            nameByUserId[id] = resolved;
+          }
+        }
+        for (var i = 0; i < normalizedRows.length; i++) {
+          final currentName = posts[i].artistName.trim().toLowerCase();
+          final needsResolve = currentName.isEmpty || currentName == 'unknown';
+          if (!needsResolve) continue;
+          final userId = normalizedRows[i]['user_id']?.toString().trim() ?? '';
+          final resolved = nameByUserId[userId];
+          if (resolved != null && resolved.isNotEmpty) {
+            posts[i] = posts[i].copyWith(artistName: resolved);
+          }
+        }
+      } catch (_) {
+        // Keep current fallback names if profile lookup fails.
+      }
+    }
     final ids = posts
         .map((p) => p.id)
         .whereType<String>()

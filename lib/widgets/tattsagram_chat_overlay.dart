@@ -679,7 +679,10 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       }
       widget.onReplaceTempVideoWhenFinished(tempId, url, artistName);
       unawaited(
-        PhotoService.insertUploadedVideoPost(url).then((row) {
+        PhotoService.insertUploadedVideoPost(
+          url,
+          artistName: artistName,
+        ).then((row) {
           if (!mounted) return;
           final inserted = TattsagramPostService.postFromRealtimeRow(row)
               .copyWith(replacesLocalUploadId: tempId);
@@ -801,7 +804,10 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     if (!shouldSendToFeed) return;
     widget.onPhotoPostedToFeed?.call(post);
     unawaited(
-      PhotoService.insertUploadedVideoPost(videoUrl).then((row) {
+      PhotoService.insertUploadedVideoPost(
+        videoUrl,
+        artistName: artistName,
+      ).then((row) {
         if (!mounted) return;
         final inserted = TattsagramPostService.postFromRealtimeRow(row);
         widget.onPhotoPostedToFeed?.call(inserted);
