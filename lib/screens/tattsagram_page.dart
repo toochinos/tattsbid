@@ -928,7 +928,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
         );
       } else {
         _chatPosts.insert(
-          _middleInsertIndex(_chatPosts.length),
+          0,
           completedVideoPost,
         );
       }
@@ -937,7 +937,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
         (p) => p.canonicalRemoteUrl == completedVideoPost.canonicalRemoteUrl,
       );
       _remotePosts.insert(
-        _middleInsertIndex(_remotePosts.length),
+        0,
         completedVideoPost,
       );
       _chatPosts.removeWhere((p) => p.isUploading);
@@ -1019,16 +1019,16 @@ class _TattsagramPageState extends State<TattsagramPage> {
         _remotePosts.removeWhere(
           (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
         );
-        _remotePosts.insert(_middleInsertIndex(_remotePosts.length), post);
+        _remotePosts.insert(0, post);
         if (pid != null && pid.isNotEmpty) {
           final i = _chatPosts.indexWhere((p) => p.id == pid);
           if (i >= 0) {
             _chatPosts[i] = post;
           } else {
-            _chatPosts.insert(_middleInsertIndex(_chatPosts.length), post);
+            _chatPosts.insert(0, post);
           }
         } else {
-          _chatPosts.insert(_middleInsertIndex(_chatPosts.length), post);
+          _chatPosts.insert(0, post);
         }
       }
       _mergeUniquePoolFromSources();
@@ -1054,11 +1054,53 @@ class _TattsagramPageState extends State<TattsagramPage> {
     });
   }
 
+  bool _isSamePostForVisibleWindow(TattsagramPost a, TattsagramPost b) {
+    final aId = a.id?.trim() ?? '';
+    final bId = b.id?.trim() ?? '';
+    if (aId.isNotEmpty && bId.isNotEmpty) {
+      return aId == bId;
+    }
+    final aUrl = a.canonicalRemoteUrl.trim();
+    final bUrl = b.canonicalRemoteUrl.trim();
+    return aUrl.isNotEmpty && bUrl.isNotEmpty && aUrl == bUrl;
+  }
+
+  List<TattsagramPost> _removeNearDuplicatesForVisibleWindow(
+    List<TattsagramPost> source,
+  ) {
+    if (source.length < 2) return source;
+    final seq = List<TattsagramPost>.from(source);
+    for (var i = 0; i < seq.length; i++) {
+      final dupPrev = i > 0 && _isSamePostForVisibleWindow(seq[i], seq[i - 1]);
+      final dupPrev2 =
+          i > 1 && _isSamePostForVisibleWindow(seq[i], seq[i - 2]);
+      if (!dupPrev && !dupPrev2) continue;
+
+      var swapIndex = -1;
+      for (var j = i + 1; j < seq.length; j++) {
+        final conflictsPrev =
+            i > 0 && _isSamePostForVisibleWindow(seq[j], seq[i - 1]);
+        final conflictsPrev2 =
+            i > 1 && _isSamePostForVisibleWindow(seq[j], seq[i - 2]);
+        if (!conflictsPrev && !conflictsPrev2) {
+          swapIndex = j;
+          break;
+        }
+      }
+      if (swapIndex != -1) {
+        final tmp = seq[i];
+        seq[i] = seq[swapIndex];
+        seq[swapIndex] = tmp;
+      }
+    }
+    return seq;
+  }
+
   Widget _buildFeed() {
     if (!_remoteLoadDone) {
       return const Center(child: CircularProgressIndicator());
     }
-    final seq = _feedSequence;
+    final seq = _removeNearDuplicatesForVisibleWindow(_feedSequence);
     final L = seq.length;
     if (L == 0) {
       return const Center(
