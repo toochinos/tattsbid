@@ -180,17 +180,20 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         }
       },
       child: _isInitialized && _controller != null
-          ? AspectRatio(
-              aspectRatio: _controller!.value.aspectRatio > 0
-                  ? _controller!.value.aspectRatio
-                  : 16 / 9,
-              child: widget.onSurfaceTap == null
-                  ? VideoPlayer(_controller!)
-                  : GestureDetector(
-                      onTap: widget.onSurfaceTap,
-                      behavior: HitTestBehavior.opaque,
-                      child: VideoPlayer(_controller!),
-                    ),
+          ? FittedBox(
+              fit: BoxFit.cover,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: _controller!.value.size.width,
+                height: _controller!.value.size.height,
+                child: widget.onSurfaceTap == null
+                    ? VideoPlayer(_controller!)
+                    : GestureDetector(
+                        onTap: widget.onSurfaceTap,
+                        behavior: HitTestBehavior.opaque,
+                        child: VideoPlayer(_controller!),
+                      ),
+              ),
             )
           : _buildLoadingPreview(networkThumb),
     );
@@ -283,9 +286,14 @@ class _SmartVideoPlayerState extends State<SmartVideoPlayer> {
         }
       },
       child: _isInitialized && _controller != null
-          ? AspectRatio(
-              aspectRatio: _controller!.value.aspectRatio,
-              child: VideoPlayer(_controller!),
+          ? FittedBox(
+              fit: BoxFit.cover,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: _controller!.value.size.width,
+                height: _controller!.value.size.height,
+                child: VideoPlayer(_controller!),
+              ),
             )
           : Container(color: Colors.black),
     );
