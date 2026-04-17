@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
 
@@ -19,12 +20,21 @@ import '../core/services/tattsagram_post_service.dart';
 import '../core/services/tattsagram_video_sound_registry.dart';
 import '../l10n/app_localizations.dart';
 import '../screens/record_page.dart';
+import '../screens/video_trim_page.dart';
 
 enum _TattsagramPickKind {
   cameraPhoto,
   galleryPhoto,
   cameraVideo,
   galleryVideo,
+}
+
+String extractYoutubeId(String url) {
+  final uri = Uri.parse(url);
+  if (uri.host.contains('youtu.be')) {
+    return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+  }
+  return uri.queryParameters['v'] ?? '';
 }
 
 /// Slides in from the left over the feed. The message field slides in from the right
@@ -92,7 +102,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   ];
 
   late final Stream<int> _onlineUsersStream;
-  final TextEditingController _inputController = TextEditingController();
+  final TextEditingController _youtubeController = TextEditingController();
   final ScrollController _messageScrollController = ScrollController();
 
   /// Server rows (Realtime + periodic REST refresh so other users appear without hot restart).
@@ -100,6 +110,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   StreamSubscription<List<LiveMessage>>? _messagesSub;
   Timer? _messagesPollTimer;
   bool _messagesPollRetryScheduled = false;
+  bool _latestMessageScrollScheduled = false;
   Timer? _liveChatBlinkTimer;
   bool _liveChatBlinkDim = false;
 
@@ -114,7 +125,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   int _echoSeq = 0;
   static const int _networkRetryDelaySeconds = 2;
   static const int _maxUploadAttempts = 2;
-  static const int _maxVideoDurationSeconds = 10;
+  static const int _maxVideoDurationSeconds = 15;
   static const int _maxPreferredUploadSizeBytes = 5 * 1024 * 1024;
   int _lastUploadProgressPercent = -1;
   bool _isUploading = false;
@@ -193,7 +204,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     _panelSlideController.removeListener(_stickMessagesToBottomDuringSlide);
     _panelSlideController.dispose();
     _messageScrollController.dispose();
-    _inputController.dispose();
+    _youtubeController.dispose();
     super.dispose();
   }
 
@@ -273,6 +284,18 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     _messageScrollController.jumpTo(max);
   }
 
+  void _ensureLatestMessageVisible() {
+    if (_latestMessageScrollScheduled) return;
+    _latestMessageScrollScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _latestMessageScrollScheduled = false;
+      if (!mounted || !widget.isOpen || !_panelExpanded) return;
+      if (!_messageScrollController.hasClients) return;
+      final max = _messageScrollController.position.maxScrollExtent;
+      _messageScrollController.jumpTo(max);
+    });
+  }
+
   String _formatTime(BuildContext context, DateTime t) {
     final local = t.toLocal();
     final time = MaterialLocalizations.of(context).formatTimeOfDay(
@@ -315,7 +338,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   }
 
   Future<void> _submitLiveMessage() async {
-    final text = _inputController.text;
+    final text = _youtubeController.text;
     if (text.trim().isEmpty) return;
 
     final username = await ProfileService.resolveLiveDisplayName();
@@ -331,7 +354,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
 
     _safeSetState(() {
       _pendingEcho.add(echo);
-      _inputController.clear();
+      _youtubeController.clear();
     });
     _scrollMessagesToBottom();
 
@@ -579,13 +602,21 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       maxSeconds: _maxVideoDurationSeconds,
     );
     if (!mounted) return;
-    if (tooLong) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Video must be 15 seconds or less')),
-      );
+    if (!tooLong) {
+      await _uploadVideo(pickedFile);
       return;
     }
-    await _uploadVideo(pickedFile);
+
+    final trimmedFile = await Navigator.of(context).push<File>(
+      MaterialPageRoute(
+        builder: (_) => VideoTrimPage(
+          file: pickedFile,
+          maxDurationSeconds: _maxVideoDurationSeconds,
+        ),
+      ),
+    );
+    if (!mounted || trimmedFile == null) return;
+    await _uploadVideo(trimmedFile);
   }
 
   Future<void> _uploadVideo(File file) async {
@@ -1011,6 +1042,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       }
     }
     combined.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    _ensureLatestMessageVisible();
 
     if (combined.isEmpty) {
       return Center(
@@ -1046,8 +1078,12 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         final username =
             usernameRaw.trim().isEmpty ? 'User' : usernameRaw.trim();
         final body = msg.message;
-        final videoUrl = _extractFirstUrl(body);
-        final isLiveVideoPost = videoUrl != null && body.contains('Live video');
+        final messageText = body;
+        final messageUrl = _extractFirstUrl(body);
+        final isLiveVideoPost =
+            messageUrl != null && body.contains('Live video');
+        final isYouTubeLink = messageText.contains('youtube.com') ||
+            messageText.contains('youtu.be');
         final renderedBody = isLiveVideoPost
             ? 'User just Posted a new Video into the MIXX!'
             : body;
@@ -1067,30 +1103,53 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                 style: titleStyle,
               ),
               const SizedBox(height: 4),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: videoUrl == null
-                    ? null
-                    : () => unawaited(_openLiveVideoUrl(videoUrl)),
-                child: AnimatedOpacity(
-                  opacity:
-                      isLiveVideoPost ? (_liveChatBlinkDim ? 0.35 : 1.0) : 1.0,
-                  duration: const Duration(milliseconds: 420),
-                  child: Text(
-                    renderedBody,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white,
-                      height: 1.4,
-                      fontWeight: FontWeight.w500,
-                      fontFamilyFallback: _emojiFontFamilyFallback,
-                      decoration: videoUrl == null
-                          ? TextDecoration.none
-                          : TextDecoration.underline,
+              if (isYouTubeLink)
+                GestureDetector(
+                  onTap: () async {
+                    final url = Uri.parse(messageText);
+                    await launchUrl(url);
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Image.network(
+                        'https://img.youtube.com/vi/${extractYoutubeId(messageText)}/0.jpg',
+                      ),
+                      const Text('Tap to watch on YouTube'),
+                    ],
+                  ),
+                )
+              else
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: messageUrl == null
+                      ? null
+                      : () => unawaited(
+                            isLiveVideoPost
+                                ? _openLiveVideoUrl(messageUrl)
+                                : _openMessageUrl(messageUrl),
+                          ),
+                  child: AnimatedOpacity(
+                    opacity:
+                        isLiveVideoPost ? (_liveChatBlinkDim ? 0.35 : 1.0) : 1.0,
+                    duration: const Duration(milliseconds: 420),
+                    child: Text(
+                      renderedBody,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: messageUrl == null
+                            ? Colors.white
+                            : (isLiveVideoPost ? Colors.white : Colors.blue),
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                        fontFamilyFallback: _emojiFontFamilyFallback,
+                        decoration: messageUrl == null || isLiveVideoPost
+                            ? TextDecoration.none
+                            : TextDecoration.underline,
+                      ),
                     ),
                   ),
                 ),
-              ),
               const SizedBox(height: 4),
               Text(
                 _formatTime(context, msg.createdAt),
@@ -1122,6 +1181,14 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     final url = m.group(1)?.trim();
     if (url == null || url.isEmpty) return null;
     return url;
+  }
+
+  Future<void> _openMessageUrl(String rawUrl) async {
+    final url = Uri.tryParse(rawUrl);
+    if (url == null) return;
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
   }
 
   Future<void> _openLiveVideoUrl(String rawUrl) async {
@@ -1173,7 +1240,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     required ColorScheme scheme,
   }) {
     return TextField(
-      controller: _inputController,
+      controller: _youtubeController,
       minLines: 1,
       maxLines: 4,
       keyboardType: TextInputType.text,
@@ -1188,7 +1255,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         unawaited(_submitLiveMessage());
       },
       decoration: InputDecoration(
-        hintText: 'Message…',
+        hintText: 'Paste YouTube link',
         hintStyle: const TextStyle(
           color: Color(0x99FFFFFF),
           fontWeight: FontWeight.w400,

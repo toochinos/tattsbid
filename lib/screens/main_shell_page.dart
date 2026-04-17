@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import '../core/routes/app_routes.dart';
 import '../core/startup/post_dashboard_onboarding.dart';
@@ -15,6 +16,7 @@ import 'explore_page.dart';
 import 'tattsagram_page.dart';
 import 'add_page.dart';
 import 'chat_page.dart';
+import 'create_post_page.dart';
 import 'destination_page.dart';
 import 'profile_page.dart';
 import 'public_artist_profile_page.dart';
@@ -78,6 +80,7 @@ class _MainShellPageState extends State<MainShellPage> {
   bool _profileLoaded = false;
   Timer? _presenceTimer;
   bool _didPushWinnerProfile = false;
+  StreamSubscription<List<SharedMediaFile>>? _sharedTextSub;
 
   /// Country tag for new posts (profile + globe). Not the same as the Explore list scope.
   final ValueNotifier<String> _postCountryNotifier =
@@ -99,6 +102,19 @@ class _MainShellPageState extends State<MainShellPage> {
   @override
   void initState() {
     super.initState();
+    _sharedTextSub =
+        ReceiveSharingIntent.instance.getMediaStream().listen((files) {
+      final value = _extractSharedText(files);
+      if (value != null) {
+        handleSharedText(value);
+      }
+    });
+    unawaited(ReceiveSharingIntent.instance.getInitialMedia().then((files) {
+      final value = _extractSharedText(files);
+      if (value != null) {
+        handleSharedText(value);
+      }
+    }));
     _exploreFeedScopeNotifier.addListener(_onExploreScopeForTabs);
     PostDashboardOnboarding.scheduleAfterFirstFrame();
     _loadProfile();
@@ -110,6 +126,37 @@ class _MainShellPageState extends State<MainShellPage> {
 
   void _onExploreScopeForTabs() {
     _ejectFromTattsagramIfHidden();
+  }
+
+  String? _extractSharedText(List<SharedMediaFile> files) {
+    for (final file in files) {
+      if (file.type == SharedMediaType.text || file.type == SharedMediaType.url) {
+        final text = file.path.trim();
+        if (text.isNotEmpty) return text;
+      }
+      final mime = file.mimeType?.toLowerCase();
+      if (mime == 'text/plain') {
+        final text = file.path.trim();
+        if (text.isNotEmpty) return text;
+      }
+    }
+    return null;
+  }
+
+  void handleSharedText(String value) {
+    final text = value.trim();
+    if (text.isEmpty || !mounted) return;
+    if (text.contains('youtube.com') || text.contains('youtu.be')) {
+      print('Received YouTube link: $text');
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CreatePostPage(initialUrl: text),
+        ),
+      );
+      return;
+    }
+    setState(() => _currentIndex = _tattsagramStackIndex);
   }
 
   Future<void> _loadProfile() async {
@@ -496,6 +543,7 @@ class _MainShellPageState extends State<MainShellPage> {
 
   @override
   void dispose() {
+    _sharedTextSub?.cancel();
     _exploreFeedScopeNotifier.removeListener(_onExploreScopeForTabs);
     MessageIndicatorService.stop();
     _presenceTimer?.cancel();

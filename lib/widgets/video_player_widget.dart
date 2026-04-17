@@ -184,17 +184,13 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
               aspectRatio: _controller!.value.aspectRatio > 0
                   ? _controller!.value.aspectRatio
                   : 16 / 9,
-              child: GestureDetector(
-                onTap: () {
-                  if (widget.onSurfaceTap != null) {
-                    widget.onSurfaceTap!();
-                  } else {
-                    _controller!.play();
-                  }
-                },
-                behavior: HitTestBehavior.opaque,
-                child: VideoPlayer(_controller!),
-              ),
+              child: widget.onSurfaceTap == null
+                  ? VideoPlayer(_controller!)
+                  : GestureDetector(
+                      onTap: widget.onSurfaceTap,
+                      behavior: HitTestBehavior.opaque,
+                      child: VideoPlayer(_controller!),
+                    ),
             )
           : _buildLoadingPreview(networkThumb),
     );

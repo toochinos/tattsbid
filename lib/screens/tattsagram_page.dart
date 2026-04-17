@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -16,15 +18,99 @@ import '../core/services/tattsagram_video_sound_registry.dart';
 import '../widgets/tattsagram_chat_overlay.dart';
 import '../widgets/video_player_widget.dart';
 
-const String _tattsagramPostBaseUrl = 'https://tattsagram.com/post';
+Future<void> sharePost(String imageUrl) async {
+  final url = imageUrl.trim();
+  if (url.isEmpty) return;
+  final response = await http.get(Uri.parse(url));
+  if (response.statusCode < 200 || response.statusCode >= 300) return;
 
-void sharePost(Map post) {
-  final id = post['id'];
-  if (id == null) return;
-  final s = id.toString().trim();
-  if (s.isEmpty) return;
-  unawaited(
-    Share.share('$_tattsagramPostBaseUrl/$s'),
+  final tempDir = await getTemporaryDirectory();
+  final file = File('${tempDir.path}/share.jpg');
+  await file.writeAsBytes(response.bodyBytes);
+
+  await Share.shareXFiles(
+    [XFile(file.path)],
+    text: "You know this guy… look what he's flexing now 👀🔥",
+  );
+}
+
+Future<void> shareVideo(String videoUrl) async {
+  try {
+    // 1. Download video
+    final response = await http.get(Uri.parse(videoUrl));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to download video');
+    }
+
+    // 2. Save to temp storage
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/share_video.mp4');
+
+    await file.writeAsBytes(response.bodyBytes);
+
+    // 3. Share video
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      text: 'Check this out on Tattsagram 🔥',
+    );
+  } catch (e) {
+    print('SHARE ERROR: $e');
+  }
+}
+
+Future<void> shareToApp(String mediaUrl, {required bool isVideo}) =>
+    isVideo ? shareVideo(mediaUrl) : sharePost(mediaUrl);
+
+void showShareOptions(
+  BuildContext context,
+  String mediaUrl, {
+  required bool isVideo,
+}) {
+  showModalBottomSheet(
+    context: context,
+    builder: (_) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            title: const Text('Messenger'),
+            onTap: () {
+              Navigator.of(context).pop();
+              unawaited(shareToApp(mediaUrl, isVideo: isVideo));
+            },
+          ),
+          ListTile(
+            title: const Text('Instagram'),
+            onTap: () {
+              Navigator.of(context).pop();
+              unawaited(shareToApp(mediaUrl, isVideo: isVideo));
+            },
+          ),
+          ListTile(
+            title: const Text('TikTok'),
+            onTap: () {
+              Navigator.of(context).pop();
+              unawaited(shareToApp(mediaUrl, isVideo: isVideo));
+            },
+          ),
+          ListTile(
+            title: const Text('Facebook'),
+            onTap: () {
+              Navigator.of(context).pop();
+              unawaited(shareToApp(mediaUrl, isVideo: isVideo));
+            },
+          ),
+          ListTile(
+            title: const Text('Email'),
+            onTap: () {
+              Navigator.of(context).pop();
+              unawaited(shareToApp(mediaUrl, isVideo: isVideo));
+            },
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -114,6 +200,28 @@ class _TattsagramPageState extends State<TattsagramPage> {
     setState(fn);
   }
 
+  void _attachFeedPageListener() {
+    _feedPageController.addListener(_onFeedPageScroll);
+  }
+
+  void _detachFeedPageListener() {
+    _feedPageController.removeListener(_onFeedPageScroll);
+  }
+
+  /// Active = page nearest center (updates while user scrolls, not only on settle).
+  void _onFeedPageScroll() {
+    if (!_feedPageController.hasClients) return;
+    final page = _feedPageController.page;
+    if (page == null) return;
+    final L = _feedSequence.length;
+    if (L == 0) return;
+    final next = page.round().clamp(0, L - 1);
+    if (next == _currentIndex) return;
+    _safeSetState(() {
+      _currentIndex = next;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -134,6 +242,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
     _feedScrollController.addListener(_onFeedScrollCombined);
     _feedPageController =
         PageController(viewportFraction: _pageViewportFraction);
+    _attachFeedPageListener();
     _connectPostsRealtime();
     _authStateSub = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
@@ -318,6 +427,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
     _feedScrollController
       ..removeListener(_onFeedScrollCombined)
       ..dispose();
+    _detachFeedPageListener();
     _feedPageController.dispose();
     super.dispose();
   }
@@ -360,11 +470,13 @@ class _TattsagramPageState extends State<TattsagramPage> {
     final L = _feedSequence.length;
     if (L == 0) return;
     final i = index.clamp(0, L - 1);
+    _detachFeedPageListener();
     _feedPageController.dispose();
     _feedPageController = PageController(
       initialPage: i,
       viewportFraction: 1.0,
     );
+    _attachFeedPageListener();
     _safeSetState(() {
       _currentIndex = i;
       _isTikTokFullscreen = true;
@@ -379,11 +491,13 @@ class _TattsagramPageState extends State<TattsagramPage> {
       return;
     }
     final i = _currentIndex.clamp(0, L - 1);
+    _detachFeedPageListener();
     _feedPageController.dispose();
     _feedPageController = PageController(
       initialPage: i,
       viewportFraction: _pageViewportFraction,
     );
+    _attachFeedPageListener();
     _safeSetState(() {
       _currentIndex = i;
       _isTikTokFullscreen = false;
@@ -681,15 +795,9 @@ class _TattsagramPageState extends State<TattsagramPage> {
     _recomputeFeedPlaybackGate();
   }
 
-  void _animateFeedToTopAfterInsert() {
-    if (!_feedPageController.hasClients) return;
-    unawaited(
-      _feedPageController.animateToPage(
-        0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      ),
-    );
+  int _middleInsertIndex(int listLength) {
+    if (listLength <= 0) return 0;
+    return _currentIndex.clamp(0, listLength);
   }
 
   void _setSnapPlaybackEnabled(bool enabled) {
@@ -819,17 +927,22 @@ class _TattsagramPageState extends State<TattsagramPage> {
           timestamp: DateTime.now(),
         );
       } else {
-        _chatPosts.insert(0, completedVideoPost);
+        _chatPosts.insert(
+          _middleInsertIndex(_chatPosts.length),
+          completedVideoPost,
+        );
       }
       _remotePosts = List<TattsagramPost>.from(_remotePosts);
       _remotePosts.removeWhere(
         (p) => p.canonicalRemoteUrl == completedVideoPost.canonicalRemoteUrl,
       );
-      _remotePosts.insert(0, completedVideoPost);
+      _remotePosts.insert(
+        _middleInsertIndex(_remotePosts.length),
+        completedVideoPost,
+      );
       _chatPosts.removeWhere((p) => p.isUploading);
       _mergeUniquePoolFromSources();
     });
-    _animateFeedToTopAfterInsert();
     _cancelCameraCapturePause();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _rebuildRankedSequencePreservingAnchor();
@@ -839,7 +952,6 @@ class _TattsagramPageState extends State<TattsagramPage> {
   void _onPhotoPostedFromLiveChat(TattsagramPost post) {
     if (!mounted) return;
     String? overlayPathToShow;
-    var shouldScrollToTop = false;
     setState(() {
       if (post.mediaType == TattsagramMediaType.image) {
         if (post.isUploading && (post.id?.isNotEmpty ?? false)) {
@@ -907,24 +1019,20 @@ class _TattsagramPageState extends State<TattsagramPage> {
         _remotePosts.removeWhere(
           (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
         );
-        _remotePosts.insert(0, post);
+        _remotePosts.insert(_middleInsertIndex(_remotePosts.length), post);
         if (pid != null && pid.isNotEmpty) {
           final i = _chatPosts.indexWhere((p) => p.id == pid);
           if (i >= 0) {
             _chatPosts[i] = post;
           } else {
-            _chatPosts.insert(0, post);
+            _chatPosts.insert(_middleInsertIndex(_chatPosts.length), post);
           }
         } else {
-          _chatPosts.insert(0, post);
+          _chatPosts.insert(_middleInsertIndex(_chatPosts.length), post);
         }
-        shouldScrollToTop = true;
       }
       _mergeUniquePoolFromSources();
     });
-    if (shouldScrollToTop) {
-      _animateFeedToTopAfterInsert();
-    }
     if (overlayPathToShow != null && overlayPathToShow!.isNotEmpty) {
       _showOptimisticPhotoOverlay(overlayPathToShow!);
     }
@@ -988,7 +1096,8 @@ class _TattsagramPageState extends State<TattsagramPage> {
             isCenter: isActive,
             mountVideoDecoder: mountDecoder,
             onVideoSurfaceTap: null,
-            onVideoThumbnailTap: p.mediaType == TattsagramMediaType.video
+            onVideoThumbnailTap: isActive &&
+                    p.mediaType == TattsagramMediaType.video
                 ? () => _onVideoCellTapped(index)
                 : null,
             centerPlaybackListenable: _feedPlaybackGate,
@@ -1025,7 +1134,8 @@ class _TattsagramPageState extends State<TattsagramPage> {
           post: p,
           isCenter: index == _currentIndex,
           mountVideoDecoder: p.mediaType == TattsagramMediaType.video,
-          onVideoSurfaceTap: p.mediaType == TattsagramMediaType.video
+          onVideoSurfaceTap: index == _currentIndex &&
+                  p.mediaType == TattsagramMediaType.video
               ? () => _enterTikTokMode(index)
               : null,
           onVideoThumbnailTap: null,
@@ -1413,7 +1523,7 @@ class _TattsagramFeedItem extends StatelessWidget {
     final mediaWithGestures = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onVideoThumbnailTap,
-      onDoubleTap: onLike,
+      onDoubleTap: isCenter ? onLike : null,
       child: media,
     );
     const actionStyle = TextStyle(
@@ -1489,7 +1599,9 @@ class _TattsagramFeedItem extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     GestureDetector(
-                      onTap: () => sharePost({'id': post.id}),
+                      onTap: () => unawaited(
+                        shareVideo((post.videoUrl ?? post.mediaUrl).trim()),
+                      ),
                       child: const Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
