@@ -52,15 +52,32 @@ class LiveMessagesService {
         .map((rows) => _rowsToLiveMessages(rows as List<dynamic>));
   }
 
-  /// REST fetch so UI updates even if the Realtime WebSocket misses events (polling backup).
+  /// Latest [limit] rows, oldest-first (for chat UI with newest at the bottom).
   static Future<List<LiveMessage>> fetchMessagesForChat({
-    int limit = 300,
+    int limit = 100,
   }) async {
     final rows = await _client
         .from(_table)
         .select()
-        .order('created_at', ascending: true)
+        .order('created_at', ascending: false)
         .limit(limit);
-    return _rowsToLiveMessages(rows as List<dynamic>);
+    final newestFirst = _rowsToLiveMessages(rows as List<dynamic>);
+    return newestFirst.reversed.toList(growable: false);
+  }
+
+  /// Messages strictly older than [beforeUtc], oldest-first, up to [limit] rows.
+  static Future<List<LiveMessage>> fetchMessagesOlderThan(
+    DateTime beforeUtc, {
+    int limit = 40,
+  }) async {
+    final iso = beforeUtc.toUtc().toIso8601String();
+    final rows = await _client
+        .from(_table)
+        .select()
+        .lt('created_at', iso)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    final newestFirst = _rowsToLiveMessages(rows as List<dynamic>);
+    return newestFirst.reversed.toList(growable: false);
   }
 }

@@ -106,12 +106,19 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   final TextEditingController _youtubeController = TextEditingController();
   final ScrollController _messageScrollController = ScrollController();
 
-  /// Server rows (Realtime + periodic REST refresh so other users appear without hot restart).
-  List<LiveMessage>? _serverMessages;
+  /// Latest window from Realtime + REST (newest at end); trimmed to [_messageWindowLimit].
+  List<LiveMessage>? _windowMessages;
+
+  /// Older pages loaded via pull-to-refresh at the top (each batch oldest-first).
+  final List<LiveMessage> _olderBatchMessages = [];
+
+  static const int _messageWindowLimit = 100;
+
   StreamSubscription<List<LiveMessage>>? _messagesSub;
   Timer? _messagesPollTimer;
   bool _messagesPollRetryScheduled = false;
-  bool _latestMessageScrollScheduled = false;
+  bool _loadingOlder = false;
+  bool _hasMoreOlder = true;
   Timer? _liveChatBlinkTimer;
   bool _liveChatBlinkDim = false;
 
@@ -217,35 +224,75 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     return true;
   }
 
+  List<LiveMessage> _trimToLatestWindow(
+    List<LiveMessage> ascending,
+    int cap,
+  ) {
+    if (ascending.length <= cap) {
+      return List<LiveMessage>.from(ascending);
+    }
+    return ascending.sublist(ascending.length - cap);
+  }
+
+  bool _wasNearLiveChatBottom() {
+    if (!_messageScrollController.hasClients) return true;
+    final pos = _messageScrollController.position;
+    const slack = 80.0;
+    return pos.maxScrollExtent - pos.pixels <= slack;
+  }
+
   void _applyServerMessages(List<LiveMessage> rows) {
     _pendingEcho.removeWhere(
       (p) => rows.any((s) => _echoMatchesServer(p, s)),
     );
-    if (_serverMessages != null && _sameMessageRows(_serverMessages!, rows)) {
+    final tail = _trimToLatestWindow(rows, _messageWindowLimit);
+    if (_windowMessages != null && _sameMessageRows(_windowMessages!, tail)) {
       return;
     }
-    _safeSetState(() => _serverMessages = rows);
+    final wasEmpty = _windowMessages == null || _windowMessages!.isEmpty;
+    final nowHas = tail.isNotEmpty;
+    final firstContentPaint = wasEmpty && nowHas;
+    final stickToBottom = firstContentPaint || _wasNearLiveChatBottom();
+    _safeSetState(() {
+      _windowMessages = tail;
+      if (firstContentPaint) {
+        _hasMoreOlder = tail.length >= _messageWindowLimit;
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _scrollMessagesToBottom();
+      if (!mounted) return;
+      if (stickToBottom) {
+        if (firstContentPaint) {
+          _scrollMessagesToBottomImmediately();
+        } else {
+          _scrollMessagesToBottom();
+        }
+      }
     });
   }
 
   Future<void> _loadInitialMessages() async {
     try {
-      final rows = await LiveMessagesService.fetchMessagesForChat();
+      final rows = await LiveMessagesService.fetchMessagesForChat(
+        limit: _messageWindowLimit,
+      );
       if (!mounted) return;
       _applyServerMessages(rows);
     } catch (e, st) {
       debugPrint('live_messages initial load: $e\n$st');
       _safeSetState(() {
-        _serverMessages = [];
+        _windowMessages = [];
+        _olderBatchMessages.clear();
+        _hasMoreOlder = false;
       });
     }
   }
 
   Future<void> _pollMessagesFromServer() async {
     try {
-      final rows = await LiveMessagesService.fetchMessagesForChat();
+      final rows = await LiveMessagesService.fetchMessagesForChat(
+        limit: _messageWindowLimit,
+      );
       if (!mounted) return;
       _applyServerMessages(rows);
       _messagesPollRetryScheduled = false;
@@ -277,24 +324,99 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     });
   }
 
+  void _scrollMessagesToBottomImmediately() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_messageScrollController.hasClients) return;
+      final max = _messageScrollController.position.maxScrollExtent;
+      _messageScrollController.jumpTo(max);
+    });
+  }
+
+  Future<void> _loadOlderMessages() async {
+    if (_loadingOlder || !_hasMoreOlder || _windowMessages == null) {
+      return;
+    }
+    if (_windowMessages!.isEmpty && _olderBatchMessages.isEmpty) {
+      return;
+    }
+    final earliest = _olderBatchMessages.isNotEmpty
+        ? _olderBatchMessages.first
+        : _windowMessages!.first;
+
+    double? oldPixels;
+    double? oldMaxExtent;
+    if (_messageScrollController.hasClients) {
+      oldPixels = _messageScrollController.position.pixels;
+      oldMaxExtent = _messageScrollController.position.maxScrollExtent;
+    }
+
+    _safeSetState(() => _loadingOlder = true);
+    try {
+      final batch = await LiveMessagesService.fetchMessagesOlderThan(
+        earliest.createdAt,
+        limit: 40,
+      );
+      if (!mounted) return;
+      if (batch.isEmpty) {
+        _safeSetState(() {
+          _hasMoreOlder = false;
+          _loadingOlder = false;
+        });
+        return;
+      }
+
+      final existingIds = <Object?>{
+        for (final m in _olderBatchMessages) m.id,
+        for (final m in _windowMessages!) m.id,
+      };
+      final newOnes = <LiveMessage>[
+        for (final m in batch)
+          if (m.id == null || !existingIds.contains(m.id)) m,
+      ];
+
+      if (newOnes.isEmpty) {
+        _safeSetState(() {
+          _hasMoreOlder = false;
+          _loadingOlder = false;
+        });
+        return;
+      }
+
+      _safeSetState(() {
+        _olderBatchMessages.insertAll(0, newOnes);
+        _loadingOlder = false;
+        if (batch.length < 40) {
+          _hasMoreOlder = false;
+        }
+      });
+
+      if (oldPixels != null && oldMaxExtent != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_messageScrollController.hasClients) return;
+          final newMax = _messageScrollController.position.maxScrollExtent;
+          final delta = newMax - oldMaxExtent!;
+          _messageScrollController.jumpTo(oldPixels! + delta);
+        });
+      }
+    } catch (e, st) {
+      debugPrint('live_messages load older: $e\n$st');
+      if (mounted) {
+        _safeSetState(() => _loadingOlder = false);
+      }
+    }
+  }
+
+  Future<void> _onRefreshLoadOlderMessages() async {
+    if (!_hasMoreOlder) return;
+    await _loadOlderMessages();
+  }
+
   void _stickMessagesToBottomDuringSlide() {
     if (!mounted || !widget.isOpen || !_panelExpanded) return;
     if (!_messageScrollController.hasClients) return;
     final max = _messageScrollController.position.maxScrollExtent;
     if ((_messageScrollController.offset - max).abs() <= 0.5) return;
     _messageScrollController.jumpTo(max);
-  }
-
-  void _ensureLatestMessageVisible() {
-    if (_latestMessageScrollScheduled) return;
-    _latestMessageScrollScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _latestMessageScrollScheduled = false;
-      if (!mounted || !widget.isOpen || !_panelExpanded) return;
-      if (!_messageScrollController.hasClients) return;
-      final max = _messageScrollController.position.maxScrollExtent;
-      _messageScrollController.jumpTo(max);
-    });
   }
 
   String _formatTime(BuildContext context, DateTime t) {
@@ -1028,7 +1150,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     required List<Shadow> legibilityShadows,
     required double bottomReserve,
   }) {
-    final server = _serverMessages;
+    final server = _windowMessages;
     if (server == null) {
       return Center(
         child: SizedBox(
@@ -1042,14 +1164,13 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       );
     }
 
-    final combined = <LiveMessage>[...server];
+    final combined = <LiveMessage>[..._olderBatchMessages, ...server];
     for (final p in _pendingEcho) {
-      if (!server.any((s) => _echoMatchesServer(p, s))) {
+      if (!combined.any((s) => _echoMatchesServer(p, s))) {
         combined.add(p);
       }
     }
     combined.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    _ensureLatestMessageVisible();
 
     if (combined.isEmpty) {
       return Center(
@@ -1068,113 +1189,123 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       );
     }
 
-    return ListView.builder(
-      controller: _messageScrollController,
-      addAutomaticKeepAlives: false,
-      addRepaintBoundaries: true,
-      padding: EdgeInsets.fromLTRB(
-        16,
-        12,
-        16,
-        12 + bottomReserve,
-      ),
-      itemCount: combined.length,
-      itemBuilder: (context, i) {
-        final msg = combined[i];
-        final usernameRaw = msg.username;
-        final username =
-            usernameRaw.trim().isEmpty ? 'User' : usernameRaw.trim();
-        final body = msg.message;
-        final messageText = body;
-        final messageUrl = _extractFirstUrl(body);
-        final isLiveVideoPost =
-            messageUrl != null && body.contains('Live video');
-        final isYouTubeLink = messageText.contains('youtube.com') ||
-            messageText.contains('youtu.be');
-        final renderedBody = isLiveVideoPost
-            ? 'User just posted a new video into the MIXX!'
-            : body;
-        final displayBody = renderedBody.replaceAll(RegExp(r'\s+'), ' ').trim();
-        final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: _colorForLiveUsername(username),
-              letterSpacing: -0.2,
-              shadows: legibilityShadows,
-            );
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                username,
-                style: titleStyle,
-              ),
-              const SizedBox(height: 4),
-              if (isYouTubeLink)
-                GestureDetector(
-                  onTap: () async {
-                    final url = Uri.parse(messageText);
-                    await launchUrl(url);
-                  },
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Image.network(
-                        'https://img.youtube.com/vi/${extractYoutubeId(messageText)}/0.jpg',
-                      ),
-                      const Text('Tap to watch on YouTube'),
-                    ],
-                  ),
-                )
-              else
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: messageUrl == null
-                      ? null
-                      : () => unawaited(
-                            isLiveVideoPost
-                                ? _openLiveVideoUrl(messageUrl)
-                                : _openMessageUrl(messageUrl),
-                          ),
-                  child: AnimatedOpacity(
-                    opacity: isLiveVideoPost
-                        ? (_liveChatBlinkDim ? 0.35 : 1.0)
-                        : 1.0,
-                    duration: const Duration(milliseconds: 420),
-                    child: Text(
-                      displayBody,
-                      textAlign: TextAlign.start,
-                      softWrap: true,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isLiveVideoPost
-                            ? Colors.white
-                            : (messageUrl == null ? Colors.white : Colors.blue),
-                        height: 1.4,
-                        fontWeight: FontWeight.w500,
-                        fontFamilyFallback: _emojiFontFamilyFallback,
-                        decoration: messageUrl == null || isLiveVideoPost
-                            ? TextDecoration.none
-                            : TextDecoration.underline,
+    return RefreshIndicator(
+      color: scheme.primary,
+      onRefresh: _onRefreshLoadOlderMessages,
+      child: ListView.builder(
+        controller: _messageScrollController,
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        addAutomaticKeepAlives: false,
+        addRepaintBoundaries: true,
+        padding: EdgeInsets.fromLTRB(
+          16,
+          12,
+          16,
+          12 + bottomReserve,
+        ),
+        itemCount: combined.length,
+        itemBuilder: (context, i) {
+          final msg = combined[i];
+          final usernameRaw = msg.username;
+          final username =
+              usernameRaw.trim().isEmpty ? 'User' : usernameRaw.trim();
+          final body = msg.message;
+          final messageText = body;
+          final messageUrl = _extractFirstUrl(body);
+          final isLiveVideoPost =
+              messageUrl != null && body.contains('Live video');
+          final isYouTubeLink = messageText.contains('youtube.com') ||
+              messageText.contains('youtu.be');
+          final renderedBody = isLiveVideoPost
+              ? 'User just posted a new video into the MIXX!'
+              : body;
+          final displayBody =
+              renderedBody.replaceAll(RegExp(r'\s+'), ' ').trim();
+          final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: _colorForLiveUsername(username),
+                letterSpacing: -0.2,
+                shadows: legibilityShadows,
+              );
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  username,
+                  style: titleStyle,
+                ),
+                const SizedBox(height: 4),
+                if (isYouTubeLink)
+                  GestureDetector(
+                    onTap: () async {
+                      final url = Uri.parse(messageText);
+                      await launchUrl(url);
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Image.network(
+                          'https://img.youtube.com/vi/${extractYoutubeId(messageText)}/0.jpg',
+                        ),
+                        const Text('Tap to watch on YouTube'),
+                      ],
+                    ),
+                  )
+                else
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: messageUrl == null
+                        ? null
+                        : () => unawaited(
+                              isLiveVideoPost
+                                  ? _openLiveVideoUrl(messageUrl)
+                                  : _openMessageUrl(messageUrl),
+                            ),
+                    child: AnimatedOpacity(
+                      opacity: isLiveVideoPost
+                          ? (_liveChatBlinkDim ? 0.35 : 1.0)
+                          : 1.0,
+                      duration: const Duration(milliseconds: 420),
+                      child: Text(
+                        displayBody,
+                        textAlign: TextAlign.start,
+                        softWrap: true,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isLiveVideoPost
+                              ? Colors.white
+                              : (messageUrl == null
+                                  ? Colors.white
+                                  : Colors.blue),
+                          height: 1.4,
+                          fontWeight: FontWeight.w500,
+                          fontFamilyFallback: _emojiFontFamilyFallback,
+                          decoration: messageUrl == null || isLiveVideoPost
+                              ? TextDecoration.none
+                              : TextDecoration.underline,
+                        ),
                       ),
                     ),
                   ),
+                const SizedBox(height: 4),
+                Text(
+                  _formatTime(context, msg.createdAt),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: onChatMuted,
+                    shadows: legibilityShadows,
+                  ),
                 ),
-              const SizedBox(height: 4),
-              Text(
-                _formatTime(context, msg.createdAt),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: onChatMuted,
-                  shadows: legibilityShadows,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
