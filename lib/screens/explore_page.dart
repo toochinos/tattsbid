@@ -9,6 +9,7 @@ import '../core/models/user_profile.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/flexemo_mark.dart';
 
 /// Explore tab - displays open tattoo requests (photos from customers).
 class ExplorePage extends StatefulWidget {
@@ -390,13 +391,16 @@ class _ExplorePageState extends State<ExplorePage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.photo_library_outlined,
+                  FlexemoMark(
                     size: 64,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outline
-                        .withValues(alpha: 0.6),
+                    errorFallback: Icon(
+                      Icons.photo_library_outlined,
+                      size: 64,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .outline
+                          .withValues(alpha: 0.6),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(

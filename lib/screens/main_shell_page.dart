@@ -10,6 +10,7 @@ import '../core/services/message_indicator_service.dart';
 import '../core/services/online_presence_service.dart';
 import '../core/services/profile_service.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/flexemo_mark.dart';
 import 'artists_page.dart';
 import 'bid_detail_page.dart';
 import 'explore_page.dart';
@@ -130,7 +131,8 @@ class _MainShellPageState extends State<MainShellPage> {
 
   String? _extractSharedText(List<SharedMediaFile> files) {
     for (final file in files) {
-      if (file.type == SharedMediaType.text || file.type == SharedMediaType.url) {
+      if (file.type == SharedMediaType.text ||
+          file.type == SharedMediaType.url) {
         final text = file.path.trim();
         if (text.isNotEmpty) return text;
       }
@@ -433,8 +435,8 @@ class _MainShellPageState extends State<MainShellPage> {
         ),
       if (!_hideTattsagramFromBottomNav)
         BottomNavigationBarItem(
-          icon: const Icon(Icons.photo_library_outlined),
-          activeIcon: const Icon(Icons.photo_library),
+          icon: const _FlexemoTabIcon(selected: false),
+          activeIcon: const _FlexemoTabIcon(selected: true),
           label: l10n.tabTattsagram,
         ),
       BottomNavigationBarItem(
@@ -672,21 +674,21 @@ class _GlobalTopRightActions extends StatelessWidget {
       children: [
         _TopActionButton(
           tooltip: l10n.actionTooltipExplore,
-          icon: Icons.public,
+          icon: const Icon(Icons.public),
           onTap: onGlobeTap,
           background: scheme.surface,
         ),
         const SizedBox(width: 8),
         _TopActionButton(
           tooltip: l10n.tabTattsagram,
-          icon: Icons.photo_library_outlined,
+          icon: const FlexemoMark(size: 22),
           onTap: onTattsagramTap,
           background: scheme.surface,
         ),
         const SizedBox(width: 8),
         _TopActionButton(
           tooltip: l10n.actionTooltipSettings,
-          icon: Icons.settings,
+          icon: const Icon(Icons.settings),
           onTap: onSettingsTap,
           background: scheme.surface,
         ),
@@ -704,7 +706,7 @@ class _TopActionButton extends StatelessWidget {
   });
 
   final String tooltip;
-  final IconData icon;
+  final Widget icon;
   final VoidCallback onTap;
   final Color background;
 
@@ -716,7 +718,7 @@ class _TopActionButton extends StatelessWidget {
       child: IconButton(
         tooltip: tooltip,
         onPressed: onTap,
-        icon: Icon(icon),
+        icon: icon,
       ),
     );
   }
@@ -782,6 +784,34 @@ class _ArtistsTabIcon extends StatelessWidget {
                 ? scheme.primary
                 : scheme.onSurface.withValues(alpha: 0.64),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// FLEXEMO mark for the photo tab: monochrome tint + 30×30 slot like [_ArtistsTabIcon].
+class _FlexemoTabIcon extends StatelessWidget {
+  const _FlexemoTabIcon({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tint = selected
+        ? scheme.primary
+        : (isDark ? Colors.white : Colors.black);
+    return Opacity(
+      opacity: selected ? 1 : (isDark ? 0.75 : 0.62),
+      child: FlexemoMark(
+        size: 30,
+        color: tint,
+        errorFallback: Icon(
+          Icons.photo_library_outlined,
+          size: 24,
+          color: tint,
         ),
       ),
     );

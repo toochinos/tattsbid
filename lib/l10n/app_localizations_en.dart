@@ -15,7 +15,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tabArtists => 'Artists';
 
   @override
-  String get tabTattsagram => 'Tattsagram';
+  String get tabTattsagram => 'FLEXEMO™';
 
   @override
   String get tabUpload => 'Upload';

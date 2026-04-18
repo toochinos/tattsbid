@@ -1091,8 +1091,9 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         final isYouTubeLink = messageText.contains('youtube.com') ||
             messageText.contains('youtu.be');
         final renderedBody = isLiveVideoPost
-            ? 'User just Posted a new Video into the MIXX!'
+            ? 'User just posted a new video into the MIXX!'
             : body;
+        final displayBody = renderedBody.replaceAll(RegExp(r'\s+'), ' ').trim();
         final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
               color: _colorForLiveUsername(username),
@@ -1140,12 +1141,14 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                         isLiveVideoPost ? (_liveChatBlinkDim ? 0.35 : 1.0) : 1.0,
                     duration: const Duration(milliseconds: 420),
                     child: Text(
-                      renderedBody,
+                      displayBody,
+                      textAlign: TextAlign.start,
+                      softWrap: true,
                       style: TextStyle(
                         fontSize: 14,
-                        color: messageUrl == null
+                        color: isLiveVideoPost
                             ? Colors.white
-                            : (isLiveVideoPost ? Colors.white : Colors.blue),
+                            : (messageUrl == null ? Colors.white : Colors.blue),
                         height: 1.4,
                         fontWeight: FontWeight.w500,
                         fontFamilyFallback: _emojiFontFamilyFallback,
