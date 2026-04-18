@@ -53,7 +53,7 @@ Future<void> shareVideo(String videoUrl) async {
     // 3. Share video
     await Share.shareXFiles(
       [XFile(file.path)],
-      text: 'Check this out on Tattsagram 🔥',
+      text: 'Check this out on Flexemo 🔥',
     );
   } catch (e) {
     print('SHARE ERROR: $e');
@@ -1082,8 +1082,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
     final seq = List<TattsagramPost>.from(source);
     for (var i = 0; i < seq.length; i++) {
       final dupPrev = i > 0 && _isSamePostForVisibleWindow(seq[i], seq[i - 1]);
-      final dupPrev2 =
-          i > 1 && _isSamePostForVisibleWindow(seq[i], seq[i - 2]);
+      final dupPrev2 = i > 1 && _isSamePostForVisibleWindow(seq[i], seq[i - 2]);
       if (!dupPrev && !dupPrev2) continue;
 
       var swapIndex = -1;
@@ -1114,7 +1113,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
     final L = seq.length;
     if (L == 0) {
       return const Center(
-        child: Text('No Tattsagram posts yet'),
+        child: Text('No Flexemo posts yet'),
       );
     }
     if (_currentIndex >= L) _currentIndex = L - 1;
@@ -1148,10 +1147,10 @@ class _TattsagramPageState extends State<TattsagramPage> {
             isCenter: isActive,
             mountVideoDecoder: mountDecoder,
             onVideoSurfaceTap: null,
-            onVideoThumbnailTap: isActive &&
-                    p.mediaType == TattsagramMediaType.video
-                ? () => _onVideoCellTapped(index)
-                : null,
+            onVideoThumbnailTap:
+                isActive && p.mediaType == TattsagramMediaType.video
+                    ? () => _onVideoCellTapped(index)
+                    : null,
             centerPlaybackListenable: _feedPlaybackGate,
             soundMutedListenable: _feedSoundMuted,
             onLike: () => _onToggleLike(p),
@@ -1186,10 +1185,10 @@ class _TattsagramPageState extends State<TattsagramPage> {
           post: p,
           isCenter: index == _currentIndex,
           mountVideoDecoder: p.mediaType == TattsagramMediaType.video,
-          onVideoSurfaceTap: index == _currentIndex &&
-                  p.mediaType == TattsagramMediaType.video
-              ? () => _enterTikTokMode(index)
-              : null,
+          onVideoSurfaceTap:
+              index == _currentIndex && p.mediaType == TattsagramMediaType.video
+                  ? () => _enterTikTokMode(index)
+                  : null,
           onVideoThumbnailTap: null,
           centerPlaybackListenable: _feedPlaybackGate,
           soundMutedListenable: _feedSoundMuted,
@@ -1353,8 +1352,36 @@ class _TattsagramPageState extends State<TattsagramPage> {
                   minimum: const EdgeInsets.only(right: 16, bottom: 12),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                      if (_showBackFab) ...[
+                        Material(
+                          elevation: 2,
+                          shape: const CircleBorder(),
+                          clipBehavior: Clip.antiAlias,
+                          color: scheme.surfaceContainerHighest
+                              .withValues(alpha: 0.95),
+                          child: IconButton(
+                            tooltip: backTooltip,
+                            icon: const Icon(Icons.arrow_back),
+                            onPressed: _handleBack,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      Material(
+                        elevation: 2,
+                        shape: const CircleBorder(),
+                        clipBehavior: Clip.antiAlias,
+                        color: scheme.surfaceContainerHighest
+                            .withValues(alpha: 0.95),
+                        child: IconButton(
+                          tooltip: 'Live chat',
+                          icon: const Icon(Icons.chat_bubble_outline),
+                          onPressed: () => setState(() => _chatOpen = true),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       ValueListenableBuilder<bool>(
                         valueListenable: _feedSoundMuted,
                         builder: (context, muted, _) {
@@ -1380,42 +1407,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
                           );
                         },
                       ),
-                      if (_showBackFab) ...[
-                        const SizedBox(height: 8),
-                        Material(
-                          elevation: 2,
-                          shape: const CircleBorder(),
-                          clipBehavior: Clip.antiAlias,
-                          color: scheme.surfaceContainerHighest
-                              .withValues(alpha: 0.95),
-                          child: IconButton(
-                            tooltip: backTooltip,
-                            icon: const Icon(Icons.arrow_back),
-                            onPressed: _handleBack,
-                          ),
-                        ),
-                      ],
                     ],
-                  ),
-                ),
-              ),
-            if (!_isTikTokFullscreen && !_chatOpen)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: SafeArea(
-                  minimum: const EdgeInsets.only(top: 8, right: 8),
-                  child: Material(
-                    elevation: 2,
-                    shape: const CircleBorder(),
-                    clipBehavior: Clip.antiAlias,
-                    color:
-                        scheme.surfaceContainerHighest.withValues(alpha: 0.95),
-                    child: IconButton(
-                      tooltip: 'Live chat',
-                      icon: const Icon(Icons.chat_bubble_outline),
-                      onPressed: () => setState(() => _chatOpen = true),
-                    ),
                   ),
                 ),
               ),

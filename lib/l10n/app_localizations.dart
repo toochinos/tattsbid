@@ -115,7 +115,7 @@ abstract class AppLocalizations {
   /// No description provided for @tabTattsagram.
   ///
   /// In en, this message translates to:
-  /// **'FLEXEMO™'**
+  /// **'Flexemo™'**
   String get tabTattsagram;
 
   /// No description provided for @tabUpload.

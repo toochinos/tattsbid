@@ -19,6 +19,7 @@ import '../core/services/profile_service.dart';
 import '../core/services/tattsagram_post_service.dart';
 import '../core/services/tattsagram_video_sound_registry.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/flexemo_mark.dart';
 import '../screens/record_page.dart';
 import '../screens/video_trim_page.dart';
 
@@ -940,8 +941,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                   Stack(
                     children: [
                       ClipRRect(
-                        borderRadius:
-                            const BorderRadius.vertical(top: Radius.circular(16)),
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16)),
                         child: ColoredBox(
                           color: Colors.black,
                           child: const AspectRatio(
@@ -951,8 +952,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                         ),
                       ),
                       ClipRRect(
-                        borderRadius:
-                            const BorderRadius.vertical(top: Radius.circular(16)),
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16)),
                         child: AspectRatio(
                           aspectRatio: 9 / 16,
                           child: Image.file(
@@ -1137,8 +1138,9 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                                 : _openMessageUrl(messageUrl),
                           ),
                   child: AnimatedOpacity(
-                    opacity:
-                        isLiveVideoPost ? (_liveChatBlinkDim ? 0.35 : 1.0) : 1.0,
+                    opacity: isLiveVideoPost
+                        ? (_liveChatBlinkDim ? 0.35 : 1.0)
+                        : 1.0,
                     duration: const Duration(milliseconds: 420),
                     child: Text(
                       displayBody,
@@ -1380,8 +1382,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 12, 6),
                           child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Expanded(
                                 child: AnimatedOpacity(
@@ -1428,12 +1429,32 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                         color: Colors.black.withValues(alpha: 0.2),
                       ),
                       Expanded(
-                        child: _buildLiveMessagesPanel(
-                          scheme: scheme,
-                          onChatText: onChatText,
-                          onChatMuted: onChatMuted,
-                          legibilityShadows: legibilityShadows,
-                          bottomReserve: bottomReserve,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          clipBehavior: Clip.hardEdge,
+                          children: [
+                            _buildLiveMessagesPanel(
+                              scheme: scheme,
+                              onChatText: onChatText,
+                              onChatMuted: onChatMuted,
+                              legibilityShadows: legibilityShadows,
+                              bottomReserve: bottomReserve,
+                            ),
+                            Positioned(
+                              top: 22,
+                              right: 6,
+                              child: IgnorePointer(
+                                child: FlexemoMark(
+                                  size: 180,
+                                  errorFallback: Icon(
+                                    Icons.photo_library_outlined,
+                                    size: 140,
+                                    color: scheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

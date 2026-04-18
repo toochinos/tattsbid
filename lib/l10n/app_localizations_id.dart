@@ -15,7 +15,7 @@ class AppLocalizationsId extends AppLocalizations {
   String get tabArtists => 'Seniman';
 
   @override
-  String get tabTattsagram => 'FLEXEMO™';
+  String get tabTattsagram => 'Flexemo™';
 
   @override
   String get tabUpload => 'Unggah';

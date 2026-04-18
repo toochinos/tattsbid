@@ -15,7 +15,7 @@ class AppLocalizationsKm extends AppLocalizations {
   String get tabArtists => 'សិល្បករ';
 
   @override
-  String get tabTattsagram => 'FLEXEMO™';
+  String get tabTattsagram => 'Flexemo™';
 
   @override
   String get tabUpload => 'ផ្ទុកឡើង';
