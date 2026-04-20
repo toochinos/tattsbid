@@ -1,7 +1,7 @@
 name: saas_app
 description: A subscription-based SaaS app.
 publish_to: 'none'
-version: 2.0.2+5
+version: 2.0.5+5
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -24,6 +24,8 @@ dependencies:
   smooth_page_indicator: ^1.2.0+3
   provider: ^6.1.2
   video_player: ^2.9.2
+  cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
   visibility_detector: ^0.4.0
   video_compress: ^3.1.4
   share_plus: ^7.0.0
