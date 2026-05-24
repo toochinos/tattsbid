@@ -3,7 +3,7 @@
   "tabExplore": "Jelajahi",
   "tabArtists": "Seniman",
   "tabTattsagram": "Flexemo™",
-  "tabUpload": "Unggah",
+  "tabUpload": "Buat bid",
   "tabMessage": "Pesan",
   "tabProfile": "Profil",
   "tattsagramEmptyTitle": "Belum ada tato",
@@ -132,8 +132,19 @@
   "profileChooseAccountType": "Pilih jenis akun Anda",
   "profileAccountTypeCanChange": "Ketuk Seniman tato atau Pelanggan di bawah. Anda dapat mengganti pilihan sampai mengetuk Simpan — setelah itu, jenis akun Anda permanen dan tidak dapat diubah.",
   "profileAccountTypeLocked": "Jenis akun Anda sudah ditetapkan dan tidak dapat diubah.",
+  "profileAccountTypeConfirmTitle": "Konfirmasi jenis akun",
+  "profileAccountTypeConfirmBody": "Apakah Anda yakin ingin mendaftar sebagai {accountType}?\n\nPilihan ini memengaruhi cara Anda berinteraksi dengan pengguna lain. Tidak dapat diubah setelah disimpan. Pilihlah dengan benar.",
+  "@profileAccountTypeConfirmBody": {
+    "placeholders": {
+      "accountType": {
+        "type": "String"
+      }
+    }
+  },
+  "profileAccountTypeConfirmCancel": "Kembali",
+  "profileAccountTypeConfirmContinue": "Ya, lanjutkan",
   "profileTattooArtistTitle": "Seniman tato",
-  "profileTattooArtistSubtitle": "Ikut lelang pekerjaan dan terhubung dengan pelanggan",
+  "profileTattooArtistSubtitle": "Posting penawaran untuk mempromosikan keterampilan seni seniman sekaligus menawar pekerjaan",
   "profileCustomerTitle": "Pelanggan",
   "profileCustomerSubtitle": "Pasang pekerjaan tato dan sewa seniman",
   "profilePortfolioTitle": "Portofolio",
@@ -161,6 +172,7 @@
   "profileEditContact": "Edit kontak",
   "profileNotLoggedIn": "Belum masuk",
   "bidDetailTitle": "Detail permintaan",
+  "bidDetailAppBarHomeTooltip": "Beranda",
   "bidDetailStartingBid": "{amount} bid pembuka",
   "bidDetailHideDescription": "Sembunyikan deskripsi",
   "bidDetailWhatCustomerWants": "Apa yang diinginkan pelanggan?",

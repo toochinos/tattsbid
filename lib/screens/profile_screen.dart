@@ -12,6 +12,7 @@ import '../core/services/tattoo_request_service.dart';
 import '../core/utils/pick_images.dart';
 import '../core/utils/user_type_utils.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/safe_media_renderer.dart';
 
 /// Contact details: display name, location, email, mobile, and user type.
 /// Email and mobile are required for everyone; artists’ contact may be shown after a winning bid.
@@ -335,7 +336,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// After the choice is saved, it is permanent.
   bool get _canChangeUserType => !_hasPersistedAccountType;
 
-  void _onAccountTypeTap(String type) {
+  Future<void> _onAccountTypeTap(String type) async {
     if (!_canChangeUserType) {
       final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -346,9 +347,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       return;
     }
+    if (_userType == type) {
+      return;
+    }
     // Keyboard often steals taps on buttons below text fields.
     FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _userType = type);
+    if (!mounted) return;
+
+    final l10n = AppLocalizations.of(context)!;
+    final accountTypeName = type == 'tattoo_artist'
+        ? l10n.profileTattooArtistTitle
+        : l10n.profileCustomerTitle;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.profileAccountTypeConfirmTitle),
+        content: Text(l10n.profileAccountTypeConfirmBody(accountTypeName)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.profileAccountTypeConfirmCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.profileAccountTypeConfirmContinue),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      setState(() => _userType = type);
+    }
   }
 
   Widget _accountTypeTile({
@@ -378,7 +407,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => _onAccountTypeTap(value),
+          onTap: () async {
+            await _onAccountTypeTap(value);
+          },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
@@ -878,14 +909,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               children: [
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    url,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      color: Colors.white,
-                                      child: const Icon(Icons.broken_image),
-                                    ),
-                                  ),
+                                  child: SafeMediaRenderer(url: url),
                                 ),
                                 Positioned(
                                   top: 4,

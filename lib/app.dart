@@ -66,7 +66,9 @@ class _SaasAppState extends State<SaasApp> {
             routes: AppRoutes.routes,
             onGenerateRoute: AppRoutes.onGenerateRoute,
             builder: (context, child) => DefaultTextStyle(
-              textAlign: TextAlign.center,
+              // Start alignment so message fields and chat don’t inherit centered /
+              // stretched line layout from a global default.
+              textAlign: TextAlign.start,
               style: DefaultTextStyle.of(context).style,
               child: child!,
             ),

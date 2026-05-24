@@ -18,7 +18,7 @@ class AppLocalizationsKm extends AppLocalizations {
   String get tabTattsagram => 'Flexemo™';
 
   @override
-  String get tabUpload => 'ផ្ទុកឡើង';
+  String get tabUpload => 'ដាក់តម្លៃ';
 
   @override
   String get tabMessage => 'សារ';
@@ -311,11 +311,25 @@ class AppLocalizationsKm extends AppLocalizations {
       'ប្រភេទគណនីរបស់អ្នកត្រូវបានកំណត់ ហើយមិនអាចប្តូរបានទេ។';
 
   @override
+  String get profileAccountTypeConfirmTitle => 'បញ្ជាក់ប្រភេទគណនី';
+
+  @override
+  String profileAccountTypeConfirmBody(String accountType) {
+    return 'តើអ្នកពិតជាចង់ចុះឈ្មោះជា $accountType ឬ?\n\nជម្រើសនេះប៉ះពាល់ដល់របៀបអ្នកធ្វើការជាមួយអ្នកប្រើផ្សេងទៀត។ មិនអាចប្តូរបានទៀតហើយបន្ទាប់ពីរក្សាទុក។ សូមជ្រើសឱ្យបានត្រឹមត្រូវ។';
+  }
+
+  @override
+  String get profileAccountTypeConfirmCancel => 'ត្រឡប់ក្រោយ';
+
+  @override
+  String get profileAccountTypeConfirmContinue => 'បាទ/ចាស បន្ត';
+
+  @override
   String get profileTattooArtistTitle => 'សិល្បករសាក់';
 
   @override
   String get profileTattooArtistSubtitle =>
-      'ដេញថ្លៃការងារ និងភ្ជាប់ជាមួយអតិថិជន';
+      'ដាក់ស្នើដេញថ្លៃដើម្បីផ្សព្វផ្សាយជំនាញសិល្បៈ និងដេញថ្លៃការងារ';
 
   @override
   String get profileCustomerTitle => 'អតិថិជន';
@@ -408,6 +422,9 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get bidDetailTitle => 'ព័ត៌មានស្នើសុំ';
+
+  @override
+  String get bidDetailAppBarHomeTooltip => 'ទំព័រដើម';
 
   @override
   String bidDetailStartingBid(String amount) {

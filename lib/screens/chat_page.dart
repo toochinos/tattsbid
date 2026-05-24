@@ -7,7 +7,9 @@ import '../core/models/chat_message.dart';
 import '../core/models/paid_artist_contact.dart';
 import '../core/services/chat_service.dart';
 import '../core/services/message_indicator_service.dart';
+import '../core/utils/user_type_utils.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/user_name_with_role.dart';
 
 /// Private 1:1 chat room between a tattoo artist and a customer only.
 class ChatPage extends StatefulWidget {
@@ -34,7 +36,7 @@ class _ChatPageState extends State<ChatPage> {
   bool _sending = false;
   String? _error;
   RealtimeChannel? _realtimeChannel;
-  final Map<String, String> _displayNames = {};
+  final Map<String, ({String name, String? userType})> _senderLabelCache = {};
   String? _receiverId;
   String? _partnerDisplayName;
   String? _receiverEmail;
@@ -226,23 +228,29 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<String> _getDisplayName(String userId, String unknownUserLabel) async {
-    if (_displayNames.containsKey(userId)) {
-      return _displayNames[userId]!;
-    }
+  Future<({String name, String? userType})> _getSenderLabel(
+    String userId,
+    String unknownUserLabel,
+  ) async {
+    final cached = _senderLabelCache[userId];
+    if (cached != null) return cached;
     try {
       final res = await Supabase.instance.client
           .from('profiles')
-          .select('display_name')
+          .select('display_name, user_type')
           .eq('id', userId)
           .maybeSingle();
       final name = res?['display_name'] as String?;
       final display =
           name?.trim().isNotEmpty == true ? name! : unknownUserLabel;
-      _displayNames[userId] = display;
-      return display;
+      final ut = canonicalUserType(res?['user_type'] as String?);
+      final row = (name: display, userType: ut);
+      _senderLabelCache[userId] = row;
+      return row;
     } catch (_) {
-      return unknownUserLabel;
+      final row = (name: unknownUserLabel, userType: null);
+      _senderLabelCache[userId] = row;
+      return row;
     }
   }
 
@@ -284,6 +292,7 @@ class _ChatPageState extends State<ChatPage> {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: Text(
           _receiverId == null
               ? l10n.chatInboxTitle
@@ -550,6 +559,7 @@ class _ChatPageState extends State<ChatPage> {
         c.title.isNotEmpty ? c.title.substring(0, 1).toUpperCase() : '?';
     final w = c.awaitingMyReply ? FontWeight.w700 : FontWeight.w500;
     return ListTile(
+      isThreeLine: c.partnerUserType != null,
       leading: CircleAvatar(
         child: Text(
           initial,
@@ -557,9 +567,16 @@ class _ChatPageState extends State<ChatPage> {
               TextStyle(fontWeight: c.awaitingMyReply ? FontWeight.w800 : null),
         ),
       ),
-      title: Text(
-        c.title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: w),
+      title: UserNameWithRole(
+        name: c.title,
+        userType: c.partnerUserType,
+        nameStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: w,
+            ),
+        roleStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.outline,
+              fontWeight: c.awaitingMyReply ? FontWeight.w600 : null,
+            ),
       ),
       subtitle: Text(
         preview,
@@ -670,10 +687,18 @@ class _ChatPageState extends State<ChatPage> {
     // Avatar/name shows the sender (who wrote the message).
     final senderId = msg.senderId;
 
-    return FutureBuilder<String>(
-      future: _getDisplayName(senderId, l10n.chatUnknownUser),
+    return FutureBuilder<({String name, String? userType})>(
+      future: _getSenderLabel(senderId, l10n.chatUnknownUser),
       builder: (context, snapshot) {
-        final name = snapshot.data ?? l10n.chatUnknownUser;
+        final label = snapshot.data;
+        final name = label?.name ?? l10n.chatUnknownUser;
+        final userType = label?.userType;
+        final nameStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            );
+        final roleStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.outline,
+            );
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Row(
@@ -692,17 +717,26 @@ class _ChatPageState extends State<ChatPage> {
                   crossAxisAlignment:
                       isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                   children: [
+                    if (isMe)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12, bottom: 2),
+                        child: UserNameWithRole(
+                          name: name,
+                          userType: userType,
+                          textAlign: TextAlign.end,
+                          nameStyle: nameStyle,
+                          roleStyle: roleStyle,
+                        ),
+                      ),
                     if (!isMe)
                       Padding(
                         padding: const EdgeInsets.only(left: 12, bottom: 2),
-                        child: Text(
-                          name,
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
+                        child: UserNameWithRole(
+                          name: name,
+                          userType: userType,
+                          textAlign: TextAlign.start,
+                          nameStyle: nameStyle,
+                          roleStyle: roleStyle,
                         ),
                       ),
                     Container(
@@ -739,9 +773,13 @@ class _ChatPageState extends State<ChatPage> {
                     ),
                     const SizedBox(height: 2),
                     Padding(
-                      padding: const EdgeInsets.only(left: 12),
+                      padding: EdgeInsets.only(
+                        left: isMe ? 0 : 12,
+                        right: isMe ? 12 : 0,
+                      ),
                       child: Text(
                         _formatTime(msg.createdAt),
+                        textAlign: isMe ? TextAlign.end : TextAlign.start,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                               color: Theme.of(context).colorScheme.outline,
                             ),
@@ -859,10 +897,15 @@ class _PaidArtistContactCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    contact.displayName,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                  child: UserNameWithRole(
+                    name: contact.displayName,
+                    userType: 'tattoo_artist',
+                    nameStyle:
+                        Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                    roleStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: scheme.outline,
                         ),
                   ),
                 ),

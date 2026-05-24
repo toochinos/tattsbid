@@ -5,6 +5,7 @@ import '../core/routes/app_routes.dart';
 import '../core/services/profile_service.dart';
 import '../core/utils/user_type_utils.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/user_name_with_role.dart';
 
 /// Profile tab - shows user avatar, name, location, and Edit contact button.
 class ProfilePage extends StatefulWidget {
@@ -53,14 +54,8 @@ class _ProfilePageState extends State<ProfilePage> {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: Text(l10n.tabProfile),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.of(context, rootNavigator: true)
-                .pushNamed(AppRoutes.settings),
-          ),
-        ],
       ),
       body: _buildBody(l10n),
     );
@@ -124,10 +119,15 @@ class _ProfilePageState extends State<ProfilePage> {
                     : null,
               ),
               const SizedBox(height: 24),
-              Text(
-                profile.displayNameOrEmail,
-                style: Theme.of(context).textTheme.headlineSmall,
+              UserNameWithRole(
+                name: profile.displayNameOrEmail,
+                userType: profile.userType,
                 textAlign: TextAlign.center,
+                nameStyle: Theme.of(context).textTheme.headlineSmall,
+                roleStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                maxNameLines: 2,
               ),
               if (profile.location != null &&
                   profile.location!.trim().isNotEmpty) ...[
@@ -146,18 +146,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                     ),
                   ],
-                ),
-              ],
-              if (profile.userType != null &&
-                  profile.userType!.trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  profile.userType == 'tattoo_artist'
-                      ? l10n.profileTattooArtistTitle
-                      : l10n.profileCustomerTitle,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
                 ),
               ],
               const SizedBox(height: 32),

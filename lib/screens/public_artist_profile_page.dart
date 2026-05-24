@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/navigation/shell_chrome.dart';
 import '../core/models/artist_review.dart';
 import '../core/models/user_profile.dart';
 import '../core/services/chat_service.dart';
@@ -10,10 +11,14 @@ import '../l10n/app_localizations.dart';
 import '../widgets/clean_hands_icon.dart';
 import '../widgets/tattoo_review_rating_widgets.dart';
 import 'chat_page.dart';
+import '../widgets/safe_media_renderer.dart';
+import '../widgets/user_name_with_role.dart';
 
 /// Read-only profile for another user (e.g. opened from Artists directory).
 /// Product copy may refer to this screen as the artist profile page.
 class PublicArtistProfilePage extends StatefulWidget {
+  static const String routeName = '/public-artist-profile';
+
   const PublicArtistProfilePage({
     super.key,
     required this.userId,
@@ -27,6 +32,23 @@ class PublicArtistProfilePage extends StatefulWidget {
   /// When false, Contact details also require a paid relationship for customers
   /// (see [ChatService.customerHasPaidDepositWithArtist]).
   final bool fromArtistsDirectory;
+
+  static bool isPublicProfileRoute(Route<dynamic> route) {
+    return route.settings.name == routeName;
+  }
+
+  static MaterialPageRoute<void> materialRoute({
+    required String userId,
+    bool fromArtistsDirectory = false,
+  }) {
+    return MaterialPageRoute<void>(
+      settings: const RouteSettings(name: routeName),
+      builder: (_) => PublicArtistProfilePage(
+        userId: userId,
+        fromArtistsDirectory: fromArtistsDirectory,
+      ),
+    );
+  }
 
   @override
   State<PublicArtistProfilePage> createState() =>
@@ -57,11 +79,13 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
   @override
   void initState() {
     super.initState();
+    ShellChrome.pushHideGlobalTopActions();
     _load();
   }
 
   @override
   void dispose() {
+    ShellChrome.popHideGlobalTopActions();
     _reviewCommentController.dispose();
     _reviewsListScrollController.dispose();
     super.dispose();
@@ -129,17 +153,6 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
         _loading = false;
         _error = e.toString();
       });
-    }
-  }
-
-  String _titleForType(String? t) {
-    switch (t) {
-      case 'tattoo_artist':
-        return 'Tattoo artist';
-      case 'customer':
-        return 'Customer';
-      default:
-        return 'Profile';
     }
   }
 
@@ -223,35 +236,28 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
     );
   }
 
-  /// Line 1: role only (name is in the app bar). Line 2: location when set.
+  /// Public location line(s) when suburb/city/country/legacy is set. Role is under
+  /// the name in the app bar.
   Widget _buildNameRoleLocationRow(
     BuildContext context,
     UserProfile profile,
     ColorScheme scheme,
   ) {
-    final roleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: scheme.outline,
-          fontWeight: FontWeight.w600,
-        );
     final suburb = _trimNonEmpty(profile.suburb);
     final city = _trimNonEmpty(profile.city);
     final country = _trimNonEmpty(profile.country);
     final legacy = _trimNonEmpty(profile.location);
     final hasLoc =
         suburb != null || city != null || country != null || legacy != null;
-    final role = _titleForType(profile.userType);
+    if (!hasLoc) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(role, style: roleStyle, textAlign: TextAlign.center),
-        if (hasLoc) ...[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: _buildLocationLine(context, profile),
-          ),
-        ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: _buildLocationLine(context, profile),
+        ),
       ],
     );
   }
@@ -259,6 +265,14 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
   bool get _isOwnProfile {
     final me = Supabase.instance.client.auth.currentUser?.id;
     return me != null && me == widget.userId;
+  }
+
+  bool _canStartPrivateChat(UserProfile profile) {
+    if (_isOwnProfile) return false;
+    final me = Supabase.instance.client.auth.currentUser;
+    if (me == null) return false;
+    final targetId = profile.id.trim();
+    return targetId.isNotEmpty && targetId != me.id;
   }
 
   ArtistReview? get _myExistingReview {
@@ -376,7 +390,22 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: Text(_appBarTitle(l10n)),
+        title: _loading || _profile == null
+            ? Text(l10n.publicProfileTitleFallback)
+            : UserNameWithRole(
+                name: _appBarTitle(l10n),
+                userType: _profile?.userType,
+                nameStyle: Theme.of(context).appBarTheme.titleTextStyle ??
+                    Theme.of(context).textTheme.titleLarge,
+                roleStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.7),
+                    ),
+                textAlign: TextAlign.center,
+                maxNameLines: 1,
+              ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -444,39 +473,17 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
           ),
           const SizedBox(height: 24),
           _buildNameRoleLocationRow(context, profile, scheme),
-          if (!_isOwnProfile &&
-              _showContactAndChat &&
-              profile.userType != 'tattoo_artist') ...[
+          if (_canStartPrivateChat(profile)) ...[
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: _openChat,
-              icon: const Icon(Icons.phone_outlined),
+              icon: const Icon(Icons.chat_bubble_outline),
               label: Text(l10n.publicProfileChatButton),
             ),
           ],
           if (profile.userType == 'tattoo_artist') ...[
             const SizedBox(height: 20),
-            Align(
-              alignment: Alignment.center,
-              child: ElevatedButton.icon(
-                onPressed: _openChat,
-                icon: const Icon(Icons.phone_outlined, size: 22),
-                label: Text(l10n.publicProfileChatWithArtist),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF616161),
-                  foregroundColor: Colors.white,
-                  surfaceTintColor: Colors.transparent,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 4),
             Text(
               l10n.publicProfileReviewsHeading,
               textAlign: TextAlign.center,
@@ -681,14 +688,7 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
                   final url = profile.portfolioUrls[index];
                   return ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: Image.network(
-                      url,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => ColoredBox(
-                        color: Colors.white,
-                        child: Icon(Icons.broken_image, color: scheme.outline),
-                      ),
-                    ),
+                    child: SafeMediaRenderer(url: url),
                   );
                 },
               ),

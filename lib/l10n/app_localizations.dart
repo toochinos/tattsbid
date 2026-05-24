@@ -121,7 +121,7 @@ abstract class AppLocalizations {
   /// No description provided for @tabUpload.
   ///
   /// In en, this message translates to:
-  /// **'Upload'**
+  /// **'post a bid'**
   String get tabUpload;
 
   /// No description provided for @tabMessage.
@@ -640,6 +640,30 @@ abstract class AppLocalizations {
   /// **'Your account type is set and cannot be changed.'**
   String get profileAccountTypeLocked;
 
+  /// No description provided for @profileAccountTypeConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm your account type'**
+  String get profileAccountTypeConfirmTitle;
+
+  /// No description provided for @profileAccountTypeConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to register as {accountType}?\n\nThis choice affects how you engage with other users. It cannot be changed after you save. Please choose carefully.'**
+  String profileAccountTypeConfirmBody(String accountType);
+
+  /// No description provided for @profileAccountTypeConfirmCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Go back'**
+  String get profileAccountTypeConfirmCancel;
+
+  /// No description provided for @profileAccountTypeConfirmContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, continue'**
+  String get profileAccountTypeConfirmContinue;
+
   /// No description provided for @profileTattooArtistTitle.
   ///
   /// In en, this message translates to:
@@ -649,7 +673,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileTattooArtistSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Bid on jobs and connect with customers'**
+  /// **'Post bids to advertise Artist Craftmanship as well as Bidding for jobs'**
   String get profileTattooArtistSubtitle;
 
   /// No description provided for @profileCustomerTitle.
@@ -813,6 +837,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Request details'**
   String get bidDetailTitle;
+
+  /// No description provided for @bidDetailAppBarHomeTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get bidDetailAppBarHomeTooltip;
 
   /// No description provided for @bidDetailStartingBid.
   ///

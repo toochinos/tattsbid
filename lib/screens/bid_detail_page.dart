@@ -19,6 +19,8 @@ import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 import 'public_artist_profile_page.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/safe_media_renderer.dart';
+import '../widgets/user_name_with_role.dart';
 
 /// Detail page for a tattoo request. Shows image and description.
 /// Opened when artist or customer taps a request card in Explore.
@@ -59,9 +61,6 @@ class _BidDetailPageState extends State<BidDetailPage>
 
   /// [profiles.user_type] for the signed-in user (for customer-only contact unlock UI).
   String? _viewerUserType;
-
-  /// [profiles.country] for country match when placing bids as a tattoo artist.
-  String? _viewerProfileCountry;
 
   /// From [ContactUnlockService.checkIfUnlocked] — paid contact unlock for this request.
   bool _hasUnlocked = false;
@@ -121,7 +120,6 @@ class _BidDetailPageState extends State<BidDetailPage>
         _userRole = null;
         _legacyTattooArtist = false;
         _viewerUserType = null;
-        _viewerProfileCountry = null;
       });
       return;
     }
@@ -147,11 +145,6 @@ class _BidDetailPageState extends State<BidDetailPage>
 
       final ut = row?[SupabaseProfiles.userType] as String?;
       final viewerUt = ut?.trim();
-      final rawCountry = row?[SupabaseProfiles.country] as String?;
-      final trimmedCountry = rawCountry?.trim();
-      final viewerCountry = trimmedCountry != null && trimmedCountry.isNotEmpty
-          ? trimmedCountry
-          : null;
 
       if (!mounted) return;
       setState(() {
@@ -159,7 +152,6 @@ class _BidDetailPageState extends State<BidDetailPage>
         _userRole = normalizedRole;
         _legacyTattooArtist = legacy;
         _viewerUserType = viewerUt?.isEmpty == true ? null : viewerUt;
-        _viewerProfileCountry = viewerCountry;
       });
       await _loadUnlock();
     } catch (e, st) {
@@ -168,8 +160,7 @@ class _BidDetailPageState extends State<BidDetailPage>
     }
   }
 
-  /// If selecting [role] fails (e.g. column lag on old DB), still load country
-  /// and [user_type] so same-country bidding works.
+  /// If selecting [role] fails (e.g. column lag on old DB), still load [user_type].
   Future<void> _loadProfileRoleFallback() async {
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
@@ -180,7 +171,6 @@ class _BidDetailPageState extends State<BidDetailPage>
         _userRole = null;
         _legacyTattooArtist = false;
         _viewerUserType = null;
-        _viewerProfileCountry = null;
       });
       return;
     }
@@ -196,11 +186,6 @@ class _BidDetailPageState extends State<BidDetailPage>
 
       final legacy = await BidService.isCurrentUserTattooArtist();
       final ut = row?[SupabaseProfiles.userType] as String?;
-      final rawCountry = row?[SupabaseProfiles.country] as String?;
-      final trimmedCountry = rawCountry?.trim();
-      final viewerCountry = trimmedCountry != null && trimmedCountry.isNotEmpty
-          ? trimmedCountry
-          : null;
 
       if (!mounted) return;
       setState(() {
@@ -208,7 +193,6 @@ class _BidDetailPageState extends State<BidDetailPage>
         _userRole = null;
         _legacyTattooArtist = legacy;
         _viewerUserType = ut?.trim().isEmpty == true ? null : ut?.trim();
-        _viewerProfileCountry = viewerCountry;
       });
     } catch (e2, st2) {
       debugPrint('BidDetailPage _loadProfileRoleFallback: $e2\n$st2');
@@ -219,7 +203,6 @@ class _BidDetailPageState extends State<BidDetailPage>
         _userRole = null;
         _legacyTattooArtist = legacy;
         _viewerUserType = null;
-        _viewerProfileCountry = null;
       });
     }
     if (mounted) await _loadUnlock();
@@ -339,36 +322,17 @@ class _BidDetailPageState extends State<BidDetailPage>
   /// Bidding only while the request is [open]. Closed after winner / payment.
   bool get _biddingOpen => _request.status == 'open';
 
-  /// Same visibility rules as the Bid button before country gating.
-  /// Only [profiles.role] `artist` or legacy tattoo artists (see [_legacyTattooArtist]).
-  bool get _bidButtonBaseEligible =>
+  /// Base visibility rules for the Bid button.
+  bool get _bidButtonBaseEligible => !_profileRoleLoading && _biddingOpen;
+
+  /// Show for any viewer while bidding is open.
+  bool get _showBidButton => _bidButtonBaseEligible;
+
+  /// Artists can send a private message to the request owner.
+  bool get _showCustomerChatButton =>
       !_profileRoleLoading &&
-      _biddingOpen &&
       !_isOwner &&
       (_userRole == 'artist' || (_userRole == null && _legacyTattooArtist));
-
-  bool get _isTattooArtistViewer =>
-      _viewerUserType == 'tattoo_artist' ||
-      _legacyTattooArtist ||
-      _userRole == 'artist';
-
-  /// Tattoo artists may only bid when [TattooRequest.country] matches profile country.
-  bool get _countriesAllowArtistBid {
-    if (!_isTattooArtistViewer) return true;
-    final req = _request.country?.trim();
-    final prof = _viewerProfileCountry?.trim();
-    if (req == null || req.isEmpty) return false;
-    if (prof == null || prof.isEmpty) return false;
-    return req.toLowerCase() == prof.toLowerCase();
-  }
-
-  /// Role `customer` from [profiles.role], or legacy tattoo artist when role unset.
-  bool get _showBidButton => _bidButtonBaseEligible && _countriesAllowArtistBid;
-
-  bool get _showBidCountryBlockedHint =>
-      _bidButtonBaseEligible &&
-      _isTattooArtistViewer &&
-      !_countriesAllowArtistBid;
 
   /// Role `artist`: show tools entry — does not open the bid dialog.
   bool get _showArtistToolsButton =>
@@ -433,11 +397,9 @@ class _BidDetailPageState extends State<BidDetailPage>
       return;
     }
     Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => PublicArtistProfilePage(
-          userId: uid,
-          fromArtistsDirectory: false,
-        ),
+      PublicArtistProfilePage.materialRoute(
+        userId: uid,
+        fromArtistsDirectory: false,
       ),
     );
   }
@@ -761,26 +723,6 @@ class _BidDetailPageState extends State<BidDetailPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.bidDetailBidPlaced)),
         );
-      } on BidCountryBlockedException catch (e) {
-        if (!mounted) return;
-        final l10n = AppLocalizations.of(context)!;
-        final message = switch (e.kind) {
-          BidCountryBlockedKind.requestCountryMissing =>
-            l10n.bidDetailBidCountryRequestMissingHint,
-          BidCountryBlockedKind.profileCountryMissing =>
-            l10n.bidDetailBidCountryProfileMissingHint,
-          BidCountryBlockedKind.mismatch =>
-            l10n.bidDetailBidCountryMismatchHint(
-              e.requestCountry ?? '',
-              e.profileCountry ?? '',
-            ),
-        };
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
       } catch (e) {
         if (!mounted) return;
         final l10n = AppLocalizations.of(context)!;
@@ -802,10 +744,9 @@ class _BidDetailPageState extends State<BidDetailPage>
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        centerTitle: false,
+        automaticallyImplyLeading: false,
+        titleSpacing: 16,
         title: Text(l10n.bidDetailTitle),
       ),
       body: SingleChildScrollView(
@@ -815,13 +756,7 @@ class _BidDetailPageState extends State<BidDetailPage>
             // Image
             AspectRatio(
               aspectRatio: 1,
-              child: Image.network(
-                request.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Center(
-                  child: Icon(Icons.broken_image, size: 64),
-                ),
-              ),
+              child: SafeMediaRenderer(url: request.imageUrl),
             ),
             Padding(
               padding: EdgeInsets.only(
@@ -833,16 +768,58 @@ class _BidDetailPageState extends State<BidDetailPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (request.customerName != null &&
-                      request.customerName!.trim().isNotEmpty)
+                  if ((request.customerName?.trim().isNotEmpty ?? false) ||
+                      _showBidButton ||
+                      _showCustomerChatButton)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        request.customerName!,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (request.customerName != null &&
+                              request.customerName!.trim().isNotEmpty)
+                            Expanded(
+                              child: UserNameWithRole(
+                                name: request.customerName!,
+                                userType: 'customer',
+                                nameStyle: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                roleStyle: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color:
+                                          Theme.of(context).colorScheme.outline,
+                                    ),
+                              ),
+                            ),
+                          if (_showBidButton) ...[
+                            if (request.customerName != null &&
+                                request.customerName!.trim().isNotEmpty)
+                              const SizedBox(width: 12),
+                            FilledButton.icon(
+                              onPressed: _showPlaceBidDialog,
+                              icon: const Icon(Icons.gavel, size: 18),
+                              label: Text(l10n.bidDetailBid),
+                            ),
+                          ],
+                          if (_showCustomerChatButton) ...[
+                            if ((request.customerName != null &&
+                                    request.customerName!.trim().isNotEmpty) ||
+                                _showBidButton)
+                              const SizedBox(width: 8),
+                            FilledButton.tonalIcon(
+                              onPressed: _openChatWithCustomer,
+                              icon: const Icon(Icons.chat_bubble_outline,
+                                  size: 18),
+                              label: Text(l10n.bidDetailChat),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   Text(
@@ -977,7 +954,7 @@ class _BidDetailPageState extends State<BidDetailPage>
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
                   ],
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 10),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -985,15 +962,6 @@ class _BidDetailPageState extends State<BidDetailPage>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              l10n.bidDetailBids,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
                             if (!_profileRoleLoading &&
                                 _userRole == 'artist' &&
                                 _biddingOpen &&
@@ -1010,44 +978,17 @@ class _BidDetailPageState extends State<BidDetailPage>
                                     ),
                               ),
                             ],
-                            if (!_profileRoleLoading &&
-                                _userRole == null &&
-                                !_legacyTattooArtist &&
-                                !_isOwner) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                l10n.bidDetailOnlyArtistsMayBid,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color:
-                                          Theme.of(context).colorScheme.outline,
-                                    ),
-                              ),
-                            ],
-                            if (_showBidCountryBlockedHint) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                _request.country?.trim().isEmpty ?? true
-                                    ? l10n.bidDetailBidCountryRequestMissingHint
-                                    : (_viewerProfileCountry?.trim().isEmpty ??
-                                            true)
-                                        ? l10n
-                                            .bidDetailBidCountryProfileMissingHint
-                                        : l10n.bidDetailBidCountryMismatchHint(
-                                            _request.country!.trim(),
-                                            _viewerProfileCountry!.trim(),
-                                          ),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color:
-                                          Theme.of(context).colorScheme.outline,
-                                    ),
-                              ),
-                            ],
+                            const SizedBox(height: 6),
+                            Text(
+                              'Only submit bids if you are serious. Fake bids will result in removal from the platform if reported.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
                             if (!_profileRoleLoading &&
                                 !_isOwner &&
                                 !_biddingOpen &&
@@ -1084,14 +1025,6 @@ class _BidDetailPageState extends State<BidDetailPage>
                           onPressed: _onArtistToolsPressed,
                           icon: const Icon(Icons.palette_outlined, size: 18),
                           label: Text(l10n.bidDetailViewArtistTools),
-                        ),
-                      ],
-                      if (_showBidButton) ...[
-                        const SizedBox(width: 8),
-                        FilledButton.icon(
-                          onPressed: _showPlaceBidDialog,
-                          icon: const Icon(Icons.gavel, size: 18),
-                          label: Text(l10n.bidDetailBid),
                         ),
                       ],
                     ],
@@ -1360,6 +1293,16 @@ class _BidDetailPageState extends State<BidDetailPage>
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ChatPage(initialReceiverId: artistUserId),
+      ),
+    );
+  }
+
+  void _openChatWithCustomer() {
+    final customerId = _request.userId.trim();
+    if (customerId.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatPage(initialReceiverId: customerId),
       ),
     );
   }

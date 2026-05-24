@@ -114,6 +114,9 @@ class ChatService {
     final filtered = await _fetchInboxEligibleDrafts();
     final partnerIds = filtered.map((d) => d.partnerId).toList();
     final names = await ProfileService.getDisplayNamesByUserIds(partnerIds);
+    final types = await ProfileService.getCanonicalUserTypesByUserIds(
+      partnerIds,
+    );
 
     return List<ChatConversationSummary>.generate(filtered.length, (i) {
       final s = filtered[i];
@@ -128,6 +131,7 @@ class ChatService {
         lastMessageAt: s.lastMessageAt,
         inboxTitle: inboxTitle,
         awaitingMyReply: s.lastMessageSenderId != uid,
+        partnerUserType: types[s.partnerId],
       );
     });
   }

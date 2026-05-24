@@ -134,11 +134,9 @@ class PaymentStatusService {
         }
         _lastContactNavigationAt = now;
         await Navigator.of(context).push<void>(
-          MaterialPageRoute<void>(
-            builder: (_) => PublicArtistProfilePage(
-              userId: artistUserId,
-              fromArtistsDirectory: false,
-            ),
+          PublicArtistProfilePage.materialRoute(
+            userId: artistUserId,
+            fromArtistsDirectory: false,
           ),
         );
         return;

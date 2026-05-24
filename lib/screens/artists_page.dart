@@ -8,6 +8,7 @@ import '../core/services/profile_service.dart';
 import '../core/services/review_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/clean_hands_icon.dart';
+import '../widgets/user_name_with_role.dart';
 import 'public_artist_profile_page.dart';
 
 /// Browse tattoo artists (directory + search).
@@ -147,11 +148,9 @@ class _ArtistsPageState extends State<ArtistsPage> {
 
   void _openProfile(ArtistDirectoryEntry artist) {
     Navigator.of(context, rootNavigator: false).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => PublicArtistProfilePage(
-          userId: artist.id,
-          fromArtistsDirectory: true,
-        ),
+      PublicArtistProfilePage.materialRoute(
+        userId: artist.id,
+        fromArtistsDirectory: true,
       ),
     );
   }
@@ -220,6 +219,11 @@ class _ArtistsPageState extends State<ArtistsPage> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: Text(l10n.tabArtists),
       ),
       body: Column(
@@ -435,10 +439,15 @@ class _ArtistsPageState extends State<ArtistsPage> {
                     )
                   : null,
             ),
-            title: Text(
-              artist.displayName,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+            title: UserNameWithRole(
+              name: artist.displayName,
+              userType: 'tattoo_artist',
+              nameStyle: const TextStyle(fontWeight: FontWeight.w600),
+              roleStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
             ),
+            isThreeLine: hasLocation || hasRating,
             subtitle: (!hasLocation && !hasRating)
                 ? null
                 : Padding(

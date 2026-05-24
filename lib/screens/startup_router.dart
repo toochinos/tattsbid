@@ -17,8 +17,8 @@ const bool _kResetSeenOnboardingPrefToTrue = false;
 // TEMP (testing): set to false before shipping — always show onboarding this launch (in-memory only if pref reset above is true).
 const bool _kForceShowOnboardingForTesting = false;
 
-// TEMP (testing): set to false before shipping — clears persisted session so cold start never skips login.
-const bool _kForceLogoutOnStartupForTesting = true;
+// TEMP (testing): keep false in normal runs; true forces local sign-out on launch.
+const bool _kForceLogoutOnStartupForTesting = false;
 
 /// Onboarding and language flags resolved in [main] before [runApp].
 /// Session is read live in [StartupRouter.build].

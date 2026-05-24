@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
+import '../core/navigation/shell_chrome.dart';
 import '../core/routes/app_routes.dart';
 import '../core/startup/post_dashboard_onboarding.dart';
 import '../core/models/tattoo_request.dart';
@@ -22,13 +23,11 @@ import 'destination_page.dart';
 import 'profile_page.dart';
 import 'public_artist_profile_page.dart';
 
-/// Main shell with bottom tab bar: Explore, Upload (customers), Artists, Tattsagram
-/// (hidden when Upload is available for AU/KH/ID explore or on the Add tab), Message, Profile.
-/// Bidding is opened from Explore → request detail ([BidDetailPage]), not a root tab.
+/// Main shell with bottom tab bar: Explore, Artists, “make a bid” (Add / request), Message,
+/// Profile. Tattsagram (FLEXEMO) is not in the bar — it opens from the top-right mark.
+/// Bidding is also opened from Explore → request detail ([BidDetailPage]), not a root tab.
 /// Message tab is 1:1 between tattoo artists and customers only.
-/// Add (plus) is only for customers; tattoo artists cannot upload.
-/// Upload appears only when the customer is on Explore scoped to Australia, Cambodia, or
-/// Indonesia (not worldwide or other destinations), or while they are on the Add tab.
+/// Artists use the center action to open [AddPage] from the bar.
 class MainShellPage extends StatefulWidget {
   const MainShellPage({
     super.key,
@@ -97,12 +96,14 @@ class _MainShellPageState extends State<MainShellPage> {
   bool? _memoIsCustomer;
 
   /// Bump when [IndexedStack] child order changes so memoized pages are rebuilt.
-  static const int _kTabLayoutVersion = 2;
+  static const int _kTabLayoutVersion = 5;
   int _memoTabLayoutVersion = 0;
 
   @override
   void initState() {
     super.initState();
+    ShellChrome.resetHideGlobalTopActions();
+    ShellChrome.hideGlobalTopActions.addListener(_onShellChromeChanged);
     _sharedTextSub =
         ReceiveSharingIntent.instance.getMediaStream().listen((files) {
       final value = _extractSharedText(files);
@@ -203,9 +204,7 @@ class _MainShellPageState extends State<MainShellPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => PublicArtistProfilePage(userId: id),
-        ),
+        PublicArtistProfilePage.materialRoute(userId: id),
       );
     });
   }
@@ -217,26 +216,8 @@ class _MainShellPageState extends State<MainShellPage> {
     return scope != null && _uploadAllowedExploreCountries.contains(scope);
   }
 
-  /// Upload tab: customers (AU/KH/ID Explore or Add stack).
-  bool get _showCustomerUploadInBar =>
-      _isCustomer &&
-      ((_currentIndex == 0 && _exploreScopeAllowsCustomerUpload) ||
-          _currentIndex == 1);
-
-  /// AU/KH/ID Explore keeps the Upload affordance visible for all roles.
-  bool get _showUploadInScopedExploreForAnyRole {
-    final scope = _exploreFeedScopeNotifier.value?.trim();
-    return scope != null &&
-        _uploadAllowedExploreCountries.contains(scope) &&
-        _currentIndex == 0;
-  }
-
-  bool get _showUploadInBar =>
-      _showCustomerUploadInBar ||
-      (!_isCustomer && _showUploadInScopedExploreForAnyRole);
-
-  /// Tattsagram is omitted from the bar when upload-friendly explore scope is active or
-  /// the user is on Add—those flows use the grey circle + Upload tab instead.
+  /// Tattsagram is not shown in the bottom bar (center is “make a bid” instead). This
+  /// still controls when the user is steered away from the full-screen Tattsagram feed.
   bool get _hideTattsagramFromBottomNav {
     final scope = _exploreFeedScopeNotifier.value?.trim();
     if (scope != null && _uploadAllowedExploreCountries.contains(scope)) {
@@ -257,25 +238,14 @@ class _MainShellPageState extends State<MainShellPage> {
 
   int get _artistsStackIndex => _isCustomer ? 2 : 1;
 
-  /// Ordered [IndexedStack] indices shown in the bottom bar.
+  /// Ordered [IndexedStack] indices shown in the bottom bar (Tattsagram is never a bar item).
   List<int> _navStackIndices() {
     if (_isCustomer) {
-      final list = <int>[0, 2];
-      if (_showCustomerUploadInBar) {
-        list.add(1);
-      }
-      if (!_hideTattsagramFromBottomNav) {
-        list.add(3);
-      }
-      list.addAll([4, 5]);
-      return list;
+      // Explore, Artists, Add, Message, Profile.
+      return <int>[0, 2, 1, 4, 5];
     }
-    final list = <int>[0, 1];
-    if (!_hideTattsagramFromBottomNav) {
-      list.add(2);
-    }
-    list.addAll([3, 4]);
-    return list;
+    // Artist: center action opens Add as a route; no Tattsagram stack in the bar order.
+    return <int>[0, 1, 3, 4];
   }
 
   /// Bottom bar index → [IndexedStack] index.
@@ -290,7 +260,8 @@ class _MainShellPageState extends State<MainShellPage> {
     final order = _navStackIndices();
     final idx = order.indexOf(stackIndex);
     if (idx >= 0) {
-      if (!_isCustomer && _showUploadInBar && idx >= 2) {
+      // Bar includes a non-stack “make a bid” slot; shift Message/Profile indices.
+      if (!_isCustomer && idx >= 2) {
         return idx + 1;
       }
       return idx;
@@ -318,6 +289,13 @@ class _MainShellPageState extends State<MainShellPage> {
         ),
       ),
     );
+  }
+
+  void _onShellChromeChanged() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   List<Widget> _buildTabPages() {
@@ -427,18 +405,11 @@ class _MainShellPageState extends State<MainShellPage> {
         activeIcon: const _ArtistsTabIcon(selected: true),
         label: l10n.tabArtists,
       ),
-      if (_showUploadInBar)
-        BottomNavigationBarItem(
-          icon: const _UploadTabIcon(selected: false),
-          activeIcon: const _UploadTabIcon(selected: true),
-          label: l10n.tabUpload,
-        ),
-      if (!_hideTattsagramFromBottomNav)
-        BottomNavigationBarItem(
-          icon: const _FlexemoTabIcon(selected: false),
-          activeIcon: const _FlexemoTabIcon(selected: true),
-          label: l10n.tabTattsagram,
-        ),
+      BottomNavigationBarItem(
+        icon: const _UploadTabBarIcon(selected: false),
+        activeIcon: const _UploadTabBarIcon(selected: true),
+        label: l10n.tabUpload,
+      ),
       BottomNavigationBarItem(
         icon: _MessageTabIconWithEnvelope(showEnvelope: showEnvelope),
         label: l10n.tabMessage,
@@ -545,6 +516,7 @@ class _MainShellPageState extends State<MainShellPage> {
 
   @override
   void dispose() {
+    ShellChrome.hideGlobalTopActions.removeListener(_onShellChromeChanged);
     _sharedTextSub?.cancel();
     _exploreFeedScopeNotifier.removeListener(_onExploreScopeForTabs);
     MessageIndicatorService.stop();
@@ -585,7 +557,8 @@ class _MainShellPageState extends State<MainShellPage> {
               index: _currentIndex.clamp(0, tabPages.length - 1),
               children: tabPages,
             ),
-            if (!_tattsagramFullScreen)
+            if (!_tattsagramFullScreen &&
+                !ShellChrome.hideGlobalTopActions.value)
               Positioned(
                 top: 0,
                 right: 0,
@@ -621,17 +594,14 @@ class _MainShellPageState extends State<MainShellPage> {
                         return BottomNavigationBar(
                           currentIndex: barIndex,
                           onTap: (barIndex) {
-                            if (!_isCustomer &&
-                                _showUploadInBar &&
-                                barIndex == 2) {
+                            if (!_isCustomer && barIndex == 2) {
                               _openUploadFromExplore();
                               return;
                             }
-                            final normalizedBarIndex = (!_isCustomer &&
-                                    _showUploadInBar &&
-                                    barIndex > 2)
-                                ? barIndex - 1
-                                : barIndex;
+                            final normalizedBarIndex =
+                                (!_isCustomer && barIndex > 2)
+                                    ? barIndex - 1
+                                    : barIndex;
                             final stack =
                                 _stackIndexFromBarIndex(normalizedBarIndex);
                             _onBottomNavTap(stack);
@@ -668,7 +638,6 @@ class _GlobalTopRightActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -676,21 +645,17 @@ class _GlobalTopRightActions extends StatelessWidget {
           tooltip: l10n.actionTooltipExplore,
           icon: const Icon(Icons.public),
           onTap: onGlobeTap,
-          background: scheme.surface,
         ),
         const SizedBox(width: 8),
-        _TopActionButton(
-          tooltip: l10n.tabTattsagram,
-          icon: const FlexemoMark(size: 22),
+        _FlexemoTattsagramTopAction(
+          l10n: l10n,
           onTap: onTattsagramTap,
-          background: scheme.surface,
         ),
         const SizedBox(width: 8),
         _TopActionButton(
           tooltip: l10n.actionTooltipSettings,
           icon: const Icon(Icons.settings),
           onTap: onSettingsTap,
-          background: scheme.surface,
         ),
       ],
     );
@@ -702,23 +667,134 @@ class _TopActionButton extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.onTap,
-    required this.background,
   });
 
   final String tooltip;
   final Widget icon;
   final VoidCallback onTap;
-  final Color background;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: background.withValues(alpha: 0.96),
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
       child: IconButton(
         tooltip: tooltip,
         onPressed: onTap,
         icon: icon,
+      ),
+    );
+  }
+}
+
+/// Tattsagram (FLEXEMO) entry: brand line + larger mark; keeps ~48px min touch target.
+class _FlexemoTattsagramTopAction extends StatelessWidget {
+  const _FlexemoTattsagramTopAction({
+    required this.l10n,
+    required this.onTap,
+  });
+
+  final AppLocalizations l10n;
+  final VoidCallback onTap;
+
+  static const double _markSize = 34;
+  static const double _brandFontSize = 11;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final nameStyle =
+        (theme.textTheme.labelSmall ?? const TextStyle()).copyWith(
+      fontWeight: FontWeight.w600,
+      fontSize: _brandFontSize,
+      height: 1.1,
+      color: scheme.onSurface,
+    );
+    final tmStyle = nameStyle.copyWith(
+      fontSize: nameStyle.fontSize != null ? nameStyle.fontSize! * 0.5 : 5.0,
+      fontWeight: FontWeight.w500,
+      height: 1.0,
+    );
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: kMinInteractiveDimension,
+            minHeight: kMinInteractiveDimension,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            child: Tooltip(
+              message: l10n.tabTattsagram,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 62,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        Text(
+                          'Flexemo',
+                          textAlign: TextAlign.center,
+                          style: nameStyle,
+                          maxLines: 1,
+                        ),
+                        Positioned(
+                          right: 1,
+                          top: -1,
+                          child: Text('™', style: tmStyle),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Center(
+                    child: FlexemoMark(size: _markSize),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Constrains layout height to match peers ([_ArtistsTabIcon] uses 30×30) so every
+/// tab’s label row lines up; draws the large + circle slightly above the row.
+class _UploadTabBarIcon extends StatelessWidget {
+  const _UploadTabBarIcon({required this.selected});
+
+  final bool selected;
+
+  /// Must match the vertical slot of other tab icons (see [_ArtistsTabIcon]).
+  static const double _layoutSize = 30;
+  static const double _visualLift = -6;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _UploadTabIcon.diameter,
+      height: _layoutSize,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
+        children: [
+          Positioned(
+            top: _visualLift,
+            child: _UploadTabIcon(selected: selected),
+          ),
+        ],
       ),
     );
   }
@@ -731,14 +807,16 @@ class _UploadTabIcon extends StatelessWidget {
   final bool selected;
 
   static const Color _inactiveGrey = Color(0xFF6B7280);
+  static const double diameter = 38;
+  static const double _iconSize = 30;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final bg = selected ? scheme.primary : _inactiveGrey;
     return SizedBox(
-      width: 30,
-      height: 30,
+      width: diameter,
+      height: diameter,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: bg,
@@ -747,7 +825,7 @@ class _UploadTabIcon extends StatelessWidget {
         child: const Icon(
           Icons.add,
           color: Colors.white,
-          size: 22,
+          size: _iconSize,
         ),
       ),
     );
@@ -784,34 +862,6 @@ class _ArtistsTabIcon extends StatelessWidget {
                 ? scheme.primary
                 : scheme.onSurface.withValues(alpha: 0.64),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// FLEXEMO mark for the photo tab: monochrome tint + 30×30 slot like [_ArtistsTabIcon].
-class _FlexemoTabIcon extends StatelessWidget {
-  const _FlexemoTabIcon({required this.selected});
-
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tint = selected
-        ? scheme.primary
-        : (isDark ? Colors.white : Colors.black);
-    return Opacity(
-      opacity: selected ? 1 : (isDark ? 0.75 : 0.62),
-      child: FlexemoMark(
-        size: 30,
-        color: tint,
-        errorFallback: Icon(
-          Icons.photo_library_outlined,
-          size: 24,
-          color: tint,
         ),
       ),
     );

@@ -73,13 +73,24 @@ class PhotoService {
   static Future<String> uploadTattsagramPhoto(File file) async {
     final supabase = Supabase.instance.client;
 
-    final ms = DateTime.now().millisecondsSinceEpoch;
-    final path = 'images/$ms.jpg';
+    final extension = file.path.split('.').last.toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'webp', 'gif'].contains(extension)) {
+      throw ArgumentError('Invalid image format. Use jpg, png, webp, or gif.');
+    }
+    final fileName = "${DateTime.now().millisecondsSinceEpoch}.$extension";
+    final path = 'images/$fileName';
 
     await supabase.storage.from(_tattsagramBucket).upload(
           path,
           file,
-          fileOptions: const FileOptions(upsert: true),
+          fileOptions: FileOptions(
+            contentType: extension == 'png'
+                ? 'image/png'
+                : extension == 'jpg' || extension == 'jpeg'
+                    ? 'image/jpeg'
+                    : 'application/octet-stream',
+            upsert: true,
+          ),
         );
 
     return supabase.storage.from(_tattsagramBucket).getPublicUrl(path);
@@ -103,7 +114,7 @@ class PhotoService {
 
     final ms = DateTime.now().millisecondsSinceEpoch;
     final fileName = '$ms.mp4';
-    final path = 'videos/$fileName';
+    final filePath = 'videos/$fileName';
 
     void bump(double p) => onUploadProgress?.call(p.clamp(0.0, 1.0));
 
@@ -112,7 +123,7 @@ class PhotoService {
       await supabase.storage
           .from(_tattsagramBucket)
           .upload(
-            path,
+            filePath,
             file,
             fileOptions: const FileOptions(
               contentType: 'video/mp4',
@@ -122,12 +133,11 @@ class PhotoService {
           .timeout(const Duration(seconds: 30));
       bump(0.9);
 
-      final videoUrl = supabase.storage
-          .from(_tattsagramBucket)
-          .getPublicUrl('videos/$fileName');
+      final publicUrl =
+          supabase.storage.from(_tattsagramBucket).getPublicUrl(filePath);
 
       bump(1.0);
-      return videoUrl;
+      return publicUrl;
     } catch (e, s) {
       debugPrint('VIDEO UPLOAD ERROR: $e\n$s');
       rethrow;
@@ -170,53 +180,13 @@ class PhotoService {
     return 'Unknown';
   }
 
-  /// Persists uploaded video URL to [tattsagram_post] and returns inserted row.
-  static Future<Map<String, dynamic>> insertUploadedVideoPost(
-    String videoUrl, {
-    String? artistName,
+  /// Display name for [TattsagramPostService.createPost] (profiles, metadata, email).
+  static Future<String> resolveArtistNameForTattsagramPost({
+    String? preferred,
   }) async {
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      throw Exception('User not signed in');
-    }
-    final resolvedArtistName =
-        await _resolveArtistNameForInsert(supabase, preferred: artistName);
-    final inserted = await supabase
-        .from('tattsagram_post')
-        .insert({
-          'media_url': videoUrl,
-          'media_type': 'video',
-          'user_id': user.id,
-          'artist_name': resolvedArtistName,
-        })
-        .select()
-        .single();
-    return Map<String, dynamic>.from(inserted);
-  }
-
-  /// Persists uploaded image URL to [tattsagram_post] and returns inserted row.
-  static Future<Map<String, dynamic>> insertUploadedPhotoPost(
-    String imageUrl, {
-    String? artistName,
-  }) async {
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      throw Exception('User not signed in');
-    }
-    final resolvedArtistName =
-        await _resolveArtistNameForInsert(supabase, preferred: artistName);
-    final inserted = await supabase
-        .from('tattsagram_post')
-        .insert({
-          'media_url': imageUrl,
-          'media_type': 'image',
-          'user_id': user.id,
-          'artist_name': resolvedArtistName,
-        })
-        .select()
-        .single();
-    return Map<String, dynamic>.from(inserted);
+    return _resolveArtistNameForInsert(
+      Supabase.instance.client,
+      preferred: preferred,
+    );
   }
 }

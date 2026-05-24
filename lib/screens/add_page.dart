@@ -9,6 +9,7 @@ import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 import '../core/utils/pick_images.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/safe_media_renderer.dart';
 
 /// Add tab: customer uploads reference photo, adds description and starting bid.
 class AddPage extends StatefulWidget {
@@ -215,7 +216,10 @@ class _AddPageState extends State<AddPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.addTabTitle)),
+      appBar: AppBar(
+        centerTitle: false,
+        title: Text(l10n.tabUpload),
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -294,13 +298,10 @@ class _AddPageState extends State<AddPage> {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: Image.network(
-            _uploadedUrl!,
+          child: SizedBox(
             width: 280,
             height: 280,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) =>
-                const Icon(Icons.broken_image, size: 80),
+            child: SafeMediaRenderer(url: _uploadedUrl!),
           ),
         ),
         const SizedBox(height: 16),
@@ -341,13 +342,10 @@ class _AddPageState extends State<AddPage> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              _uploadedUrl!,
+            child: SizedBox(
               width: 200,
               height: 200,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  const Icon(Icons.broken_image, size: 60),
+              child: SafeMediaRenderer(url: _uploadedUrl!),
             ),
           ),
           const SizedBox(height: 24),

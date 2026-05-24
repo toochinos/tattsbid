@@ -3,7 +3,7 @@
   "tabExplore": "រុករក",
   "tabArtists": "សិល្បករ",
   "tabTattsagram": "Flexemo™",
-  "tabUpload": "ផ្ទុកឡើង",
+  "tabUpload": "ដាក់តម្លៃ",
   "tabMessage": "សារ",
   "tabProfile": "ប្រវត្តិរូប",
   "tattsagramEmptyTitle": "មិនទាន់មានសាក់នៅឡើយ",
@@ -132,8 +132,19 @@
   "profileChooseAccountType": "ជ្រើសប្រភេទគណនីរបស់អ្នក",
   "profileAccountTypeCanChange": "ប៉ះ សិល្បករសាក់ ឬ អតិថិជន ខាងក្រោម។ អ្នកអាចប្តូរជម្រើសរហូតដល់ចុចរក្សាទុក — បន្ទាប់មក ប្រភេទគណនីនឹងជាក់ស្តែង និងមិនអាចប្តូរបានទៀតទេ។",
   "profileAccountTypeLocked": "ប្រភេទគណនីរបស់អ្នកត្រូវបានកំណត់ ហើយមិនអាចប្តូរបានទេ។",
+  "profileAccountTypeConfirmTitle": "បញ្ជាក់ប្រភេទគណនី",
+  "profileAccountTypeConfirmBody": "តើអ្នកពិតជាចង់ចុះឈ្មោះជា {accountType} ឬ?\n\nជម្រើសនេះប៉ះពាល់ដល់របៀបអ្នកធ្វើការជាមួយអ្នកប្រើផ្សេងទៀត។ មិនអាចប្តូរបានទៀតហើយបន្ទាប់ពីរក្សាទុក។ សូមជ្រើសឱ្យបានត្រឹមត្រូវ។",
+  "@profileAccountTypeConfirmBody": {
+    "placeholders": {
+      "accountType": {
+        "type": "String"
+      }
+    }
+  },
+  "profileAccountTypeConfirmCancel": "ត្រឡប់ក្រោយ",
+  "profileAccountTypeConfirmContinue": "បាទ/ចាស បន្ត",
   "profileTattooArtistTitle": "សិល្បករសាក់",
-  "profileTattooArtistSubtitle": "ដេញថ្លៃការងារ និងភ្ជាប់ជាមួយអតិថិជន",
+  "profileTattooArtistSubtitle": "ដាក់ស្នើដេញថ្លៃដើម្បីផ្សព្វផ្សាយជំនាញសិល្បៈ និងដេញថ្លៃការងារ",
   "profileCustomerTitle": "អតិថិជន",
   "profileCustomerSubtitle": "ប្រកាសការងារសាក់ និងជួលសិល្បករ",
   "profilePortfolioTitle": "ផតហ្វូលីយ៉ូ",
@@ -161,6 +172,7 @@
   "profileEditContact": "កែព័ត៌មានទំនាក់ទំនង",
   "profileNotLoggedIn": "មិនបានចូល",
   "bidDetailTitle": "ព័ត៌មានស្នើសុំ",
+  "bidDetailAppBarHomeTooltip": "ទំព័រដើម",
   "bidDetailStartingBid": "{amount} ដេញថ្លៃចាប់ផ្តើម",
   "bidDetailHideDescription": "លាក់ការពិពណ៌នា",
   "bidDetailWhatCustomerWants": "តើអតិថិជនចង់បានអ្វី?",

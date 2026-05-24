@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:video_player/video_player.dart';
@@ -364,13 +363,13 @@ class TattsagramFeedMediaPool {
         if (uri != null &&
             (uri.scheme == 'http' || uri.scheme == 'https') &&
             u.isNotEmpty) {
-          await precacheImage(CachedNetworkImageProvider(u), context);
+          // Precache disabled intentionally.
         }
         return;
       }
       final thumb = post.thumbnailUrl?.trim();
       if (thumb != null && thumb.isNotEmpty && thumb.startsWith('http')) {
-        await precacheImage(CachedNetworkImageProvider(thumb), context);
+        // Precache disabled intentionally.
       }
     } catch (e, st) {
       debugPrint('TattsagramFeedMediaPool precache: $e\n$st');

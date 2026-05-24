@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_schema.dart';
 import '../utils/supabase_list.dart';
 import '../models/tattoo_request.dart';
+import '../utils/user_type_utils.dart';
 
 /// Creates and manages tattoo requests (photo + description + starting bid).
 class TattooRequestService {
@@ -11,21 +12,27 @@ class TattooRequestService {
   static SupabaseClient get _client => Supabase.instance.client;
 
   /// Fetches display names and locations for user IDs from profiles.
-  static Future<Map<String, ({String? name, String? location})>> _fetchProfiles(
-      List<String> userIds) async {
+  static Future<
+          Map<String, ({String? name, String? location, String? userType})>>
+      _fetchProfiles(List<String> userIds) async {
     if (userIds.isEmpty) return {};
     final res = await _client
         .from(SupabaseProfiles.table)
         .select(
-            '${SupabaseProfiles.id}, ${SupabaseProfiles.displayName}, ${SupabaseProfiles.location}')
+          '${SupabaseProfiles.id}, ${SupabaseProfiles.displayName}, '
+          '${SupabaseProfiles.location}, ${SupabaseProfiles.userType}',
+        )
         .inFilter(SupabaseProfiles.id, userIds);
-    final map = <String, ({String? name, String? location})>{};
+    final map =
+        <String, ({String? name, String? location, String? userType})>{};
     for (final m in mapListFrom(res)) {
       final id = m[SupabaseProfiles.id] as String?;
       final name = m[SupabaseProfiles.displayName] as String?;
       final location = m[SupabaseProfiles.location] as String?;
+      final userType =
+          canonicalUserType(m[SupabaseProfiles.userType] as String?);
       if (id != null) {
-        map[id] = (name: name, location: location);
+        map[id] = (name: name, location: location, userType: userType);
       }
     }
     return map;
@@ -245,10 +252,13 @@ class TattooRequestService {
       final rid = e[SupabaseTattooRequests.id] as String?;
       final profile = uid != null ? profiles[uid] : null;
       final bidCount = rid != null ? (bidCounts[rid] ?? 0) : 0;
-      return TattooRequest.fromJson(e,
-          customerName: profile?.name,
-          customerLocation: profile?.location,
-          bidCount: bidCount);
+      return TattooRequest.fromJson(
+        e,
+        customerName: profile?.name,
+        customerLocation: profile?.location,
+        posterUserType: profile?.userType,
+        bidCount: bidCount,
+      );
     }).toList();
   }
 }

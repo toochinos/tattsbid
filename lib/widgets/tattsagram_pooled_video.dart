@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_compress/video_compress.dart';
@@ -9,6 +8,7 @@ import 'package:video_player/video_player.dart';
 
 import '../core/models/tattsagram_post.dart';
 import '../core/services/tattsagram_feed_media_pool.dart';
+import 'safe_media_renderer.dart';
 
 /// Tattsagram feed video backed by [TattsagramFeedMediaPool] (no per-tap re-init).
 class TattsagramPooledVideo extends StatefulWidget {
@@ -109,18 +109,7 @@ class _TattsagramPooledVideoState extends State<TattsagramPooledVideo> {
     }
     final networkThumb = widget.thumbnailUrl?.trim() ?? '';
     if (networkThumb.isNotEmpty) {
-      return CachedNetworkImage(
-        imageUrl: networkThumb,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        fadeInDuration: Duration.zero,
-        fadeOutDuration: Duration.zero,
-        placeholder: (_, __) =>
-            ColoredBox(color: scheme.surfaceContainerHighest),
-        errorWidget: (_, __, ___) =>
-            ColoredBox(color: scheme.surfaceContainerHighest),
-      );
+      return SafeMediaRenderer(url: networkThumb);
     }
     return const ColoredBox(color: Colors.black);
   }

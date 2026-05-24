@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../core/models/tattsagram_post.dart';
+import '../widgets/safe_media_renderer.dart';
 
 class FullScreenViewer extends StatefulWidget {
   const FullScreenViewer({super.key, required this.post});
@@ -85,7 +86,7 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
                     )
                   : const CircularProgressIndicator()
               : (isRemote
-                  ? Image.network(mediaUrl, fit: BoxFit.contain)
+                  ? SafeMediaRenderer(url: mediaUrl)
                   : Image.file(
                       File(mediaUri?.scheme == 'file'
                           ? mediaUri!.toFilePath()

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/locale/app_locale_controller.dart';
 import '../core/navigation/link_handler.dart';
@@ -17,6 +18,14 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  Future<void> _openSupportEmail() async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'admin@tattsbid.com',
+    );
+    await launchUrl(uri);
+  }
+
   String _languageDisplayName(AppLocalizations l10n, String code) {
     switch (code) {
       case 'km':
@@ -282,6 +291,22 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: _openSupportEmail,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      'admin@tattsbid.com',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(

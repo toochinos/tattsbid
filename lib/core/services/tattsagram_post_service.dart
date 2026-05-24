@@ -7,7 +7,6 @@ class TattsagramPostService {
   TattsagramPostService._();
 
   static SupabaseClient get _client => Supabase.instance.client;
-  static const String _table = 'tattsagram_post';
 
   /// Maps a Realtime / JSON row to [TattsagramPost] (same shape as REST [fetchPosts]).
   static TattsagramPost postFromRealtimeRow(Map<String, dynamic> row) {
@@ -31,40 +30,50 @@ class TattsagramPostService {
     String caption = '',
     String? thumbnailUrl,
   }) async {
-    final user = _client.auth.currentUser;
+    final supabase = _client;
+    final session = supabase.auth.currentSession;
+    if (session == null) {
+      throw Exception('User not logged in');
+    }
+    final user = supabase.auth.currentUser;
+    // ignore: avoid_print — auth debug during post create flow.
+    print('USER: $user');
     if (user == null) throw StateError('User must be authenticated');
+    if (!mediaUrl.startsWith('http')) {
+      throw Exception('Invalid media');
+    }
+    final publicUrl = mediaUrl;
 
-    final row = await _client
-        .from(_table)
-        .insert({
-          'user_id': user.id,
-          'media_url': mediaUrl,
-          'media_type': mediaType.name,
-          'artist_name': artistName,
-          'location': location,
-          'caption': caption,
-          'thumbnail_url': thumbnailUrl,
-        })
-        .select()
-        .single();
-    return _fromRow(row);
+    late final Map<String, dynamic> res;
+    try {
+      final inserted = await supabase
+          .from('tattsagram_post')
+          .insert({
+            'media_url': publicUrl,
+            'user_id': supabase.auth.currentUser!.id,
+          })
+          .select()
+          .single();
+      res = Map<String, dynamic>.from(inserted);
+    } catch (e, st) {
+      // ignore: avoid_print — critical insert error diagnostics.
+      print('INSERT ERROR: $e\n$st');
+      rethrow;
+    }
+    // ignore: avoid_print — Step 2: log raw Supabase insert row (debug).
+    print('INSERT RESULT: $res');
+    return _fromRow(res);
   }
 
-  /// Global shared feed: all posts visible under RLS (see `tattsagram_post` select policy).
-  ///
-  /// Never filter by `user_id` — every account sees the same ordering; new users see
-  /// existing videos. Only [limit]/[offset] paginate the result set.
-  static Future<List<TattsagramPost>> fetchPosts({
-    int limit = 20,
-    int offset = 0,
-  }) async {
-    final rows = await _client
+  /// 10 posts per call: PostgREST [range] is inclusive — `[offset, offset+9]`.
+  static Future<List<TattsagramPost>> fetchPosts({int offset = 0}) async {
+    final supabase = _client;
+    final rows = await supabase
         .from('tattsagram_post')
-        .select()
-        .order('created_at', ascending: false)
-        .range(offset, offset + limit - 1);
-    final normalizedRows = rows
-        .map<Map<String, dynamic>>((row) => Map<String, dynamic>.from(row))
+        .select('*')
+        .order('created_at', ascending: false);
+    final normalizedRows = (rows as List<dynamic>)
+        .map((row) => Map<String, dynamic>.from(row as Map))
         .toList(growable: false);
     final posts =
         normalizedRows.map<TattsagramPost>(_fromRow).toList(growable: true);
@@ -144,7 +153,7 @@ class TattsagramPostService {
       }
     }
     debugPrint(
-      'TattsagramPostService.fetchPosts: Fetched posts: ${posts.length} (limit=$limit offset=$offset)',
+      'TattsagramPostService.fetchPosts: Fetched posts: ${posts.length} (offset=$offset)',
     );
     return posts;
   }
@@ -156,12 +165,16 @@ class TattsagramPostService {
         : TattsagramMediaType.image;
     final likes = _parseLikesCount(row['likes_count']);
     final mediaUrl = (row['media_url'] as String?) ?? '';
+    final videoUrlCol = (row['video_url'] as String?)?.trim() ?? '';
+    final String? videoUrlResolved = mediaType == TattsagramMediaType.video
+        ? (videoUrlCol.isNotEmpty ? videoUrlCol : mediaUrl.trim())
+        : null;
     return TattsagramPost(
       id: row['id'] as String?,
       mediaUrl: mediaUrl,
       mediaType: mediaType,
-      videoUrl: mediaType == TattsagramMediaType.video && mediaUrl.isNotEmpty
-          ? mediaUrl
+      videoUrl: (videoUrlResolved != null && videoUrlResolved.isNotEmpty)
+          ? videoUrlResolved
           : null,
       artistName: (row['artist_name'] as String?)?.trim().isNotEmpty == true
           ? (row['artist_name'] as String)

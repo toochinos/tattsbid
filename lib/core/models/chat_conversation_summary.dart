@@ -9,6 +9,7 @@ class ChatConversationSummary {
     required this.lastMessageAt,
     required this.inboxTitle,
     required this.awaitingMyReply,
+    this.partnerUserType,
   });
 
   final String partnerId;
@@ -17,6 +18,9 @@ class ChatConversationSummary {
 
   /// Shown in the inbox row (may be a role label until the rule above is met).
   final String inboxTitle;
+
+  /// Canonical: `tattoo_artist` or `customer` when known from [profiles.user_type].
+  final String? partnerUserType;
 
   /// True when the latest message in the thread is from the other person (you
   /// haven’t replied yet). Used for bold styling in the inbox.

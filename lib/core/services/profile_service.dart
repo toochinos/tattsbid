@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_schema.dart';
 import '../utils/supabase_list.dart';
+import '../utils/user_type_utils.dart';
 import '../models/artist_directory_entry.dart';
 import '../models/user_profile.dart';
 import 'tattoo_request_service.dart';
@@ -137,6 +138,27 @@ class ProfileService {
     } catch (_) {
       return {for (final id in unique) id: 'User'};
     }
+  }
+
+  /// Canonical user types for labels: `tattoo_artist`, `customer`, or null.
+  static Future<Map<String, String?>> getCanonicalUserTypesByUserIds(
+    List<String> userIds,
+  ) async {
+    if (userIds.isEmpty) return {};
+    final unique = userIds.toSet().toList();
+    final map = <String, String?>{for (final id in unique) id: null};
+    try {
+      final res = await _client
+          .from(SupabaseProfiles.table)
+          .select('${SupabaseProfiles.id}, ${SupabaseProfiles.userType}')
+          .inFilter(SupabaseProfiles.id, unique);
+      for (final m in mapListFrom(res)) {
+        final id = m[SupabaseProfiles.id] as String?;
+        if (id == null) continue;
+        map[id] = canonicalUserType(m[SupabaseProfiles.userType] as String?);
+      }
+    } catch (_) {}
+    return map;
   }
 
   /// Escapes `%` / `_` for safe use inside PostgREST `ilike` patterns.

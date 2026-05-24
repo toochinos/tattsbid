@@ -30,19 +30,16 @@ class LiveOnlineService {
   /// Cutoff is recomputed on each stream event so stale users drop off without
   /// waiting for another DB change.
   static Stream<int> onlineUsers() {
-    return _client
-        .from(_table)
-        .stream(primaryKey: ['user_id'])
-        .map((users) {
-          final cutoff =
-              DateTime.now().toUtc().subtract(const Duration(minutes: 2));
-          return users.where((u) {
-            final raw = u['last_seen'];
-            if (raw == null) return false;
-            final t = DateTime.tryParse(raw.toString());
-            if (t == null) return false;
-            return t.toUtc().isAfter(cutoff);
-          }).length;
-        });
+    return _client.from(_table).stream(primaryKey: ['user_id']).map((users) {
+      final cutoff =
+          DateTime.now().toUtc().subtract(const Duration(minutes: 2));
+      return users.where((u) {
+        final raw = u['last_seen'];
+        if (raw == null) return false;
+        final t = DateTime.tryParse(raw.toString());
+        if (t == null) return false;
+        return t.toUtc().isAfter(cutoff);
+      }).length;
+    });
   }
 }

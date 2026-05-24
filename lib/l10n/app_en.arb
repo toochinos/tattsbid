@@ -3,7 +3,7 @@
   "tabExplore": "Explore",
   "tabArtists": "Artists",
   "tabTattsagram": "Flexemo™",
-  "tabUpload": "Upload",
+  "tabUpload": "post a bid",
   "tabMessage": "Message",
   "tabProfile": "Profile",
   "tattsagramEmptyTitle": "No tattoos yet",
@@ -132,8 +132,19 @@
   "profileChooseAccountType": "Choose your account type",
   "profileAccountTypeCanChange": "Tap Tattoo artist or Customer below. You can switch your choice until you tap Save — after that, your account type is permanent and cannot be changed.",
   "profileAccountTypeLocked": "Your account type is set and cannot be changed.",
+  "profileAccountTypeConfirmTitle": "Confirm your account type",
+  "profileAccountTypeConfirmBody": "Are you sure you want to register as {accountType}?\n\nThis choice affects how you engage with other users. It cannot be changed after you save. Please choose carefully.",
+  "@profileAccountTypeConfirmBody": {
+    "placeholders": {
+      "accountType": {
+        "type": "String"
+      }
+    }
+  },
+  "profileAccountTypeConfirmCancel": "Go back",
+  "profileAccountTypeConfirmContinue": "Yes, continue",
   "profileTattooArtistTitle": "Tattoo artist",
-  "profileTattooArtistSubtitle": "Bid on jobs and connect with customers",
+  "profileTattooArtistSubtitle": "Post bids to advertise Artist Craftmanship as well as Bidding for jobs",
   "profileCustomerTitle": "Customer",
   "profileCustomerSubtitle": "Post tattoo jobs and hire artists",
   "profilePortfolioTitle": "Portfolio",
@@ -188,6 +199,7 @@
   "profileEditContact": "Edit contact",
   "profileNotLoggedIn": "Not logged in",
   "bidDetailTitle": "Request details",
+  "bidDetailAppBarHomeTooltip": "Home",
   "bidDetailStartingBid": "{amount} starting bid",
   "@bidDetailStartingBid": {
     "placeholders": {

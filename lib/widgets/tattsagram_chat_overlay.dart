@@ -9,8 +9,10 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/models/live_message.dart';
+import '../core/utils/user_type_utils.dart';
 import '../core/models/tattsagram_post.dart';
 import '../core/services/live_messages_service.dart';
 import '../core/services/live_online_service.dart';
@@ -20,6 +22,8 @@ import '../core/services/tattsagram_post_service.dart';
 import '../core/services/tattsagram_video_sound_registry.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/flexemo_mark.dart';
+import '../widgets/safe_media_renderer.dart';
+import 'user_name_with_role.dart';
 import '../screens/record_page.dart';
 import '../screens/video_trim_page.dart';
 
@@ -30,12 +34,167 @@ enum _TattsagramPickKind {
   galleryVideo,
 }
 
-String extractYoutubeId(String url) {
-  final uri = Uri.parse(url);
-  if (uri.host.contains('youtu.be')) {
-    return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+/// 11-char video id from a message body, or null. Used for oEmbed-style thumbs (no API key).
+String? extractYoutubeVideoIdFromText(String text) {
+  if (text.trim().isEmpty) return null;
+  final t = text;
+  final patterns = <RegExp>[
+    RegExp(
+      r'[?&]v=([a-zA-Z0-9_-]{11})',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'youtu\.be/([a-zA-Z0-9_-]{11})',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'youtube\.com/embed/([a-zA-Z0-9_-]{11})',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'youtube\.com/shorts/([a-zA-Z0-9_-]{11})',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'youtube\.com/live/([a-zA-Z0-9_-]{11})',
+      caseSensitive: false,
+    ),
+  ];
+  for (final p in patterns) {
+    final m = p.firstMatch(t);
+    if (m != null && (m.group(1)?.length == 11)) {
+      return m.group(1);
+    }
   }
-  return uri.queryParameters['v'] ?? '';
+  return null;
+}
+
+String _youtubeThumbnailUrl(String videoId) =>
+    'https://img.youtube.com/vi/$videoId/hqdefault.jpg';
+
+/// Collapses ASCII + unicode spaces so message lines don’t look “stretched”.
+String _normalizeChatMessageWhitespace(String raw) {
+  if (raw.isEmpty) return raw;
+  return raw
+      .replaceAll(
+        RegExp(r'[\s\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]+'),
+        ' ',
+      )
+      .trim();
+}
+
+/// Consistent line metrics for live chat text (see STEP 5 — StrutStyle).
+const StrutStyle _kLiveChatStrutName = StrutStyle(
+  fontSize: 16,
+  fontWeight: FontWeight.bold,
+  height: 1.1,
+  leading: 0,
+  forceStrutHeight: true,
+);
+const StrutStyle _kLiveChatStrut12 = StrutStyle(
+  fontSize: 12,
+  height: 1.1,
+  leading: 0,
+  forceStrutHeight: true,
+);
+/// Message / caption lines (fontSize 14 on [TextStyle]); matches typical pattern:
+/// `StrutStyle(height: 1.1, forceStrutHeight: true)`.
+const StrutStyle _kLiveChatStrutMessageBody = StrutStyle(
+  height: 1.1,
+  forceStrutHeight: true,
+);
+const StrutStyle _kLiveChatStrut10 = StrutStyle(
+  fontSize: 10,
+  fontWeight: FontWeight.w600,
+  height: 1.1,
+  leading: 0,
+  forceStrutHeight: true,
+);
+
+const double _kYoutubeChatPreviewWidth = 220;
+const double _kYoutubeChatPreviewHeight = 124;
+
+/// YouTube [hqdefault] poster behind a play affordance; falls back to black if id/url fails.
+class _YoutubeChatPreviewThumb extends StatelessWidget {
+  const _YoutubeChatPreviewThumb({required this.messageText});
+
+  final String messageText;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = extractYoutubeVideoIdFromText(messageText);
+    if (id == null) {
+      return const _YoutubePreviewPlaceholder(loading: false);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        width: _kYoutubeChatPreviewWidth,
+        height: _kYoutubeChatPreviewHeight,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(
+              _youtubeThumbnailUrl(id),
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  const _YoutubePreviewPlaceholder(loading: false),
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return const _YoutubePreviewPlaceholder(loading: true);
+              },
+            ),
+            const Center(
+              child: Icon(
+                Icons.play_circle_fill,
+                color: Colors.white,
+                size: 48,
+                shadows: [
+                  Shadow(
+                    color: Color(0xB3000000),
+                    blurRadius: 12,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _YoutubePreviewPlaceholder extends StatelessWidget {
+  const _YoutubePreviewPlaceholder({required this.loading});
+
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black,
+      child: SizedBox(
+        width: _kYoutubeChatPreviewWidth,
+        height: _kYoutubeChatPreviewHeight,
+        child: Center(
+          child: loading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white54,
+                  ),
+                )
+              : const Icon(
+                  Icons.play_circle_fill,
+                  color: Colors.white,
+                  size: 48,
+                ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Slides in from the left over the feed. The message field slides in from the right
@@ -49,14 +208,11 @@ class TattsagramChatOverlay extends StatefulWidget {
     required this.feedSoundMuted,
     this.animationDuration = const Duration(milliseconds: 820),
     this.onPhotoPostedToFeed,
-    required this.onInsertTempVideoAtTop,
-    required this.onReplaceTempVideoWhenFinished,
-    this.onPendingVideoUploadFailed,
-    this.onPendingPhotoUploadFailed,
     this.onCameraVideoCaptureStart,
     this.onCameraVideoCaptureCancelled,
     this.showComposerBack = false,
     this.onComposerBack,
+    this.onFeedReloadAfterPost,
   });
 
   final bool isOpen;
@@ -68,24 +224,15 @@ class TattsagramChatOverlay extends StatefulWidget {
 
   /// After a successful storage upload, adds the post to the Tattsagram scroll feed.
   final void Function(TattsagramPost post)? onPhotoPostedToFeed;
-
-  /// Step 2 — feed should `_chatPosts.insert(0, TattsagramPost.tempVideoUpload(...))`.
-  final void Function(String tempPostId, String localVideoPath)
-      onInsertTempVideoAtTop;
-
-  /// Step 4 — same slot as the temp row: `isUploading: false`, `uploadProgress: 1.0`, URLs set.
-  final void Function(String tempPostId, String videoUrl, String artistName)
-      onReplaceTempVideoWhenFinished;
-
-  /// Removes the optimistic row when background video upload fails ([tempPost.id]).
-  final void Function(String localTempPostId)? onPendingVideoUploadFailed;
-  final void Function(String localTempPostId)? onPendingPhotoUploadFailed;
   final VoidCallback? onCameraVideoCaptureStart;
   final VoidCallback? onCameraVideoCaptureCancelled;
 
   /// Circular back control to the right of the message field (e.g. leave Tattsagram).
   final bool showComposerBack;
   final VoidCallback? onComposerBack;
+
+  /// After [TattsagramPostService.createPost], re-fetch feed (e.g. [TattsagramPostService.fetchPosts]).
+  final Future<void> Function()? onFeedReloadAfterPost;
 
   @override
   State<TattsagramChatOverlay> createState() => _TattsagramChatOverlayState();
@@ -119,6 +266,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   bool _messagesPollRetryScheduled = false;
   bool _loadingOlder = false;
   bool _hasMoreOlder = true;
+  final Set<String> _dismissedLiveChatPreviewKeys = <String>{};
   Timer? _liveChatBlinkTimer;
   bool _liveChatBlinkDim = false;
 
@@ -138,9 +286,43 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
   int _lastUploadProgressPercent = -1;
   bool _isUploading = false;
 
+  /// Cached `tattoo_artist` / `customer` for [LiveMessage.userId] (live chat).
+  final Map<String, String?> _liveUserTypeById = {};
+
   void _safeSetState(VoidCallback fn) {
     if (!mounted) return;
     setState(fn);
+  }
+
+  Future<void> _primeLiveChatSelfUserType() async {
+    final p = await ProfileService.getCurrentProfile();
+    if (!mounted || p == null) return;
+    final t = canonicalUserType(p.userType);
+    _safeSetState(() {
+      _liveUserTypeById[p.id] = t;
+    });
+  }
+
+  Future<void> _refreshLiveUserTypesForMessages(
+    List<LiveMessage> messages,
+  ) async {
+    final ids = <String>{};
+    for (final m in messages) {
+      final u = m.userId?.trim();
+      if (u == null || u.isEmpty) continue;
+      if (_liveUserTypeById.containsKey(u)) continue;
+      ids.add(u);
+    }
+    if (ids.isEmpty) return;
+    final map = await ProfileService.getCanonicalUserTypesByUserIds(
+      ids.toList(growable: false),
+    );
+    if (!mounted) return;
+    _safeSetState(() {
+      for (final id in ids) {
+        _liveUserTypeById[id] = map[id];
+      }
+    });
   }
 
   @override
@@ -167,6 +349,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       },
     );
     unawaited(_loadInitialMessages());
+    unawaited(_primeLiveChatSelfUserType());
     final initiallyVisible = widget.isOpen && _panelExpanded;
     _panelSlideController = AnimationController(
       vsync: this,
@@ -259,6 +442,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         _hasMoreOlder = tail.length >= _messageWindowLimit;
       }
     });
+    unawaited(_refreshLiveUserTypesForMessages(tail));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (stickToBottom) {
@@ -389,6 +573,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
           _hasMoreOlder = false;
         }
       });
+      unawaited(_refreshLiveUserTypesForMessages(newOnes));
 
       if (oldPixels != null && oldMaxExtent != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -468,8 +653,10 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     if (!mounted) return;
 
     final echoId = ++_echoSeq;
+    final meId = Supabase.instance.client.auth.currentUser?.id;
     final echo = LiveMessage(
       localEchoId: echoId,
+      userId: meId,
       username: username,
       message: text,
       createdAt: DateTime.now().toUtc(),
@@ -612,21 +799,6 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     );
 
     final original = File(file.path);
-    final tempId = 'img_${DateTime.now().millisecondsSinceEpoch}';
-    final tempPost = TattsagramPost(
-      id: tempId,
-      mediaUrl: original.path,
-      mediaType: TattsagramMediaType.image,
-      artistName: 'You',
-      location: '',
-      caption: '',
-      timestamp: DateTime.now(),
-      isUploading: true,
-      uploadProgress: 0.0,
-    );
-    if (!mounted) return;
-    debugPrint('insert temp post');
-    widget.onPhotoPostedToFeed?.call(tempPost);
 
     try {
       debugPrint('compressing...');
@@ -647,6 +819,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       late final String imageUrl;
       try {
         imageUrl = await PhotoService.uploadTattsagramPhoto(uploadFile);
+        // ignore: avoid_print — explicit upload completion trace.
+        print('UPLOAD COMPLETE');
       } catch (e, st) {
         debugPrint('Photo upload failed (keeping temp post): $e\n$st');
         if (!mounted) return;
@@ -658,18 +832,22 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       final shouldSendToFeed = await _showUploadedPhotoPopup(uploadFile.path);
       if (!mounted) return;
       if (!shouldSendToFeed) {
-        widget.onPendingPhotoUploadFailed?.call(tempId);
         return;
       }
-      final insertedRow = await PhotoService.insertUploadedPhotoPost(imageUrl);
-      final post = TattsagramPostService.postFromRealtimeRow(insertedRow)
-          .copyWith(replacesLocalUploadId: tempId);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        widget.onPhotoPostedToFeed?.call(post);
-      });
-
+      final artistName =
+          await PhotoService.resolveArtistNameForTattsagramPost();
       if (!mounted) return;
+      // ignore: avoid_print — critical upload->insert tracing.
+      print('NOW INSERTING INTO DB');
+      final newPost = await TattsagramPostService.createPost(
+        mediaUrl: imageUrl,
+        mediaType: TattsagramMediaType.image,
+        artistName: artistName,
+      );
+      if (!mounted) return;
+      widget.onPhotoPostedToFeed?.call(newPost);
+      await widget.onFeedReloadAfterPost?.call();
+
       try {
         await LiveMessagesService.sendLiveMessage(
             l10n.tattsagramPhotoSharedInChat);
@@ -678,7 +856,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       }
       if (!mounted) return;
       _scrollMessagesToBottom();
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('Photo post-create flow failed: $e\n$st');
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -749,10 +928,6 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     final l10n = AppLocalizations.of(context)!;
     final messenger = ScaffoldMessenger.of(context);
 
-    final tempId = DateTime.now().millisecondsSinceEpoch.toString();
-    final tempBase =
-        TattsagramPost.tempVideoUpload(id: tempId, localVideo: file.path);
-    widget.onInsertTempVideoAtTop(tempId, file.path);
     _lastUploadProgressPercent = -1;
     debugPrint('[ Uploading... 0% ]');
 
@@ -776,11 +951,10 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
             _lastUploadProgressPercent = percent;
             debugPrint('Uploading... $percent%');
           }
-          widget.onPhotoPostedToFeed?.call(
-            tempBase.copyWith(uploadProgress: p),
-          );
         },
       );
+      // ignore: avoid_print — explicit upload completion trace.
+      print('UPLOAD COMPLETE');
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
       if (_lastUploadProgressPercent < 100) {
@@ -797,23 +971,18 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       final shouldSendToFeed = await _showUploadedVideoPopup(url);
       if (!mounted) return;
       if (!shouldSendToFeed) {
-        widget.onPendingVideoUploadFailed?.call(tempId);
         return;
       }
-      widget.onReplaceTempVideoWhenFinished(tempId, url, artistName);
-      unawaited(
-        PhotoService.insertUploadedVideoPost(
-          url,
-          artistName: artistName,
-        ).then((row) {
-          if (!mounted) return;
-          final inserted = TattsagramPostService.postFromRealtimeRow(row)
-              .copyWith(replacesLocalUploadId: tempId);
-          widget.onPhotoPostedToFeed?.call(inserted);
-        }).catchError((e, st) {
-          debugPrint('Background video DB insert failed: $e\n$st');
-        }),
+      // ignore: avoid_print — critical upload->insert tracing.
+      print('NOW INSERTING INTO DB');
+      final newPost = await TattsagramPostService.createPost(
+        mediaUrl: url,
+        mediaType: TattsagramMediaType.video,
+        artistName: artistName,
       );
+      if (!mounted) return;
+      widget.onPhotoPostedToFeed?.call(newPost);
+      await widget.onFeedReloadAfterPost?.call();
 
       if (!mounted) return;
       try {
@@ -826,7 +995,6 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     } catch (e) {
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
-      widget.onPendingVideoUploadFailed?.call(tempId);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.tattsagramPhotoUploadFailed)),
       );
@@ -911,33 +1079,19 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     final displayName = profile?.displayNameOrEmail.trim();
     final artistName =
         (displayName != null && displayName.isNotEmpty) ? displayName : 'You';
-    final post = TattsagramPost(
-      mediaUrl: videoUrl,
-      mediaType: TattsagramMediaType.video,
-      artistName: artistName,
-      location: '',
-      caption: '',
-      timestamp: DateTime.now(),
-      isUploading: false,
-      uploadProgress: 1.0,
-      videoUrl: videoUrl,
-    );
     final shouldSendToFeed = await _showUploadedVideoPopup(videoUrl);
     if (!mounted) return;
     if (!shouldSendToFeed) return;
-    widget.onPhotoPostedToFeed?.call(post);
-    unawaited(
-      PhotoService.insertUploadedVideoPost(
-        videoUrl,
-        artistName: artistName,
-      ).then((row) {
-        if (!mounted) return;
-        final inserted = TattsagramPostService.postFromRealtimeRow(row);
-        widget.onPhotoPostedToFeed?.call(inserted);
-      }).catchError((e, st) {
-        debugPrint('Background video DB insert failed: $e\n$st');
-      }),
+    // ignore: avoid_print — critical upload->insert tracing.
+    print('NOW INSERTING INTO DB');
+    final newPost = await TattsagramPostService.createPost(
+      mediaUrl: videoUrl,
+      mediaType: TattsagramMediaType.video,
+      artistName: artistName,
     );
+    if (!mounted) return;
+    widget.onPhotoPostedToFeed?.call(newPost);
+    await widget.onFeedReloadAfterPost?.call();
 
     try {
       await LiveMessagesService.sendLiveMessage('🎬 Live video $videoUrl');
@@ -1200,14 +1354,15 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         addAutomaticKeepAlives: false,
         addRepaintBoundaries: true,
         padding: EdgeInsets.fromLTRB(
-          16,
-          12,
-          16,
-          12 + bottomReserve,
+          4,
+          2,
+          4,
+          2 + bottomReserve,
         ),
         itemCount: combined.length,
         itemBuilder: (context, i) {
           final msg = combined[i];
+          final previewKey = _previewDismissKey(msg);
           final usernameRaw = msg.username;
           final username =
               usernameRaw.trim().isEmpty ? 'User' : usernameRaw.trim();
@@ -1218,28 +1373,46 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
               messageUrl != null && body.contains('Live video');
           final isYouTubeLink = messageText.contains('youtube.com') ||
               messageText.contains('youtu.be');
+          final showYouTubePreview = isYouTubeLink &&
+              !_dismissedLiveChatPreviewKeys.contains(previewKey);
           final renderedBody = isLiveVideoPost
               ? 'User just posted a new video into the MIXX!'
               : body;
-          final displayBody =
-              renderedBody.replaceAll(RegExp(r'\s+'), ' ').trim();
-          final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: _colorForLiveUsername(username),
-                letterSpacing: -0.2,
-                shadows: legibilityShadows,
-              );
+          final displayBody = _normalizeChatMessageWhitespace(renderedBody);
+          final nameStyle = TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            height: 1.1,
+            color: _colorForLiveUsername(username),
+            wordSpacing: 0,
+            letterSpacing: -0.2,
+            shadows: legibilityShadows,
+          );
+          final roleStyle = TextStyle(
+            fontSize: 12,
+            height: 1.1,
+            color: onChatMuted,
+            wordSpacing: 0,
+            letterSpacing: 0,
+          );
           return Padding(
-            padding: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 2),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  username,
-                  style: titleStyle,
+                UserNameWithRole(
+                  name: username,
+                  userType: (msg.userId != null)
+                      ? _liveUserTypeById[msg.userId!]
+                      : null,
+                  nameStyle: nameStyle,
+                  roleStyle: roleStyle,
+                  nameStrutStyle: _kLiveChatStrutName,
+                  roleStrutStyle: _kLiveChatStrut12,
                 ),
-                const SizedBox(height: 4),
-                if (isYouTubeLink)
+                const SizedBox(height: 2),
+                if (showYouTubePreview)
                   GestureDetector(
                     onTap: () async {
                       final url = Uri.parse(messageText);
@@ -1248,10 +1421,48 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Image.network(
-                          'https://img.youtube.com/vi/${extractYoutubeId(messageText)}/0.jpg',
+                        Stack(
+                          children: [
+                            _YoutubeChatPreviewThumb(messageText: messageText),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Material(
+                                color: Colors.black54,
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: () {
+                                    _safeSetState(() {
+                                      _dismissedLiveChatPreviewKeys
+                                          .add(previewKey);
+                                    });
+                                  },
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(6),
+                                    child: Icon(
+                                      Icons.close,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const Text('Tap to watch on YouTube'),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Tap to watch on YouTube',
+                          textAlign: TextAlign.start,
+                          strutStyle: _kLiveChatStrutMessageBody,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            wordSpacing: 0,
+                            letterSpacing: 0,
+                            height: 1.1,
+                          ),
+                        ),
                       ],
                     ),
                   )
@@ -1273,16 +1484,20 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                       child: Text(
                         displayBody,
                         textAlign: TextAlign.start,
+                        textDirection: TextDirection.ltr,
+                        strutStyle: _kLiveChatStrutMessageBody,
                         softWrap: true,
                         style: TextStyle(
                           fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          wordSpacing: 0,
+                          letterSpacing: 0,
                           color: isLiveVideoPost
                               ? Colors.white
                               : (messageUrl == null
                                   ? Colors.white
                                   : Colors.blue),
-                          height: 1.4,
-                          fontWeight: FontWeight.w500,
+                          height: 1.1,
                           fontFamilyFallback: _emojiFontFamilyFallback,
                           decoration: messageUrl == null || isLiveVideoPost
                               ? TextDecoration.none
@@ -1291,13 +1506,15 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                       ),
                     ),
                   ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   _formatTime(context, msg.createdAt),
+                  strutStyle: _kLiveChatStrut10,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                    height: 1.1,
                     color: onChatMuted,
+                    fontWeight: FontWeight.w600,
                     shadows: legibilityShadows,
                   ),
                 ),
@@ -1323,6 +1540,12 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
     final url = m.group(1)?.trim();
     if (url == null || url.isEmpty) return null;
     return url;
+  }
+
+  String _previewDismissKey(LiveMessage msg) {
+    final id = msg.id?.toString().trim();
+    if (id != null && id.isNotEmpty) return id;
+    return '${msg.createdAt.toIso8601String()}|${msg.username}|${msg.message}';
   }
 
   Future<void> _openMessageUrl(String rawUrl) async {
@@ -1386,10 +1609,14 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
       minLines: 1,
       maxLines: 4,
       keyboardType: TextInputType.text,
+      textAlign: TextAlign.start,
+      textDirection: TextDirection.ltr,
       style: const TextStyle(
         fontSize: 15,
         color: Colors.white,
         fontWeight: FontWeight.w500,
+        wordSpacing: 0,
+        letterSpacing: 0,
         fontFamilyFallback: _emojiFontFamilyFallback,
       ),
       textInputAction: TextInputAction.send,
@@ -1401,8 +1628,11 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
         hintStyle: const TextStyle(
           color: Color(0x99FFFFFF),
           fontWeight: FontWeight.w400,
+          wordSpacing: 0,
+          letterSpacing: 0,
           fontFamilyFallback: _emojiFontFamilyFallback,
         ),
+        isDense: true,
         filled: true,
         fillColor: Colors.black.withValues(alpha: 0.45),
         border: OutlineInputBorder(
@@ -1423,8 +1653,8 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
           ),
         ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
+          horizontal: 12,
+          vertical: 10,
         ),
       ),
     );
@@ -1715,7 +1945,7 @@ class _TattsagramChatOverlayState extends State<TattsagramChatOverlay>
                                 child: IconButton(
                                   tooltip: MaterialLocalizations.of(context)
                                       .backButtonTooltip,
-                                  icon: const Icon(Icons.arrow_back),
+                                  icon: const Icon(Icons.home),
                                   onPressed: widget.onComposerBack,
                                 ),
                               ),

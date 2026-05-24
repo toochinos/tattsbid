@@ -12,6 +12,7 @@ class TattooRequest {
     this.updatedAt,
     this.customerName,
     this.customerLocation,
+    this.posterUserType,
     this.bidCount = 0,
     this.placement,
     this.size,
@@ -26,6 +27,9 @@ class TattooRequest {
   final String imageUrl;
   final String? customerName;
   final String? customerLocation;
+
+  /// Owner account type: `tattoo_artist` or `customer`.
+  final String? posterUserType;
   final int bidCount;
   final String? description;
   final String? placement;
@@ -44,6 +48,7 @@ class TattooRequest {
     Map<String, dynamic> json, {
     String? customerName,
     String? customerLocation,
+    String? posterUserType,
     int bidCount = 0,
   }) {
     return TattooRequest(
@@ -52,6 +57,7 @@ class TattooRequest {
       imageUrl: json['image_url'] as String,
       customerName: customerName,
       customerLocation: customerLocation,
+      posterUserType: posterUserType,
       bidCount: bidCount,
       description: json['description'] as String?,
       placement: json['placement'] as String?,

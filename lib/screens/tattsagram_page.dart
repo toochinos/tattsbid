@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -9,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:video_player/video_player.dart';
 
 import '../core/models/tattsagram_post.dart';
 import '../core/services/live_online_service.dart';
@@ -18,7 +18,8 @@ import '../core/services/tattsagram_post_service.dart';
 import '../core/services/tattsagram_ranked_pool_feed.dart';
 import '../core/services/tattsagram_video_sound_registry.dart';
 import '../widgets/tattsagram_chat_overlay.dart';
-import '../widgets/tattsagram_pooled_video.dart';
+import '../widgets/safe_media_renderer.dart';
+import '../widgets/user_name_with_role.dart';
 
 Future<void> sharePost(String imageUrl) async {
   final url = imageUrl.trim();
@@ -135,9 +136,8 @@ class TattsagramPage extends StatefulWidget {
 }
 
 class _TattsagramPageState extends State<TattsagramPage> {
-  // 1-2-3 stack: previous / active / next visible together.
-  // Show a full stacked set (top/middle/bottom) more clearly on landing.
-  static const double _pageViewportFraction = 0.3334;
+  // Full-bleed feed pages (TikTok-style fill).
+  static const double _pageViewportFraction = 1.0;
 
   /// Open on entry so users immediately see Live Chat, composer, and camera affordances.
   bool _chatOpen = true;
@@ -174,7 +174,8 @@ class _TattsagramPageState extends State<TattsagramPage> {
 
   /// False until the first remote fetch attempt finishes (success or error).
   bool _remoteLoadDone = false;
-  static const int _remotePageSize = 40;
+  bool _isLoading = false;
+  static const int _remotePageSize = 10;
   static const int _nearSequenceEndThreshold = 5;
   int _remoteFetchOffset = 0;
   bool _loadingMoreRemotePosts = false;
@@ -309,8 +310,10 @@ class _TattsagramPageState extends State<TattsagramPage> {
     _recomputeFeedPlaybackGate();
     _feedScrollController = ScrollController();
     _feedScrollController.addListener(_onFeedScrollCombined);
-    _feedPageController =
-        PageController(viewportFraction: _pageViewportFraction);
+    _feedPageController = PageController(
+      viewportFraction: _pageViewportFraction,
+      initialPage: 0,
+    );
     _attachFeedPageListener();
     _connectPostsRealtime();
     _authStateSub = Supabase.instance.client.auth.onAuthStateChange.listen((
@@ -325,10 +328,10 @@ class _TattsagramPageState extends State<TattsagramPage> {
       }
     });
     unawaited(_recoverAuthSessionOnStart());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_loadRemoteTattsagramPosts());
-    });
+    fetchPosts(); // MUST run on open
   }
+
+  Future<void> fetchPosts() => _loadRemoteTattsagramPosts();
 
   void _connectPostsRealtime() {
     _realtimeRetryTimer?.cancel();
@@ -448,29 +451,56 @@ class _TattsagramPageState extends State<TattsagramPage> {
   }
 
   void _mergeUniquePoolFromSources() {
-    final remoteUrls = _remotePosts.map((p) => p.canonicalRemoteUrl).toSet();
-    final chat = _chatPosts
-        .where((p) => !remoteUrls.contains(p.canonicalRemoteUrl))
-        .toList(growable: false);
-    _uniquePool = [...chat, ..._remotePosts];
+    _uniquePool = List<TattsagramPost>.from(_remotePosts);
   }
 
   /// Rebuilds [_uniquePool] from chat + remote and reshuffles the ranked expanded sequence.
   void _recomposeFeedAndWeights() {
     _mergeUniquePoolFromSources();
-    _feedSequence =
-        TattsagramRankedPoolFeed.buildShuffledRankedSequence(_uniquePool);
+    _feedSequence = List<TattsagramPost>.from(_remotePosts);
+  }
+
+  void _mergeFetchedRemotePosts(List<TattsagramPost> fetchedPosts) {
+    final byId = <String, TattsagramPost>{};
+    final byUrl = <String, TattsagramPost>{};
+
+    for (final post in _remotePosts) {
+      final id = post.id?.trim() ?? '';
+      final url = post.canonicalRemoteUrl.trim().isNotEmpty
+          ? post.canonicalRemoteUrl.trim()
+          : post.mediaUrl.trim();
+      if (id.isNotEmpty) byId[id] = post;
+      if (url.isNotEmpty) byUrl[url] = post;
+    }
+
+    for (final post in fetchedPosts) {
+      final id = post.id?.trim() ?? '';
+      final url = post.canonicalRemoteUrl.trim().isNotEmpty
+          ? post.canonicalRemoteUrl.trim()
+          : post.mediaUrl.trim();
+      if ((id.isNotEmpty && byId.containsKey(id)) ||
+          (url.isNotEmpty && byUrl.containsKey(url))) {
+        continue;
+      }
+      _remotePosts.add(post);
+      if (id.isNotEmpty) byId[id] = post;
+      if (url.isNotEmpty) byUrl[url] = post;
+    }
   }
 
   Future<void> _loadRemoteTattsagramPosts() async {
+    if (_isLoading) return;
+    _isLoading = true;
     try {
-      final posts = await TattsagramPostService.fetchPosts(limit: 100);
-      final withLikes = List<TattsagramPost>.from(posts, growable: true);
-      debugPrint('Fetched posts: ${posts.length}');
       _safeSetState(() {
-        _remotePosts = List<TattsagramPost>.from(withLikes);
-        _remoteFetchOffset = withLikes.length;
-        _hasMoreRemotePosts = posts.length == 100;
+        _remotePosts = [];
+      });
+      final data = await TattsagramPostService.fetchPosts();
+      _safeSetState(() {
+        _mergeFetchedRemotePosts(data);
+        _chatPosts.clear();
+        _remoteFetchOffset = _remotePosts.length;
+        _hasMoreRemotePosts = false;
         _remoteLoadDone = true;
         _recomposeFeedAndWeights();
       });
@@ -484,57 +514,13 @@ class _TattsagramPageState extends State<TattsagramPage> {
       _safeSetState(() {
         _remoteLoadDone = true;
       });
+    } finally {
+      _isLoading = false;
     }
   }
 
   Future<void> _loadMoreRemoteTattsagramPosts() async {
-    if (_loadingMoreRemotePosts || !_hasMoreRemotePosts) return;
-    _loadingMoreRemotePosts = true;
-    try {
-      final posts = await TattsagramPostService.fetchPosts(
-        limit: _remotePageSize,
-        offset: _remoteFetchOffset,
-      );
-      _remoteFetchOffset += posts.length;
-      if (posts.length < _remotePageSize) {
-        _hasMoreRemotePosts = false;
-      }
-      if (posts.isEmpty || !mounted) {
-        return;
-      }
-
-      final existingIds = _remotePosts
-          .map((p) => p.id)
-          .whereType<String>()
-          .where((id) => id.isNotEmpty)
-          .toSet();
-      final existingUrls =
-          _remotePosts.map((p) => p.canonicalRemoteUrl).toSet();
-      final dedupedNew = posts.where((p) {
-        final id = p.id?.trim() ?? '';
-        if (id.isNotEmpty && existingIds.contains(id)) {
-          return false;
-        }
-        final url = p.canonicalRemoteUrl.trim();
-        if (url.isNotEmpty && existingUrls.contains(url)) {
-          return false;
-        }
-        return true;
-      }).toList(growable: false);
-
-      if (dedupedNew.isEmpty) return;
-
-      _safeSetState(() {
-        _remotePosts.addAll(dedupedNew);
-        _mergeUniquePoolFromSources();
-      });
-      _rebuildRankedSequencePreservingAnchor();
-      _scheduleWarmMediaPool();
-    } catch (e, st) {
-      debugPrint('Tattsagram remote pagination failed: $e\n$st');
-    } finally {
-      _loadingMoreRemotePosts = false;
-    }
+    // Feed is fully refreshed from DB in [_loadRemoteTattsagramPosts].
   }
 
   @override
@@ -683,7 +669,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
     }
   }
 
-  /// Rebuild expanded pool from current [likesCount], shuffle; keep the same post on screen.
+  /// Rebuild sequence from current DB-backed remote posts, keeping anchor on screen.
   void _rebuildRankedSequencePreservingAnchor() {
     final c = _feedScrollController;
     if (!mounted) return;
@@ -695,8 +681,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
     final anchor = oldL > 0 ? _feedSequence[oldIdx] : null;
     final lap = oldL > 0 ? absIndex ~/ oldL : 0;
 
-    _feedSequence =
-        TattsagramRankedPoolFeed.buildShuffledRankedSequence(_uniquePool);
+    _feedSequence = List<TattsagramPost>.from(_remotePosts);
     _needsSequenceRebuild = false;
 
     final newL = _feedSequence.length;
@@ -1008,178 +993,45 @@ class _TattsagramPageState extends State<TattsagramPage> {
     }
   }
 
-  /// Step 2 — temp video row at top before upload completes.
-  void _onInsertTempVideoAtTop(String tempPostId, String localVideoPath) {
-    setState(() {
-      _chatPosts.insert(
-        0,
-        TattsagramPost.tempVideoUpload(
-          id: tempPostId,
-          localVideo: localVideoPath,
-        ),
-      );
-      _mergeUniquePoolFromSources();
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _rebuildRankedSequencePreservingAnchor();
-    });
-  }
-
-  /// Step 4 — replace the temp tile (same [tempPostId]): `isUploading: false`,
-  /// `uploadProgress: 1.0`, remote URLs; clear other optimistic uploads.
-  void _onReplaceTempVideoWhenFinished(
-    String tempPostId,
-    String videoUrl,
-    String artistName,
-  ) {
-    setState(() {
-      final completedVideoPost = TattsagramPost(
-        mediaUrl: videoUrl,
-        mediaType: TattsagramMediaType.video,
-        artistName: artistName,
-        location: '',
-        caption: '',
-        timestamp: DateTime.now(),
-        isUploading: false,
-        uploadProgress: 1.0,
-        videoUrl: videoUrl,
-      );
-      final i = _chatPosts.indexWhere((p) => p.id == tempPostId);
-      if (i >= 0) {
-        _chatPosts[i] = _chatPosts[i].copyWith(
-          isUploading: false,
-          uploadProgress: 1.0,
-          mediaUrl: videoUrl,
-          videoUrl: videoUrl,
-          localVideo: null,
-          artistName: artistName,
-          timestamp: DateTime.now(),
-        );
-      } else {
-        _chatPosts.insert(
-          0,
-          completedVideoPost,
-        );
-      }
-      _remotePosts = List<TattsagramPost>.from(_remotePosts);
-      _remotePosts.removeWhere(
-        (p) => p.canonicalRemoteUrl == completedVideoPost.canonicalRemoteUrl,
-      );
-      _remotePosts.insert(
-        0,
-        completedVideoPost,
-      );
-      _chatPosts.removeWhere((p) => p.isUploading);
-      _mergeUniquePoolFromSources();
-    });
-    _cancelCameraCapturePause();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _rebuildRankedSequencePreservingAnchor();
-    });
-  }
-
   void _onPhotoPostedFromLiveChat(TattsagramPost post) {
     if (!mounted) return;
-    String? overlayPathToShow;
     setState(() {
-      if (post.mediaType == TattsagramMediaType.image) {
-        if (post.isUploading && (post.id?.isNotEmpty ?? false)) {
-          if (_chatOpen) {
-            _chatOpen = false;
-          }
-          final localPath = post.mediaUrl.trim();
-          if (localPath.isNotEmpty) {
-            final uri = Uri.tryParse(localPath);
-            final isRemote =
-                uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
-            if (!isRemote) {
-              overlayPathToShow = (uri != null && uri.scheme == 'file')
-                  ? uri.toFilePath()
-                  : localPath;
-            }
-          }
-          final pid = post.id!;
-          // Insert optimistic image directly into page-level feed sources immediately.
-          _remotePosts = List<TattsagramPost>.from(_remotePosts);
-          final remoteI = _remotePosts.indexWhere((p) => p.id == pid);
-          if (remoteI >= 0) {
-            _remotePosts[remoteI] = post;
-          } else {
-            _remotePosts.insert(0, post);
-          }
-          final i = _chatPosts.indexWhere((p) => p.id == pid);
-          if (i >= 0) {
-            _chatPosts[i] = post;
-          } else {
-            _chatPosts.insert(0, post);
-          }
-        } else {
-          final replaceId = post.replacesLocalUploadId;
-          if (replaceId != null && replaceId.isNotEmpty) {
-            _remotePosts = List<TattsagramPost>.from(_remotePosts);
-            final tempRemoteI =
-                _remotePosts.indexWhere((p) => p.id == replaceId);
-            _chatPosts.removeWhere((p) => p.id == replaceId);
-            if (tempRemoteI >= 0) {
-              _remotePosts[tempRemoteI] = post;
-            } else {
-              _remotePosts.removeWhere(
-                (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
-              );
-              _remotePosts.insert(0, post);
-            }
-          } else {
-            _remotePosts = List<TattsagramPost>.from(_remotePosts);
-            _remotePosts.removeWhere(
-              (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
-            );
-            _remotePosts.insert(0, post);
-          }
-          _chatPosts.removeWhere(
-            (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
-          );
-        }
-      } else {
-        _chatPosts.removeWhere(
-          (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
-        );
-        final pid = post.id;
-        _remotePosts = List<TattsagramPost>.from(_remotePosts);
-        _remotePosts.removeWhere(
-          (p) => p.canonicalRemoteUrl == post.canonicalRemoteUrl,
-        );
-        _remotePosts.insert(0, post);
-        if (pid != null && pid.isNotEmpty) {
-          final i = _chatPosts.indexWhere((p) => p.id == pid);
-          if (i >= 0) {
-            _chatPosts[i] = post;
-          } else {
-            _chatPosts.insert(0, post);
-          }
-        } else {
-          _chatPosts.insert(0, post);
-        }
+      final id = post.id?.trim() ?? '';
+      final remoteKey = post.canonicalRemoteUrl.trim();
+      final mediaUrl = post.mediaUrl.trim();
+
+      // Prevent duplicates when create + refetch both update feed.
+      if (id.isNotEmpty) {
+        _remotePosts.removeWhere((p) => (p.id?.trim() ?? '') == id);
+        _chatPosts.removeWhere((p) => (p.id?.trim() ?? '') == id);
       }
+      if (remoteKey.isNotEmpty) {
+        _remotePosts
+            .removeWhere((p) => p.canonicalRemoteUrl.trim() == remoteKey);
+        _chatPosts.removeWhere((p) => p.canonicalRemoteUrl.trim() == remoteKey);
+      } else if (mediaUrl.isNotEmpty) {
+        _remotePosts.removeWhere((p) => p.mediaUrl.trim() == mediaUrl);
+        _chatPosts.removeWhere((p) => p.mediaUrl.trim() == mediaUrl);
+      }
+
+      _remotePosts.insert(0, post);
       _mergeUniquePoolFromSources();
     });
-    if (overlayPathToShow != null && overlayPathToShow!.isNotEmpty) {
-      _showOptimisticPhotoOverlay(overlayPathToShow!);
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _rebuildRankedSequencePreservingAnchor();
-    });
+    _rebuildRankedSequencePreservingAnchor();
+    _scheduleWarmMediaPool();
+    _focusFirstFeedItem();
   }
 
-  void _onPendingVideoUploadFailed(String localTempPostId) {
-    setState(() {
-      _chatPosts.removeWhere((p) => p.id == localTempPostId);
-      _remotePosts = List<TattsagramPost>.from(_remotePosts);
-      _remotePosts.removeWhere((p) => p.id == localTempPostId);
-      _mergeUniquePoolFromSources();
+  void _focusFirstFeedItem() {
+    if (!mounted) return;
+    if (_feedSequence.isEmpty) return;
+    _safeSetState(() {
+      _currentIndex = 0;
     });
-    _cancelCameraCapturePause();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _rebuildRankedSequencePreservingAnchor();
+      if (!mounted || !_feedPageController.hasClients) return;
+      _feedPageController.jumpToPage(0);
+      _scheduleWarmMediaPool();
     });
   }
 
@@ -1224,17 +1076,47 @@ class _TattsagramPageState extends State<TattsagramPage> {
     return seq;
   }
 
+  /// Logical id for comparisons (like `post['id']`); falls back to URL/media when missing.
+  String _dedupeMapKeyForPost(TattsagramPost post) {
+    final id = post.id?.trim() ?? '';
+    if (id.isNotEmpty) return id;
+    final url = post.canonicalRemoteUrl.trim();
+    if (url.isNotEmpty) return url;
+    return post.mediaUrl.trim();
+  }
+
   Widget _buildFeed() {
     if (!_remoteLoadDone) {
       return const Center(child: CircularProgressIndicator());
     }
-    final seq = _removeNearDuplicatesForVisibleWindow(_feedSequence);
-    final L = seq.length;
-    if (L == 0) {
-      return const Center(
-        child: Text('No Flexemo posts yet'),
-      );
+    print("USING LIST LENGTH: ${_remotePosts.length}");
+    if (_remotePosts.isEmpty) {
+      return Center(child: Text("No posts yet"));
     }
+    final sequence = _removeNearDuplicatesForVisibleWindow(_feedSequence);
+    final posts = <TattsagramPost>[];
+    final seenImageMediaUrls = <String>{};
+    for (var i = 0; i < sequence.length; i++) {
+      final post = sequence[i];
+      final isAdjacentDuplicate = i > 0 &&
+          _dedupeMapKeyForPost(post) == _dedupeMapKeyForPost(sequence[i - 1]);
+      if (isAdjacentDuplicate) continue;
+
+      if (post.mediaType != TattsagramMediaType.video) {
+        final imageUrl = post.canonicalRemoteUrl.trim().isNotEmpty
+            ? post.canonicalRemoteUrl.trim().toLowerCase()
+            : post.mediaUrl.trim().toLowerCase();
+        if (imageUrl.isNotEmpty && !seenImageMediaUrls.add(imageUrl)) {
+          continue;
+        }
+      }
+
+      posts.add(post);
+    }
+    // ignore: avoid_print — same as post['id'] on JSON rows.
+    print('POST IDS: ${posts.map((p) => p.id).toList()}');
+    final L = posts.length;
+    if (L == 0) return Center(child: Text("No posts yet"));
     if (_currentIndex >= L) _currentIndex = L - 1;
 
     if (_isTikTokFullscreen) {
@@ -1244,30 +1126,28 @@ class _TattsagramPageState extends State<TattsagramPage> {
         padEnds: false,
         allowImplicitScrolling: false,
         pageSnapping: true,
-        itemCount: L,
+        itemCount: posts.length, // ✅ IMPORTANT
         onPageChanged: (index) {
           setState(() => _currentIndex = index);
         },
         itemBuilder: (context, index) {
-          final p = seq[index];
+          final post = posts[index];
+          // ignore: avoid_print — object model equivalent of post['media_url'].
+          print('MEDIA URL: ${post.mediaUrl}');
           final isActive = index == _currentIndex;
-          final mountDecoder =
-              isActive && p.mediaType == TattsagramMediaType.video;
-          return _TattsagramFeedItem(
-            key: ValueKey(TattsagramFeedMediaPool.slotKey(index, p)),
-            feedIndex: index,
-            mediaPool: _feedMediaPool,
-            post: p,
-            isCenter: isActive,
-            mountVideoDecoder: mountDecoder,
-            onVideoSurfaceTap: null,
-            onVideoThumbnailTap:
-                isActive && p.mediaType == TattsagramMediaType.video
-                    ? () => _onVideoCellTapped(index)
-                    : null,
-            centerPlaybackListenable: _feedPlaybackGate,
+          return ReelCard(
+            key: ValueKey(TattsagramFeedMediaPool.slotKey(index, post)),
+            post: post,
+            isActive: isActive,
+            isFullscreen: true,
+            playbackGateListenable: _feedPlaybackGate,
             soundMutedListenable: _feedSoundMuted,
-            onLike: () => _onToggleLike(p),
+            likesCount: post.likesCount,
+            isLikedByMe: post.isLikedByMe,
+            onLike: () => _onToggleLike(post),
+            onTap: isActive && post.mediaType == TattsagramMediaType.video
+                ? () => _onVideoCellTapped(index)
+                : null,
           );
         },
       );
@@ -1276,31 +1156,30 @@ class _TattsagramPageState extends State<TattsagramPage> {
     return PageView.builder(
       controller: _feedPageController,
       scrollDirection: Axis.vertical,
-      padEnds: true,
+      padEnds: false,
       allowImplicitScrolling: true,
-      itemCount: L,
+      itemCount: posts.length, // ✅ IMPORTANT
       onPageChanged: (index) {
         setState(() {
           _currentIndex = index;
         });
       },
       itemBuilder: (context, index) {
-        final p = seq[index];
-        return _TattsagramFeedItem(
-          key: ValueKey(TattsagramFeedMediaPool.slotKey(index, p)),
-          feedIndex: index,
-          mediaPool: _feedMediaPool,
-          post: p,
-          isCenter: index == _currentIndex,
-          mountVideoDecoder: p.mediaType == TattsagramMediaType.video,
-          onVideoSurfaceTap:
-              index == _currentIndex && p.mediaType == TattsagramMediaType.video
-                  ? () => _enterTikTokMode(index)
-                  : null,
-          onVideoThumbnailTap: null,
-          centerPlaybackListenable: _feedPlaybackGate,
+        final post = posts[index];
+        final isActive = index == _currentIndex;
+        return ReelCard(
+          key: ValueKey(TattsagramFeedMediaPool.slotKey(index, post)),
+          post: post,
+          isActive: isActive,
+          isFullscreen: false,
+          playbackGateListenable: _feedPlaybackGate,
           soundMutedListenable: _feedSoundMuted,
-          onLike: () => _onToggleLike(p),
+          likesCount: post.likesCount,
+          isLikedByMe: post.isLikedByMe,
+          onLike: () => _onToggleLike(post),
+          onTap: isActive && post.mediaType == TattsagramMediaType.video
+              ? () => _enterTikTokMode(index)
+              : null,
         );
       },
     );
@@ -1330,6 +1209,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
         }
       },
       child: Scaffold(
+        backgroundColor: Colors.black,
         resizeToAvoidBottomInset: false,
         body: Stack(
           clipBehavior: Clip.none,
@@ -1471,7 +1351,7 @@ class _TattsagramPageState extends State<TattsagramPage> {
                               .withValues(alpha: 0.95),
                           child: IconButton(
                             tooltip: backTooltip,
-                            icon: const Icon(Icons.arrow_back),
+                            icon: const Icon(Icons.home),
                             onPressed: _handleBack,
                           ),
                         ),
@@ -1523,11 +1403,8 @@ class _TattsagramPageState extends State<TattsagramPage> {
               TattsagramChatOverlay(
                 isOpen: _chatOpen,
                 onClose: () => setState(() => _chatOpen = false),
+                onFeedReloadAfterPost: fetchPosts,
                 onPhotoPostedToFeed: _onPhotoPostedFromLiveChat,
-                onInsertTempVideoAtTop: _onInsertTempVideoAtTop,
-                onReplaceTempVideoWhenFinished: _onReplaceTempVideoWhenFinished,
-                onPendingVideoUploadFailed: _onPendingVideoUploadFailed,
-                onPendingPhotoUploadFailed: _onPendingVideoUploadFailed,
                 onCameraVideoCaptureStart: _pauseAllFeedVideos,
                 onCameraVideoCaptureCancelled: _cancelCameraCapturePause,
                 feedSoundMuted: _feedSoundMuted,
@@ -1554,18 +1431,7 @@ class _TattsagramVideoThumbnailOnly extends StatelessWidget {
   Widget build(BuildContext context) {
     final thumb = post.thumbnailUrl?.trim();
     if (thumb != null && thumb.isNotEmpty) {
-      return CachedNetworkImage(
-        imageUrl: thumb,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        fadeInDuration: Duration.zero,
-        fadeOutDuration: Duration.zero,
-        placeholder: (_, __) => ColoredBox(
-          color: scheme.surfaceContainerHighest,
-        ),
-        errorWidget: (_, __, ___) => _fallback,
-      );
+      return SafeMediaRenderer(url: thumb);
     }
     return _fallback;
   }
@@ -1609,62 +1475,8 @@ class _TattsagramFeedItem extends StatelessWidget {
   final VoidCallback onLike;
 
   Widget _media(ColorScheme scheme) {
-    if (post.mediaType == TattsagramMediaType.video) {
-      if (mountVideoDecoder) {
-        return TattsagramPooledVideo(
-          feedIndex: feedIndex,
-          post: post,
-          pool: mediaPool,
-          thumbnailUrl: post.thumbnailUrl,
-          feedPlaybackListenable: isCenter
-              ? centerPlaybackListenable
-              : const AlwaysStoppedAnimation<bool>(false),
-          soundMutedListenable: soundMutedListenable,
-          onSurfaceTap: onVideoSurfaceTap,
-        );
-      }
-      return _TattsagramVideoThumbnailOnly(post: post, scheme: scheme);
-    }
-    final imagePath = post.mediaUrl.trim();
-    final uri = Uri.tryParse(imagePath);
-    final isRemote =
-        uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
-    final localPath =
-        (uri != null && uri.scheme == 'file') ? uri.toFilePath() : imagePath;
-    if (!isRemote && localPath.isNotEmpty) {
-      return Image.file(
-        File(localPath),
-        fit: BoxFit.cover,
-        width: double.infinity,
-        errorBuilder: (_, __, ___) => ColoredBox(
-          color: scheme.surfaceContainerHighest,
-          child: Icon(
-            Icons.broken_image_outlined,
-            size: 48,
-            color: scheme.outline,
-          ),
-        ),
-      );
-    }
-    return CachedNetworkImage(
-      imageUrl: post.mediaUrl,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      fadeInDuration: Duration.zero,
-      fadeOutDuration: Duration.zero,
-      placeholder: (_, __) => ColoredBox(
-        color: scheme.surfaceContainerHighest,
-      ),
-      errorWidget: (_, __, ___) => ColoredBox(
-        color: scheme.surfaceContainerHighest,
-        child: Icon(
-          Icons.broken_image_outlined,
-          size: 48,
-          color: scheme.outline,
-        ),
-      ),
-    );
+    final url = post.mediaUrl.trim();
+    return SafeMediaRenderer(url: url);
   }
 
   @override
@@ -1801,12 +1613,12 @@ class _TattsagramFeedItem extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(14, 28, 14, 14),
                   child: SizedBox(
                     width: double.infinity,
-                    child: Text(
-                      post.artistName,
+                    child: UserNameWithRole(
+                      name: post.artistName,
+                      userType: 'tattoo_artist',
                       textAlign: TextAlign.right,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.titleMedium?.copyWith(
+                      maxNameLines: 2,
+                      nameStyle: textTheme.titleMedium?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.2,
@@ -1815,6 +1627,17 @@ class _TattsagramFeedItem extends StatelessWidget {
                           Shadow(
                             color: Color(0x80000000),
                             blurRadius: 12,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      roleStyle: textTheme.labelSmall?.copyWith(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                        shadows: const [
+                          Shadow(
+                            color: Color(0x80000000),
+                            blurRadius: 8,
                             offset: Offset(0, 1),
                           ),
                         ],
@@ -1828,5 +1651,269 @@ class _TattsagramFeedItem extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class ReelCard extends StatelessWidget {
+  const ReelCard({
+    super.key,
+    required this.post,
+    required this.isActive,
+    required this.isFullscreen,
+    required this.playbackGateListenable,
+    required this.soundMutedListenable,
+    required this.likesCount,
+    required this.isLikedByMe,
+    required this.onLike,
+    this.onTap,
+  });
+
+  final TattsagramPost post;
+  final bool isActive;
+  final bool isFullscreen;
+  final ValueListenable<bool> playbackGateListenable;
+  final ValueListenable<bool> soundMutedListenable;
+  final int likesCount;
+  final bool isLikedByMe;
+  final VoidCallback onLike;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = post.mediaUrl.trim();
+    final username =
+        post.artistName.trim().isNotEmpty ? post.artistName.trim() : 'User';
+    final fullBleed =
+        isFullscreen || post.mediaType != TattsagramMediaType.video;
+    final cardChild = Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: onTap,
+            behavior: HitTestBehavior.opaque,
+            child: ReelMedia(
+              url: url,
+              isActive: isActive,
+              playbackGateListenable: playbackGateListenable,
+              soundMutedListenable: soundMutedListenable,
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Container(
+              color: Colors.black.withOpacity(
+                fullBleed ? 0.0 : (isActive ? 0.2 : 0.5),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          right: 12,
+          top: 84,
+          child: UserNameWithRole(
+            name: username,
+            userType: 'tattoo_artist',
+            textAlign: TextAlign.end,
+            nameStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+            roleStyle: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Positioned(
+          right: 12,
+          top: 0,
+          bottom: 0,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: onLike,
+                  child: Icon(
+                    isLikedByMe ? Icons.favorite : Icons.favorite_border,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                Text(
+                  '$likesCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () {
+                    print('SHARE CLICKED');
+                    Share.share(
+                      'Watch this on TattsBid 🔥\nhttps://www.tattsbid.com',
+                    );
+                  },
+                  child: Icon(
+                    Icons.share,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (fullBleed) {
+      return SizedBox.expand(child: cardChild);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Transform.scale(
+        scale: isActive ? 1.0 : 0.9,
+        child: Opacity(
+          opacity: isActive ? 1.0 : 0.5,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: cardChild,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ReelMedia extends StatefulWidget {
+  const ReelMedia({
+    super.key,
+    required this.url,
+    required this.isActive,
+    required this.playbackGateListenable,
+    required this.soundMutedListenable,
+  });
+
+  final String url;
+  final bool isActive;
+  final ValueListenable<bool> playbackGateListenable;
+  final ValueListenable<bool> soundMutedListenable;
+
+  @override
+  State<ReelMedia> createState() => _ReelMediaState();
+}
+
+class _ReelMediaState extends State<ReelMedia> {
+  VideoPlayerController? controller;
+  late bool _muted;
+
+  String get _safeUrl => widget.url.trim();
+  bool get _isVideo => _safeUrl.toLowerCase().contains('.mp4');
+
+  bool get _canPlay => widget.playbackGateListenable.value && widget.isActive;
+
+  Future<void> _applyVolume() async {
+    final c = controller;
+    if (c == null || !c.value.isInitialized) return;
+    await c.setVolume((_muted || !_canPlay) ? 0.0 : 1.0);
+  }
+
+  Future<void> _applyPlaybackState() async {
+    final c = controller;
+    if (c == null || !c.value.isInitialized) return;
+    await _applyVolume();
+    if (_canPlay) {
+      if (!c.value.isPlaying) {
+        await c.play();
+      }
+    } else {
+      if (c.value.isPlaying) {
+        await c.pause();
+      }
+    }
+  }
+
+  void _handleMutedChanged() {
+    _muted = widget.soundMutedListenable.value;
+    unawaited(_applyPlaybackState());
+  }
+
+  void _handlePlaybackGateChanged() {
+    unawaited(_applyPlaybackState());
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _muted = widget.soundMutedListenable.value;
+    widget.soundMutedListenable.addListener(_handleMutedChanged);
+    widget.playbackGateListenable.addListener(_handlePlaybackGateChanged);
+
+    if (_isVideo) {
+      controller = VideoPlayerController.networkUrl(Uri.parse(_safeUrl))
+        ..initialize().then((_) {
+          if (!mounted || controller == null) return;
+          setState(() {});
+          controller!.setLooping(true);
+          unawaited(_applyPlaybackState());
+        });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ReelMedia oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.soundMutedListenable != widget.soundMutedListenable) {
+      oldWidget.soundMutedListenable.removeListener(_handleMutedChanged);
+      _muted = widget.soundMutedListenable.value;
+      widget.soundMutedListenable.addListener(_handleMutedChanged);
+      unawaited(_applyPlaybackState());
+    }
+    if (oldWidget.playbackGateListenable != widget.playbackGateListenable) {
+      oldWidget.playbackGateListenable
+          .removeListener(_handlePlaybackGateChanged);
+      widget.playbackGateListenable.addListener(_handlePlaybackGateChanged);
+      unawaited(_applyPlaybackState());
+    }
+
+    unawaited(_applyPlaybackState());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isVideo) {
+      if (controller == null || !controller!.value.isInitialized) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      return FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: controller!.value.size.width,
+          height: controller!.value.size.height,
+          child: VideoPlayer(controller!),
+        ),
+      );
+    }
+
+    if (_safeUrl.isEmpty) {
+      return Container(color: Colors.black);
+    }
+    return SafeMediaRenderer(url: _safeUrl);
+  }
+
+  @override
+  void dispose() {
+    widget.soundMutedListenable.removeListener(_handleMutedChanged);
+    widget.playbackGateListenable.removeListener(_handlePlaybackGateChanged);
+    controller?.dispose();
+    super.dispose();
   }
 }

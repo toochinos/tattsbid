@@ -18,7 +18,7 @@ class AppLocalizationsId extends AppLocalizations {
   String get tabTattsagram => 'Flexemo™';
 
   @override
-  String get tabUpload => 'Unggah';
+  String get tabUpload => 'Buat bid';
 
   @override
   String get tabMessage => 'Pesan';
@@ -313,11 +313,25 @@ class AppLocalizationsId extends AppLocalizations {
       'Jenis akun Anda sudah ditetapkan dan tidak dapat diubah.';
 
   @override
+  String get profileAccountTypeConfirmTitle => 'Konfirmasi jenis akun';
+
+  @override
+  String profileAccountTypeConfirmBody(String accountType) {
+    return 'Apakah Anda yakin ingin mendaftar sebagai $accountType?\n\nPilihan ini memengaruhi cara Anda berinteraksi dengan pengguna lain. Tidak dapat diubah setelah disimpan. Pilihlah dengan benar.';
+  }
+
+  @override
+  String get profileAccountTypeConfirmCancel => 'Kembali';
+
+  @override
+  String get profileAccountTypeConfirmContinue => 'Ya, lanjutkan';
+
+  @override
   String get profileTattooArtistTitle => 'Seniman tato';
 
   @override
   String get profileTattooArtistSubtitle =>
-      'Ikut lelang pekerjaan dan terhubung dengan pelanggan';
+      'Posting penawaran untuk mempromosikan keterampilan seni seniman sekaligus menawar pekerjaan';
 
   @override
   String get profileCustomerTitle => 'Pelanggan';
@@ -412,6 +426,9 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get bidDetailTitle => 'Detail permintaan';
+
+  @override
+  String get bidDetailAppBarHomeTooltip => 'Beranda';
 
   @override
   String bidDetailStartingBid(String amount) {

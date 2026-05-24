@@ -4,6 +4,7 @@ class LiveMessage {
   const LiveMessage({
     this.id,
     this.localEchoId,
+    this.userId,
     required this.username,
     required this.message,
     required this.createdAt,
@@ -11,6 +12,7 @@ class LiveMessage {
 
   final Object? id;
   final int? localEchoId;
+  final String? userId;
   final String username;
   final String message;
   final DateTime createdAt;
@@ -23,6 +25,7 @@ class LiveMessage {
 
     return LiveMessage(
       id: row['id'],
+      userId: row['user_id']?.toString(),
       username: row['username'] as String? ?? '',
       message: row['message'] as String,
       createdAt: created,

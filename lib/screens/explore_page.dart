@@ -10,6 +10,8 @@ import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/flexemo_mark.dart';
+import '../widgets/safe_media_renderer.dart';
+import '../widgets/user_name_with_role.dart';
 
 /// Explore tab - displays open tattoo requests (photos from customers).
 class ExplorePage extends StatefulWidget {
@@ -48,6 +50,17 @@ class _ExplorePageState extends State<ExplorePage> {
   bool _nearMeActive = false;
   UserProfile? _profileForNearMe;
 
+  static const List<String> _exploreTaglines = [
+    'Find the right artist, at the right price!',
+    'Compare artist, not just prices!',
+    "Don't just choose cheap - choose right!",
+    'Quality work. Transparent pricing!',
+    'Get the right artist, at a fair price!',
+  ];
+
+  int _taglineIndex = 0;
+  Timer? _taglineRotationTimer;
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +71,12 @@ class _ExplorePageState extends State<ExplorePage> {
     _subscribeToRealtime();
     _startPollingFallback();
     widget.refreshTrigger?.addListener(_onRefreshTriggered);
+    _taglineRotationTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      setState(() {
+        _taglineIndex = (_taglineIndex + 1) % _exploreTaglines.length;
+      });
+    });
   }
 
   void _onSearchTextChanged() {
@@ -239,6 +258,7 @@ class _ExplorePageState extends State<ExplorePage> {
 
   @override
   void dispose() {
+    _taglineRotationTimer?.cancel();
     _searchController.removeListener(_onSearchTextChanged);
     _searchController.dispose();
     widget.exploreFeedScopeNotifier.removeListener(_onExploreFeedScopeChanged);
@@ -303,7 +323,7 @@ class _ExplorePageState extends State<ExplorePage> {
     final isMainFeed = scope == null || scope.isEmpty;
     return Scaffold(
       appBar: AppBar(
-        centerTitle: isMainFeed,
+        centerTitle: false,
         title: isMainFeed
             ? Text(l10n.exploreTitle)
             : Padding(
@@ -322,8 +342,14 @@ class _ExplorePageState extends State<ExplorePage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: _buildExploreSearchPill(l10n),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+            child: Center(
+              child: _buildRotatingTagline(),
+            ),
           ),
           Expanded(
             child: RefreshIndicator(
@@ -336,25 +362,60 @@ class _ExplorePageState extends State<ExplorePage> {
     );
   }
 
+  /// Tight band under the search pill; most of the screen stays for the bid grid.
+  Widget _buildRotatingTagline() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: SizedBox(
+        key: ValueKey<String>(_exploreTaglines[_taglineIndex]),
+        width: double.infinity,
+        child: Text(
+          _exploreTaglines[_taglineIndex],
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+              ),
+        ),
+      ),
+    );
+  }
+
+  /// Scrollable body that [RefreshIndicator] can attach to: fills the lower pane height.
+  Widget _scrollableFill(Widget child) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        return ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: c.maxHeight,
+              child: child,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildBody(AppLocalizations l10n) {
     if (_loading && _requests.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          SizedBox(height: MediaQuery.sizeOf(context).height * 0.32),
-          const Center(child: CircularProgressIndicator()),
-        ],
+      return _scrollableFill(
+        const Center(child: CircularProgressIndicator()),
       );
     }
     if (_errorMessage != null && _requests.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          SizedBox(height: MediaQuery.sizeOf(context).height * 0.2),
-          Padding(
+      return _scrollableFill(
+        Center(
+          child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   Icons.error_outline,
@@ -378,78 +439,73 @@ class _ExplorePageState extends State<ExplorePage> {
               ],
             ),
           ),
-        ],
+        ),
       );
     }
     if (_requests.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          SizedBox(
-            height: MediaQuery.of(context).size.height * 0.5,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  FlexemoMark(
-                    size: 64,
-                    errorFallback: Icon(
-                      Icons.photo_library_outlined,
-                      size: 64,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .outline
-                          .withValues(alpha: 0.6),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.noTattooRequestsYet,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.addRequestToSeeHere,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                  ),
-                ],
+      return _scrollableFill(
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FlexemoMark(
+                size: 64,
+                errorFallback: Icon(
+                  Icons.photo_library_outlined,
+                  size: 64,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withValues(alpha: 0.6),
+                ),
               ),
-            ),
+              const SizedBox(height: 16),
+              Text(
+                l10n.noTattooRequestsYet,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.addRequestToSeeHere,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-        ],
+        ),
       );
     }
 
     final visible = _visibleRequests;
     if (visible.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          SizedBox(height: MediaQuery.sizeOf(context).height * 0.28),
-          Center(
-            child: Column(
-              children: [
-                Icon(
-                  Icons.search_off_outlined,
-                  size: 56,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  l10n.exploreNoSearchResults,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
+      return _scrollableFill(
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.search_off_outlined,
+                size: 56,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                l10n.exploreNoSearchResults,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-        ],
+        ),
       );
     }
 
@@ -457,7 +513,7 @@ class _ExplorePageState extends State<ExplorePage> {
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 2, 12, 12),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
@@ -557,12 +613,7 @@ class _RequestCardState extends State<_RequestCard> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(
-                      request.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Center(
-                          child: Icon(Icons.broken_image, size: 48)),
-                    ),
+                    SafeMediaRenderer(url: request.imageUrl),
                     if (request.status == 'completed')
                       Positioned(
                         top: 8,
@@ -614,14 +665,20 @@ class _RequestCardState extends State<_RequestCard> {
                       request.customerName!.trim().isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(
-                        request.customerName!,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      child: UserNameWithRole(
+                        name: request.customerName!,
+                        userType: request.posterUserType,
+                        compactRole: true,
                         textAlign: TextAlign.center,
+                        nameStyle:
+                            Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                        roleStyle:
+                            Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
+                        maxNameLines: 1,
                       ),
                     ),
                   if (request.customerLocation != null &&
