@@ -4,6 +4,13 @@
   "tabArtists": "សិល្បករ",
   "tabTattsagram": "Flexemo™",
   "tabUpload": "ដាក់តម្លៃ",
+  "tabPromo": "ផ្សព្វផ្សាយ",
+  "addPromoTitle": "Promo",
+  "addPromoFieldDescriptionLabel": "ពណ៌នាសាក់នេះ",
+  "addPromoStartingBidLabel": "សាក់នេះ ($)",
+  "addPromoNextAvailabilityLabel": "ភាពអាចប្រើបាន",
+  "addPromoNextAvailabilityHint": "ឧ. សប្តាហ៍ក្រោយ, 15 មិថុនា",
+  "addPromoChatButton": "ជជែក",
   "tabMessage": "សារ",
   "tabProfile": "ប្រវត្តិរូប",
   "tattsagramEmptyTitle": "មិនទាន់មានសាក់នៅឡើយ",
@@ -16,6 +23,64 @@
   "exploreBidsNearMe": "ដេញថ្លៃនៅក្បែរខ្ញុំ",
   "exploreNearMeNeedProfile": "បន្ថែមទីក្រុង ឬសង្កាត់ក្នុងប្រវត្តិរូបដើម្បីប្រើដេញថ្លៃនៅក្បែរខ្ញុំ។",
   "exploreNoSearchResults": "គ្មានប្រកាសដែលត្រូវគ្នា",
+  "exploreArtistsInterested": "{count, plural, one{សិល្បករ 1 នាក់ចាប់អារម្មណ៍} other{សិល្បករ {count} នាក់ចាប់អារម្មណ៍}}",
+  "@exploreArtistsInterested": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exploreCustomersInterested": "{count, plural, one{អតិថិជន 1 នាក់ចាប់អារម្មណ៍} other{អតិថិជន {count} នាក់ចាប់អារម្មណ៍}}",
+  "@exploreCustomersInterested": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exploreReviewCount": "({count, plural, one{1 ការវាយតម្លៃ} other{{count} ការវាយតម្លៃ}})",
+  "@exploreReviewCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exploreBidBudget": "ថវិកា {amount}",
+  "@exploreBidBudget": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "explorePromoPrice": "សាក់នេះ {amount}",
+  "@explorePromoPrice": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "exploreBidCardTitleFallback": "ស្នើសុំសាក់",
+  "explorePostedToday": "បានប្រកាសថ្ងៃនេះ",
+  "explorePostedHoursAgo": "{count, plural, one{បានប្រកាស 1 ម៉ោងមុន} other{បានប្រកាស {count} ម៉ោងមុន}}",
+  "@explorePostedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "explorePostedDaysAgo": "{count, plural, one{បានប្រកាស 1 ថ្ងៃមុន} other{បានប្រកាស {count} ថ្ងៃមុន}}",
+  "@explorePostedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "exploreTitleWithCountry": "រុករក - {country}",
   "@exploreTitleWithCountry": {
     "placeholders": {
@@ -176,7 +241,10 @@
   "bidDetailStartingBid": "{amount} ដេញថ្លៃចាប់ផ្តើម",
   "bidDetailHideDescription": "លាក់ការពិពណ៌នា",
   "bidDetailWhatCustomerWants": "តើអតិថិជនចង់បានអ្វី?",
+  "bidDetailAboutThisTattoo": "អំពីសាក់នេះ",
+  "bidDetailChatToThisArtist": "ជជែកទៅសិល្បករនេះ",
   "bidDetailPlacement": "ទីតាំង",
+  "bidDetailNextAvailability": "ភាពអាចប្រើបាន",
   "bidDetailSize": "ទំហំ",
   "bidDetailColour": "ពណ៌",
   "bidDetailColourFull": "ពណ៌",
@@ -234,7 +302,12 @@
   "bidDetailCancel": "បោះបង់",
   "bidDetailSubmit": "ដាក់ស្នើ",
   "bidDetailArtistToolsSheetTitle": "ឧបករណ៍សិល្បករ",
-  "bidDetailArtistToolsSheetBody": "សកម្មភាពសិល្បករបន្ថែមសម្រាប់ការងារនេះនឹងបង្ហាញនៅទីនេះ។ នេះមិនដាក់ការដេញថ្លៃទេ។",
+  "bidDetailArtistToolsSheetBody": "ផ្សព្វផ្សាយការងាររបស់អ្នកនៅ Explore ខណៈរង់ចាំអតិថិជនពិនិត្យការដេញថ្លៃ។",
+  "bidDetailArtistToolsPostPromo": "ផ្សាយប្រូម៉ូ",
+  "bidDetailPostPromoTitle": "ផ្សាយប្រូម៉ូ?",
+  "bidDetailPostPromoMessage": "ចែករំលែកការងារស្បែករបស់អ្នកនៅ Explore ដើម្បីឱ្យអតិថិជនឃើញរចនាបថរបស់អ្នកជាមួយការដេញថ្លៃ។",
+  "bidDetailPostPromoOpen": "បើកទំព័រប្រូម៉ូ",
+  "bidDetailPostPromoLater": "មិនទាន់",
   "bidDetailCouldNotOpenProfile": "មិនអាចបើកប្រវត្តិរូបនេះ។",
   "bidDetailRequestAlreadyCompleted": "ស្នើសុំនេះបានបញ្ចប់រួចហើយ។",
   "bidDetailCouldNotUnlockContactDetails": "មិនអាចដោះសោទំនាក់ទំនង៖ {details}",
@@ -284,6 +357,10 @@
       }
     }
   },
+  "exploreDeletePostTitle": "លុបការផ្សាយ?",
+  "exploreDeletePostMessage": "ការផ្សាយនេះនឹងត្រូវលុបចេញពី Explore ជាអចិន្ត្រៃយ៍។",
+  "exploreDeletePostConfirm": "លុប",
+  "exploreDeletePostCancel": "បោះបង់",
   "checkoutTitle": "Checkout",
   "checkoutContinue": "បន្ត",
   "checkoutCancelledMessage": "Checkout ត្រូវបានលុបចោល។",

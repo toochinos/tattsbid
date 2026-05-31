@@ -4,6 +4,13 @@
   "tabArtists": "Seniman",
   "tabTattsagram": "Flexemo™",
   "tabUpload": "Buat bid",
+  "tabPromo": "promosikan",
+  "addPromoTitle": "Promo",
+  "addPromoFieldDescriptionLabel": "Deskripsikan tato ini",
+  "addPromoStartingBidLabel": "Tato ini ($)",
+  "addPromoNextAvailabilityLabel": "Ketersediaan",
+  "addPromoNextAvailabilityHint": "mis. Minggu depan, 15 Juni",
+  "addPromoChatButton": "Obrolan",
   "tabMessage": "Pesan",
   "tabProfile": "Profil",
   "tattsagramEmptyTitle": "Belum ada tato",
@@ -16,6 +23,64 @@
   "exploreBidsNearMe": "Penawaran di dekat saya",
   "exploreNearMeNeedProfile": "Tambahkan kota atau kecamatan di profil Anda untuk memakai Penawaran di dekat saya.",
   "exploreNoSearchResults": "Tidak ada postingan yang cocok",
+  "exploreArtistsInterested": "{count, plural, one{1 Seniman tertarik} other{{count} Seniman tertarik}}",
+  "@exploreArtistsInterested": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exploreCustomersInterested": "{count, plural, one{1 Pelanggan tertarik} other{{count} Pelanggan tertarik}}",
+  "@exploreCustomersInterested": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exploreReviewCount": "({count, plural, one{1 ulasan} other{{count} ulasan}})",
+  "@exploreReviewCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exploreBidBudget": "Anggaran {amount}",
+  "@exploreBidBudget": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "explorePromoPrice": "Tato ini {amount}",
+  "@explorePromoPrice": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "exploreBidCardTitleFallback": "Permintaan tato",
+  "explorePostedToday": "Diposting hari ini",
+  "explorePostedHoursAgo": "{count, plural, one{Diposting 1 jam lalu} other{Diposting {count} jam lalu}}",
+  "@explorePostedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "explorePostedDaysAgo": "{count, plural, one{Diposting 1 hari lalu} other{Diposting {count} hari lalu}}",
+  "@explorePostedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "exploreTitleWithCountry": "Jelajahi - {country}",
   "@exploreTitleWithCountry": {
     "placeholders": {
@@ -176,7 +241,10 @@
   "bidDetailStartingBid": "{amount} bid pembuka",
   "bidDetailHideDescription": "Sembunyikan deskripsi",
   "bidDetailWhatCustomerWants": "Apa yang diinginkan pelanggan?",
+  "bidDetailAboutThisTattoo": "Tentang tato ini",
+  "bidDetailChatToThisArtist": "Obrolan ke seniman ini",
   "bidDetailPlacement": "Penempatan",
+  "bidDetailNextAvailability": "Ketersediaan",
   "bidDetailSize": "Ukuran",
   "bidDetailColour": "Warna",
   "bidDetailColourFull": "Berwarna",
@@ -234,7 +302,12 @@
   "bidDetailCancel": "Batal",
   "bidDetailSubmit": "Kirim",
   "bidDetailArtistToolsSheetTitle": "Alat seniman",
-  "bidDetailArtistToolsSheetBody": "Tindakan seniman lainnya untuk pekerjaan ini akan muncul di sini. Ini tidak mengajukan penawaran.",
+  "bidDetailArtistToolsSheetBody": "Promosikan karya Anda di Explore sambil menunggu pelanggan meninjau penawaran.",
+  "bidDetailArtistToolsPostPromo": "Posting promo",
+  "bidDetailPostPromoTitle": "Posting promo?",
+  "bidDetailPostPromoMessage": "Bagikan karya tattoo Anda di Explore agar pelanggan melihat gaya Anda bersama penawaran Anda.",
+  "bidDetailPostPromoOpen": "Buka halaman promo",
+  "bidDetailPostPromoLater": "Nanti saja",
   "bidDetailCouldNotOpenProfile": "Tidak dapat membuka profil ini.",
   "bidDetailRequestAlreadyCompleted": "Permintaan ini sudah selesai.",
   "bidDetailCouldNotUnlockContactDetails": "Tidak dapat membuka kontak: {details}",
@@ -284,6 +357,10 @@
       }
     }
   },
+  "exploreDeletePostTitle": "Hapus posting?",
+  "exploreDeletePostMessage": "Posting ini akan dihapus permanen dari Explore.",
+  "exploreDeletePostConfirm": "Hapus",
+  "exploreDeletePostCancel": "Batal",
   "checkoutTitle": "Checkout",
   "checkoutContinue": "Lanjutkan",
   "checkoutCancelledMessage": "Checkout dibatalkan.",

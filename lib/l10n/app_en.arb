@@ -4,6 +4,13 @@
   "tabArtists": "Artists",
   "tabTattsagram": "Flexemo™",
   "tabUpload": "post a bid",
+  "tabPromo": "promote",
+  "addPromoTitle": "Promo",
+  "addPromoFieldDescriptionLabel": "Describe this Tattoo",
+  "addPromoStartingBidLabel": "This Tattoo ($)",
+  "addPromoNextAvailabilityLabel": "Availability",
+  "addPromoNextAvailabilityHint": "e.g. Next week, 15 June",
+  "addPromoChatButton": "Chat",
   "tabMessage": "Message",
   "tabProfile": "Profile",
   "tattsagramEmptyTitle": "No tattoos yet",
@@ -16,6 +23,64 @@
   "exploreBidsNearMe": "Bids near me",
   "exploreNearMeNeedProfile": "Add your city or suburb in your profile to use Bids near me.",
   "exploreNoSearchResults": "No posts match your search",
+  "exploreArtistsInterested": "{count, plural, one{1 Artist Interested} other{{count} Artists Interested}}",
+  "@exploreArtistsInterested": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exploreCustomersInterested": "{count, plural, one{1 Customer Interested} other{{count} Customers Interested}}",
+  "@exploreCustomersInterested": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exploreReviewCount": "({count, plural, one{1 review} other{{count} reviews}})",
+  "@exploreReviewCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exploreBidBudget": "Budget {amount}",
+  "@exploreBidBudget": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "explorePromoPrice": "This Tattoo {amount}",
+  "@explorePromoPrice": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "exploreBidCardTitleFallback": "Tattoo request",
+  "explorePostedToday": "Posted today",
+  "explorePostedHoursAgo": "{count, plural, one{Posted 1 hour ago} other{Posted {count} hours ago}}",
+  "@explorePostedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "explorePostedDaysAgo": "{count, plural, one{Posted 1 day ago} other{Posted {count} days ago}}",
+  "@explorePostedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "exploreTitleWithCountry": "Explore - {country}",
   "@exploreTitleWithCountry": {
     "placeholders": {
@@ -210,7 +275,10 @@
   },
   "bidDetailHideDescription": "Hide description",
   "bidDetailWhatCustomerWants": "What does the customer want?",
+  "bidDetailAboutThisTattoo": "About this Tattoo",
+  "bidDetailChatToThisArtist": "Chat to the Artist",
   "bidDetailPlacement": "Placement",
+  "bidDetailNextAvailability": "Availability",
   "bidDetailSize": "Size",
   "bidDetailColour": "Colour",
   "bidDetailColourFull": "Colour",
@@ -316,7 +384,12 @@
   "bidDetailCancel": "Cancel",
   "bidDetailSubmit": "Submit",
   "bidDetailArtistToolsSheetTitle": "Artist tools",
-  "bidDetailArtistToolsSheetBody": "More artist actions for this job will appear here. This does not place a bid.",
+  "bidDetailArtistToolsSheetBody": "Promote your work on Explore while you wait for the customer to review bids.",
+  "bidDetailArtistToolsPostPromo": "Post a promo",
+  "bidDetailPostPromoTitle": "Post a promo?",
+  "bidDetailPostPromoMessage": "Share your tattoo work on Explore so customers can see your style alongside your bid.",
+  "bidDetailPostPromoOpen": "Open promo page",
+  "bidDetailPostPromoLater": "Not now",
   "bidDetailCouldNotOpenProfile": "Could not open this profile.",
   "bidDetailRequestAlreadyCompleted": "This request is already completed.",
   "bidDetailCouldNotUnlockContactDetails": "Could not unlock contact: {details}",
@@ -394,6 +467,10 @@
       }
     }
   },
+  "exploreDeletePostTitle": "Remove post?",
+  "exploreDeletePostMessage": "This will permanently remove your post from Explore.",
+  "exploreDeletePostConfirm": "Remove",
+  "exploreDeletePostCancel": "Cancel",
   "checkoutTitle": "Checkout",
   "checkoutContinue": "Continue",
   "checkoutCancelledMessage": "Checkout was cancelled.",

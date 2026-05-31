@@ -97,6 +97,7 @@ const StrutStyle _kLiveChatStrut12 = StrutStyle(
   leading: 0,
   forceStrutHeight: true,
 );
+
 /// Message / caption lines (fontSize 14 on [TextStyle]); matches typical pattern:
 /// `StrutStyle(height: 1.1, forceStrutHeight: true)`.
 const StrutStyle _kLiveChatStrutMessageBody = StrutStyle(

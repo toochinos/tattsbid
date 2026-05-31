@@ -18,9 +18,11 @@ import '../core/services/contact_unlock_service.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 import 'public_artist_profile_page.dart';
+import 'promo_page.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/safe_media_renderer.dart';
 import '../widgets/user_name_with_role.dart';
+import '../core/utils/user_type_utils.dart';
 
 /// Detail page for a tattoo request. Shows image and description.
 /// Opened when artist or customer taps a request card in Explore.
@@ -67,6 +69,7 @@ class _BidDetailPageState extends State<BidDetailPage>
 
   bool _unlockLoading = false;
   UserProfile? _winnerArtistProfile;
+  UserProfile? _posterProfile;
 
   @override
   void initState() {
@@ -79,6 +82,7 @@ class _BidDetailPageState extends State<BidDetailPage>
     _startBidsPollFallback();
     _loadProfileRole();
     _loadUnlock();
+    _loadPosterProfile();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _refreshRequestAndUnlock();
     });
@@ -106,6 +110,13 @@ class _BidDetailPageState extends State<BidDetailPage>
     } else {
       await _loadUnlock();
     }
+    await _loadPosterProfile();
+  }
+
+  Future<void> _loadPosterProfile() async {
+    final profile = await ProfileService.getProfileByUserId(_request.userId);
+    if (!mounted) return;
+    setState(() => _posterProfile = profile);
   }
 
   /// Reads [SupabaseProfiles.role] for the signed-in user; on error or missing
@@ -325,8 +336,14 @@ class _BidDetailPageState extends State<BidDetailPage>
   /// Base visibility rules for the Bid button.
   bool get _bidButtonBaseEligible => !_profileRoleLoading && _biddingOpen;
 
-  /// Show for any viewer while bidding is open.
-  bool get _showBidButton => _bidButtonBaseEligible;
+  /// Artists bid on customer jobs; customers bid on artist promos — not own posts.
+  bool get _showBidButton {
+    if (!_bidButtonBaseEligible || _isOwner || _profileRoleLoading) {
+      return false;
+    }
+    if (_isPromoPost) return !_isViewerArtist;
+    return _isViewerArtist;
+  }
 
   /// Artists can send a private message to the request owner.
   bool get _showCustomerChatButton =>
@@ -344,9 +361,27 @@ class _BidDetailPageState extends State<BidDetailPage>
   /// Matches [_showBidButton] — used before submitting a bid.
   bool get _canSubmitBid => _showBidButton;
 
+  bool get _isViewerArtist =>
+      _userRole == 'artist' || (_userRole == null && _legacyTattooArtist);
+
+  bool get _isPromoPost =>
+      canonicalUserType(
+        _request.posterUserType ?? _posterProfile?.userType,
+      ) ==
+      'tattoo_artist';
+
+  /// Chat with the promo artist (shown on all promo posts).
+  bool get _showPromoChatButton => _isPromoPost && !_profileRoleLoading;
+
   bool get _isOwner {
     final user = Supabase.instance.client.auth.currentUser;
     return user != null && user.id == _request.userId;
+  }
+
+  String _posterDisplayName(TattooRequest request) {
+    final fromProfile = _posterProfile?.displayName?.trim();
+    if (fromProfile != null && fromProfile.isNotEmpty) return fromProfile;
+    return request.customerName?.trim() ?? '';
   }
 
   /// Only the customer who created the request can select a bid and pay.
@@ -390,6 +425,23 @@ class _BidDetailPageState extends State<BidDetailPage>
   void _openBidderProfile(Bid bid) {
     final uid = bid.bidderId ?? bid.artistId;
     if (uid == null || uid.trim().isEmpty) {
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.bidDetailCouldNotOpenProfile)),
+      );
+      return;
+    }
+    Navigator.of(context).push<void>(
+      PublicArtistProfilePage.materialRoute(
+        userId: uid,
+        fromArtistsDirectory: false,
+      ),
+    );
+  }
+
+  void _openPosterProfile() {
+    final uid = _request.userId.trim();
+    if (uid.isEmpty) {
       final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.bidDetailCouldNotOpenProfile)),
@@ -675,12 +727,60 @@ class _BidDetailPageState extends State<BidDetailPage>
                         color: Theme.of(ctx).colorScheme.outline,
                       ),
                 ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    _openPromoPage();
+                  },
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: Text(l10n.bidDetailArtistToolsPostPromo),
+                ),
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  Future<void> _offerPromoPageAfterBid() async {
+    final l10n = AppLocalizations.of(context)!;
+    final openPromo = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.bidDetailPostPromoTitle),
+        content: Text(l10n.bidDetailPostPromoMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.bidDetailPostPromoLater),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.bidDetailPostPromoOpen),
+          ),
+        ],
+      ),
+    );
+    if (openPromo != true || !mounted) return;
+    await _openPromoPage();
+  }
+
+  Future<void> _openPromoPage() async {
+    final country = _request.country?.trim() ?? '';
+    final notifier = ValueNotifier(country);
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => PromoPage(
+            selectedExploreCountryNotifier: notifier,
+          ),
+        ),
+      );
+    } finally {
+      notifier.dispose();
+    }
   }
 
   Future<void> _showPlaceBidDialog() async {
@@ -723,6 +823,9 @@ class _BidDetailPageState extends State<BidDetailPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.bidDetailBidPlaced)),
         );
+        if (_isViewerArtist) {
+          await _offerPromoPageAfterBid();
+        }
       } catch (e) {
         if (!mounted) return;
         final l10n = AppLocalizations.of(context)!;
@@ -768,68 +871,134 @@ class _BidDetailPageState extends State<BidDetailPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if ((request.customerName?.trim().isNotEmpty ?? false) ||
+                  if ((_posterDisplayName(request).isNotEmpty) ||
                       _showBidButton ||
-                      _showCustomerChatButton)
+                      _showCustomerChatButton ||
+                      _showPromoChatButton)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          if (request.customerName != null &&
-                              request.customerName!.trim().isNotEmpty)
+                          if (_posterDisplayName(request).isNotEmpty)
                             Expanded(
-                              child: UserNameWithRole(
-                                name: request.customerName!,
-                                userType: 'customer',
-                                nameStyle: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w600,
+                              child: InkWell(
+                                onTap: _openPosterProfile,
+                                borderRadius: BorderRadius.circular(8),
+                                child: Row(
+                                  children: [
+                                    _PosterAvatar(
+                                      profile: _posterProfile,
+                                      fallbackName: _posterDisplayName(request),
                                     ),
-                                roleStyle: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
-                                    ?.copyWith(
-                                      color:
-                                          Theme.of(context).colorScheme.outline,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: UserNameWithRole(
+                                        name: _posterDisplayName(request),
+                                        userType: request.posterUserType ??
+                                            _posterProfile?.userType,
+                                        nameStyle: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                        roleStyle: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall
+                                            ?.copyWith(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .outline,
+                                            ),
+                                      ),
                                     ),
+                                  ],
+                                ),
                               ),
+                            )
+                          else
+                            const Spacer(),
+                          if (_showBidButton ||
+                              _showCustomerChatButton ||
+                              _showPromoChatButton)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_showPromoChatButton)
+                                  FilledButton.tonalIcon(
+                                    onPressed: _openPromoChatWithArtist,
+                                    style: FilledButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.chat_bubble_outline,
+                                        size: 18),
+                                    label: Text(l10n.bidDetailChat),
+                                  ),
+                                if (_showPromoChatButton && _showBidButton)
+                                  const SizedBox(width: 8),
+                                if (_showBidButton)
+                                  FilledButton.icon(
+                                    onPressed: _showPlaceBidDialog,
+                                    style: FilledButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.gavel, size: 18),
+                                    label: Text(l10n.bidDetailBid),
+                                  ),
+                                if (_showCustomerChatButton &&
+                                    (_showPromoChatButton || _showBidButton))
+                                  const SizedBox(width: 8),
+                                if (_showCustomerChatButton)
+                                  FilledButton.tonalIcon(
+                                    onPressed: _openChatWithCustomer,
+                                    style: FilledButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.chat_bubble_outline,
+                                        size: 18),
+                                    label: Text(l10n.bidDetailChat),
+                                  ),
+                              ],
                             ),
-                          if (_showBidButton) ...[
-                            if (request.customerName != null &&
-                                request.customerName!.trim().isNotEmpty)
-                              const SizedBox(width: 12),
-                            FilledButton.icon(
-                              onPressed: _showPlaceBidDialog,
-                              icon: const Icon(Icons.gavel, size: 18),
-                              label: Text(l10n.bidDetailBid),
-                            ),
-                          ],
-                          if (_showCustomerChatButton) ...[
-                            if ((request.customerName != null &&
-                                    request.customerName!.trim().isNotEmpty) ||
-                                _showBidButton)
-                              const SizedBox(width: 8),
-                            FilledButton.tonalIcon(
-                              onPressed: _openChatWithCustomer,
-                              icon: const Icon(Icons.chat_bubble_outline,
-                                  size: 18),
-                              label: Text(l10n.bidDetailChat),
-                            ),
-                          ],
                         ],
                       ),
                     ),
                   Text(
-                    l10n.bidDetailStartingBid(
-                      '\$${request.startingBid.toStringAsFixed(2)}',
-                    ),
+                    _isPromoPost
+                        ? l10n.explorePromoPrice(
+                            '\$${request.startingBid.toStringAsFixed(0)}',
+                          )
+                        : l10n.bidDetailStartingBid(
+                            '\$${request.startingBid.toStringAsFixed(2)}',
+                          ),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: _isPromoPost ? const Color(0xFFE53935) : null,
                         ),
                   ),
+                  if (_isPromoPost &&
+                      request.placement != null &&
+                      request.placement!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _buildDetailRow(
+                      context,
+                      l10n.bidDetailNextAvailability,
+                      request.placement!,
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   InkWell(
                     onTap: () {
@@ -860,7 +1029,9 @@ class _BidDetailPageState extends State<BidDetailPage>
                           Text(
                             _descriptionExpanded
                                 ? l10n.bidDetailHideDescription
-                                : l10n.bidDetailWhatCustomerWants,
+                                : (_isPromoPost
+                                    ? l10n.bidDetailAboutThisTattoo
+                                    : l10n.bidDetailWhatCustomerWants),
                             style: Theme.of(context)
                                 .textTheme
                                 .titleSmall
@@ -882,7 +1053,8 @@ class _BidDetailPageState extends State<BidDetailPage>
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
                       ),
-                    if (request.placement != null &&
+                    if (!_isPromoPost &&
+                        request.placement != null &&
                         request.placement!.trim().isNotEmpty)
                       _buildDetailRow(
                         context,
@@ -1121,12 +1293,9 @@ class _BidDetailPageState extends State<BidDetailPage>
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      CircleAvatar(
-                                        child: Text(
-                                          (bid.bidderName ?? '?')
-                                              .substring(0, 1)
-                                              .toUpperCase(),
-                                        ),
+                                      _PosterAvatar(
+                                        avatarUrl: bid.bidderAvatarUrl,
+                                        fallbackName: bid.bidderName,
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
@@ -1287,6 +1456,17 @@ class _BidDetailPageState extends State<BidDetailPage>
         ),
       ),
     );
+  }
+
+  void _openPromoChatWithArtist() {
+    if (_isOwner) {
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.publicProfileCantChatSelf)),
+      );
+      return;
+    }
+    _openChatWithArtist(_request.userId);
   }
 
   void _openChatWithArtist(String artistUserId) {
@@ -1567,6 +1747,48 @@ class _PlaceBidDialogState extends State<_PlaceBidDialog> {
           child: Text(l10n.bidDetailSubmit),
         ),
       ],
+    );
+  }
+}
+
+class _PosterAvatar extends StatelessWidget {
+  const _PosterAvatar({
+    this.profile,
+    this.fallbackName,
+    this.avatarUrl,
+  });
+
+  final UserProfile? profile;
+  final String? fallbackName;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final resolvedAvatar = avatarUrl?.trim().isNotEmpty == true
+        ? avatarUrl!.trim()
+        : profile?.avatarUrl?.trim();
+    final hasPhoto = resolvedAvatar != null && resolvedAvatar.isNotEmpty;
+    final name = profile?.displayName?.trim().isNotEmpty == true
+        ? profile!.displayName!.trim()
+        : fallbackName?.trim();
+    final initial = (name != null && name.isNotEmpty)
+        ? name.substring(0, 1).toUpperCase()
+        : '?';
+
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: scheme.surfaceContainerHighest,
+      backgroundImage: hasPhoto ? NetworkImage(resolvedAvatar) : null,
+      child: hasPhoto
+          ? null
+          : Text(
+              initial,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: scheme.outline,
+                  ),
+            ),
     );
   }
 }

@@ -8,6 +8,7 @@ class Bid {
     required this.amount,
     required this.createdAt,
     this.bidderName,
+    this.bidderAvatarUrl,
     this.isWinner,
     this.paymentStatus = 'unpaid',
   });
@@ -19,17 +20,29 @@ class Bid {
   final double amount;
   final DateTime createdAt;
   final String? bidderName;
+  final String? bidderAvatarUrl;
   final bool? isWinner;
 
   /// From [SupabaseBids.paymentStatus]: `unpaid` | `paid` (set by backend after Stripe).
   final String paymentStatus;
 
-  factory Bid.fromJson(Map<String, dynamic> json, {String? bidderName}) {
+  factory Bid.fromJson(
+    Map<String, dynamic> json, {
+    String? bidderName,
+    String? bidderAvatarUrl,
+  }) {
     String? name = bidderName;
-    if (name == null) {
+    String? avatar = bidderAvatarUrl;
+    if (name == null || avatar == null) {
       final fromProfiles = json['profiles'] as Map<String, dynamic>?;
-      final dn = fromProfiles?['display_name'] as String?;
-      name = dn?.trim().isEmpty == true ? null : dn?.trim();
+      if (name == null) {
+        final dn = fromProfiles?['display_name'] as String?;
+        name = dn?.trim().isEmpty == true ? null : dn?.trim();
+      }
+      if (avatar == null) {
+        final av = fromProfiles?['avatar_url'] as String?;
+        avatar = av?.trim().isEmpty == true ? null : av?.trim();
+      }
     }
     return Bid(
       id: json['id'] as String,
@@ -39,6 +52,7 @@ class Bid {
       amount: (json['amount'] as num).toDouble(),
       createdAt: DateTime.parse(json['created_at'] as String),
       bidderName: name,
+      bidderAvatarUrl: avatar,
       isWinner: json['is_winner'] as bool?,
       paymentStatus:
           (json['payment_status'] as String?)?.trim().isEmpty == false

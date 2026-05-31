@@ -21,6 +21,27 @@ class AppLocalizationsId extends AppLocalizations {
   String get tabUpload => 'Buat bid';
 
   @override
+  String get tabPromo => 'promosikan';
+
+  @override
+  String get addPromoTitle => 'Promo';
+
+  @override
+  String get addPromoFieldDescriptionLabel => 'Deskripsikan tato ini';
+
+  @override
+  String get addPromoStartingBidLabel => 'Tato ini (\$)';
+
+  @override
+  String get addPromoNextAvailabilityLabel => 'Ketersediaan';
+
+  @override
+  String get addPromoNextAvailabilityHint => 'mis. Minggu depan, 15 Juni';
+
+  @override
+  String get addPromoChatButton => 'Obrolan';
+
+  @override
   String get tabMessage => 'Pesan';
 
   @override
@@ -57,6 +78,77 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get exploreNoSearchResults => 'Tidak ada postingan yang cocok';
+
+  @override
+  String exploreArtistsInterested(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Seniman tertarik',
+      one: '1 Seniman tertarik',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String exploreCustomersInterested(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Pelanggan tertarik',
+      one: '1 Pelanggan tertarik',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String exploreReviewCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ulasan',
+      one: '1 ulasan',
+    );
+    return '($_temp0)';
+  }
+
+  @override
+  String exploreBidBudget(String amount) {
+    return 'Anggaran $amount';
+  }
+
+  @override
+  String explorePromoPrice(String amount) {
+    return 'Tato ini $amount';
+  }
+
+  @override
+  String get exploreBidCardTitleFallback => 'Permintaan tato';
+
+  @override
+  String get explorePostedToday => 'Diposting hari ini';
+
+  @override
+  String explorePostedHoursAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Diposting $count jam lalu',
+      one: 'Diposting 1 jam lalu',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String explorePostedDaysAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Diposting $count hari lalu',
+      one: 'Diposting 1 hari lalu',
+    );
+    return '$_temp0';
+  }
 
   @override
   String exploreTitleWithCountry(String country) {
@@ -442,7 +534,16 @@ class AppLocalizationsId extends AppLocalizations {
   String get bidDetailWhatCustomerWants => 'Apa yang diinginkan pelanggan?';
 
   @override
+  String get bidDetailAboutThisTattoo => 'Tentang tato ini';
+
+  @override
+  String get bidDetailChatToThisArtist => 'Obrolan ke seniman ini';
+
+  @override
   String get bidDetailPlacement => 'Penempatan';
+
+  @override
+  String get bidDetailNextAvailability => 'Ketersediaan';
 
   @override
   String get bidDetailSize => 'Ukuran';
@@ -612,7 +713,23 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get bidDetailArtistToolsSheetBody =>
-      'Tindakan seniman lainnya untuk pekerjaan ini akan muncul di sini. Ini tidak mengajukan penawaran.';
+      'Promosikan karya Anda di Explore sambil menunggu pelanggan meninjau penawaran.';
+
+  @override
+  String get bidDetailArtistToolsPostPromo => 'Posting promo';
+
+  @override
+  String get bidDetailPostPromoTitle => 'Posting promo?';
+
+  @override
+  String get bidDetailPostPromoMessage =>
+      'Bagikan karya tattoo Anda di Explore agar pelanggan melihat gaya Anda bersama penawaran Anda.';
+
+  @override
+  String get bidDetailPostPromoOpen => 'Buka halaman promo';
+
+  @override
+  String get bidDetailPostPromoLater => 'Nanti saja';
 
   @override
   String get bidDetailCouldNotOpenProfile => 'Tidak dapat membuka profil ini.';
@@ -759,6 +876,19 @@ class AppLocalizationsId extends AppLocalizations {
   String exploreDeleteFailedDetails(String details) {
     return 'Gagal menghapus: $details';
   }
+
+  @override
+  String get exploreDeletePostTitle => 'Hapus posting?';
+
+  @override
+  String get exploreDeletePostMessage =>
+      'Posting ini akan dihapus permanen dari Explore.';
+
+  @override
+  String get exploreDeletePostConfirm => 'Hapus';
+
+  @override
+  String get exploreDeletePostCancel => 'Batal';
 
   @override
   String get checkoutTitle => 'Checkout';

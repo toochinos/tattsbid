@@ -4,12 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/config/supabase_schema.dart';
 import '../core/models/tattoo_request.dart';
 import '../core/models/user_profile.dart';
 import '../core/services/profile_service.dart';
 import '../core/services/tattoo_request_service.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/bids_badge_overlay.dart';
+import '../widgets/bidder_avatar_stack.dart';
 import '../widgets/flexemo_mark.dart';
+import '../widgets/promo_badge_overlay.dart';
 import '../widgets/safe_media_renderer.dart';
 import '../widgets/user_name_with_role.dart';
 
@@ -26,7 +30,7 @@ class ExplorePage extends StatefulWidget {
   /// When this value changes, the page refetches tattoo requests.
   final ValueListenable<int>? refreshTrigger;
 
-  /// 'tattoo_artist' or 'customer'. Tattoo artists cannot delete explore photos.
+  /// 'tattoo_artist' or 'customer'. Artists can delete own promos; customers own bids.
   final String? userType;
 
   /// Null = main Explore (all countries). Non-null = filtered by country (globe).
@@ -44,6 +48,7 @@ class _ExplorePageState extends State<ExplorePage> {
   bool _loading = true;
   String? _errorMessage;
   RealtimeChannel? _realtimeChannel;
+  RealtimeChannel? _bidsRealtimeChannel;
   Timer? _pollTimer;
 
   final TextEditingController _searchController = TextEditingController();
@@ -146,31 +151,31 @@ class _ExplorePageState extends State<ExplorePage> {
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: border.withValues(alpha: 0.9)),
       ),
-      padding: const EdgeInsets.only(left: 4, right: 2, top: 2, bottom: 2),
+      padding: const EdgeInsets.only(left: 4, right: 2, top: 0, bottom: 0),
       child: Row(
         children: [
           const SizedBox(width: 8),
-          Icon(Icons.search, size: 22, color: muted),
+          Icon(Icons.search, size: 20, color: muted),
           const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: _searchController,
               textInputAction: TextInputAction.search,
-              style: theme.textTheme.bodyLarge?.copyWith(
+              style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurface,
               ),
               decoration: InputDecoration(
                 hintText: l10n.exploreSearchHint,
-                hintStyle: theme.textTheme.bodyLarge?.copyWith(color: muted),
+                hintStyle: theme.textTheme.bodyMedium?.copyWith(color: muted),
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
               ),
             ),
           ),
           Container(
             width: 1,
-            height: 28,
+            height: 22,
             margin: const EdgeInsets.symmetric(horizontal: 4),
             color: border.withValues(alpha: 0.35),
           ),
@@ -178,19 +183,19 @@ class _ExplorePageState extends State<ExplorePage> {
             borderRadius: BorderRadius.circular(22),
             onTap: _onBidsNearMeTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     _nearMeActive ? Icons.close : Icons.location_on_outlined,
-                    size: 20,
+                    size: 18,
                     color: _nearMeActive ? accent : muted,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 5),
                   Text(
                     l10n.exploreBidsNearMe,
-                    style: theme.textTheme.labelLarge?.copyWith(
+                    style: theme.textTheme.labelMedium?.copyWith(
                       color: accent,
                       fontWeight:
                           _nearMeActive ? FontWeight.w700 : FontWeight.w600,
@@ -230,6 +235,18 @@ class _ExplorePageState extends State<ExplorePage> {
           },
         )
         .subscribe();
+    _bidsRealtimeChannel = Supabase.instance.client
+        .channel('explore_bids')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: SupabaseBids.table,
+          callback: (_) {
+            if (!mounted) return;
+            _loadRequests(silent: true);
+          },
+        )
+        .subscribe();
   }
 
   /// Fallback: poll every 20s when Realtime isn't working (e.g. table not in publication).
@@ -264,6 +281,7 @@ class _ExplorePageState extends State<ExplorePage> {
     widget.exploreFeedScopeNotifier.removeListener(_onExploreFeedScopeChanged);
     _pollTimer?.cancel();
     _realtimeChannel?.unsubscribe();
+    _bidsRealtimeChannel?.unsubscribe();
     widget.refreshTrigger?.removeListener(_onRefreshTriggered);
     super.dispose();
   }
@@ -324,6 +342,8 @@ class _ExplorePageState extends State<ExplorePage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
+        toolbarHeight: 40,
+        titleSpacing: 16,
         title: isMainFeed
             ? Text(l10n.exploreTitle)
             : Padding(
@@ -342,11 +362,11 @@ class _ExplorePageState extends State<ExplorePage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
             child: _buildExploreSearchPill(l10n),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
             child: Center(
               child: _buildRotatingTagline(),
             ),
@@ -374,11 +394,11 @@ class _ExplorePageState extends State<ExplorePage> {
         child: Text(
           _exploreTaglines[_taglineIndex],
           textAlign: TextAlign.center,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w800,
-                height: 1.2,
+                height: 1.25,
               ),
         ),
       ),
@@ -513,13 +533,13 @@ class _ExplorePageState extends State<ExplorePage> {
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 2, 12, 12),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio: 0.85,
+              childAspectRatio: 0.645,
             ),
             delegate: SliverChildBuilderDelegate(
               (context, index) {
@@ -548,12 +568,88 @@ class _ExplorePageState extends State<ExplorePage> {
   }
 }
 
-/// “Posted …” line using app strings + localized calendar date.
-String _formatPostedLine(BuildContext context, DateTime createdAt) {
+/// Relative “Posted 2 days ago” for explore bid cards.
+String _formatPostedRelative(BuildContext context, DateTime createdAt) {
   final l10n = AppLocalizations.of(context)!;
-  final local = createdAt.toLocal();
-  final dateStr = MaterialLocalizations.of(context).formatShortDate(local);
-  return l10n.postedOnDate(dateStr);
+  final diff = DateTime.now().difference(createdAt.toLocal());
+  if (diff.inDays >= 1) {
+    return l10n.explorePostedDaysAgo(diff.inDays);
+  }
+  if (diff.inHours >= 1) {
+    return l10n.explorePostedHoursAgo(diff.inHours);
+  }
+  return l10n.explorePostedToday;
+}
+
+/// City or country for explore card location row.
+String? _exploreCardLocationLine(TattooRequest request) {
+  final raw = request.customerLocation?.trim();
+  if (raw != null && raw.isNotEmpty) {
+    final comma = raw.indexOf(',');
+    if (comma > 0) return raw.substring(0, comma).trim();
+    return raw;
+  }
+  final country = request.country?.trim();
+  if (country != null && country.isNotEmpty) return country;
+  return null;
+}
+
+class _ExploreBidCardStyles {
+  _ExploreBidCardStyles._();
+
+  static const metaGrey = Color(0xFF6B7280);
+  static const budgetBlue = Color(0xFF2563EB);
+
+  /// Tight gap between title, location, and budget.
+  static const tightGap = 4.0;
+
+  /// Larger gap before avatar row and posted line.
+  static const sectionGap = 8.0;
+
+  /// Fixed photo band on bid cards (width:height).
+  static const imageAspectRatio = 1.28;
+
+  /// Slightly shorter photo on promo cards so the rating row fits without clipping.
+  static const promoImageAspectRatio = 1.36;
+
+  static const footerPadding = EdgeInsets.fromLTRB(10, 8, 10, 10);
+
+  static TextStyle title(BuildContext context) =>
+      Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: Colors.black,
+            height: 1.15,
+            letterSpacing: -0.2,
+          ) ??
+      const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w800,
+        color: Colors.black,
+        height: 1.15,
+        letterSpacing: -0.2,
+      );
+
+  static TextStyle meta(BuildContext context) => const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w400,
+        color: metaGrey,
+        height: 1.2,
+      );
+
+  static TextStyle budget(BuildContext context) => const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: budgetBlue,
+        height: 1.2,
+      );
+
+  static TextStyle posted(BuildContext context) => const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w400,
+        color: metaGrey,
+        height: 1.2,
+      );
 }
 
 class _RequestCard extends StatefulWidget {
@@ -584,8 +680,132 @@ class _RequestCardState extends State<_RequestCard> {
   bool get _isOwner =>
       widget.currentUserId != null && request.userId == widget.currentUserId;
 
-  /// Only customers can delete their own requests; tattoo artists cannot.
-  bool get _canDelete => _isOwner && widget.userType != 'tattoo_artist';
+  /// Customers delete own job posts; artists delete own promo posts.
+  bool get _canDelete =>
+      _isOwner &&
+      (widget.userType != 'tattoo_artist' || _showPromoBadge);
+
+  bool get _showBidsBadge =>
+      request.status != 'completed' &&
+      BidsBadgeOverlay.showForPosterType(request.posterUserType);
+
+  bool get _showPromoBadge =>
+      PromoBadgeOverlay.showForPosterType(request.posterUserType);
+
+  /// Same footer on every explore card: name + role, location, budget, artists, posted.
+  Widget _buildExploreCardFooter(BuildContext context, AppLocalizations l10n) {
+    final name = request.customerName?.trim();
+    final displayName = (name != null && name.isNotEmpty)
+        ? name
+        : l10n.exploreBidCardTitleFallback;
+    final location = _exploreCardLocationLine(request);
+    final metaStyle = _ExploreBidCardStyles.meta(context);
+    final priceAmount = '\$${request.startingBid.toStringAsFixed(0)}';
+    final budgetLabel = _showPromoBadge
+        ? l10n.explorePromoPrice(priceAmount)
+        : l10n.exploreBidBudget(priceAmount);
+    final interestLabel = _showPromoBadge
+        ? l10n.exploreCustomersInterested(request.bidCount)
+        : l10n.exploreArtistsInterested(request.bidCount);
+    final budgetStyle = _showPromoBadge
+        ? _ExploreBidCardStyles.budget(context).copyWith(
+            color: PromoBadgeOverlay.badgeRed,
+          )
+        : _ExploreBidCardStyles.budget(context);
+
+    return Padding(
+      padding: _ExploreBidCardStyles.footerPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          UserNameWithRole(
+            name: displayName,
+            userType: request.posterUserType,
+            compactRole: true,
+            textAlign: TextAlign.start,
+            nameStyle: _ExploreBidCardStyles.title(context),
+            roleStyle: metaStyle,
+            maxNameLines: 1,
+          ),
+          if (_showPromoBadge &&
+              request.posterRating != null &&
+              request.posterReviewCount > 0) ...[
+            const SizedBox(height: _ExploreBidCardStyles.tightGap),
+            Row(
+              children: [
+                const Icon(
+                  Icons.star,
+                  size: 12,
+                  color: Color(0xFFF59E0B),
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  request.posterRating!.toStringAsFixed(1),
+                  style: metaStyle.copyWith(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  l10n.exploreReviewCount(request.posterReviewCount),
+                  style: metaStyle,
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: _ExploreBidCardStyles.tightGap),
+          if (location != null)
+            Row(
+              children: [
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 11,
+                  color: _ExploreBidCardStyles.metaGrey,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    location,
+                    style: metaStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          if (location != null)
+            const SizedBox(height: _ExploreBidCardStyles.tightGap),
+          Text(
+            budgetLabel,
+            style: budgetStyle,
+          ),
+          const SizedBox(height: _ExploreBidCardStyles.sectionGap),
+          if (request.bidCount > 0)
+            BidderAvatarStack(
+              avatarUrls: request.bidderAvatarUrls,
+              totalCount: request.bidCount,
+              label: interestLabel,
+              labelStyle: metaStyle,
+              avatarSize: 18,
+              overlap: 6,
+            )
+          else
+            Text(
+              interestLabel,
+              style: metaStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          const SizedBox(height: _ExploreBidCardStyles.sectionGap),
+          Text(
+            _formatPostedRelative(context, request.createdAt),
+            style: _ExploreBidCardStyles.posted(context),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -598,7 +818,10 @@ class _RequestCardState extends State<_RequestCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
+            AspectRatio(
+              aspectRatio: _showPromoBadge
+                  ? _ExploreBidCardStyles.promoImageAspectRatio
+                  : _ExploreBidCardStyles.imageAspectRatio,
               child: MouseRegion(
                 onEnter: (_) {
                   if (_canDelete) {
@@ -614,6 +837,9 @@ class _RequestCardState extends State<_RequestCard> {
                   fit: StackFit.expand,
                   children: [
                     SafeMediaRenderer(url: request.imageUrl),
+                    if (_showBidsBadge)
+                      BidsBadgeOverlay(bidCount: request.bidCount),
+                    if (_showPromoBadge) const PromoBadgeOverlay(),
                     if (request.status == 'completed')
                       Positioned(
                         top: 8,
@@ -655,108 +881,10 @@ class _RequestCardState extends State<_RequestCard> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (request.customerName != null &&
-                      request.customerName!.trim().isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: UserNameWithRole(
-                        name: request.customerName!,
-                        userType: request.posterUserType,
-                        compactRole: true,
-                        textAlign: TextAlign.center,
-                        nameStyle:
-                            Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                        roleStyle:
-                            Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.outline,
-                                ),
-                        maxNameLines: 1,
-                      ),
-                    ),
-                  if (request.customerLocation != null &&
-                      request.customerLocation!.trim().isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.location_on,
-                            size: 12,
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              request.customerLocation!,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.outline,
-                                  ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.calendar_today_outlined,
-                          size: 12,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatPostedLine(context, request.createdAt),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    l10n.requestBidsCount(request.bidCount),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: request.bidCount >= 1
-                              ? Colors.green
-                              : Theme.of(context).colorScheme.outline,
-                        ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '\$${request.startingBid.toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ],
+            Expanded(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: _buildExploreCardFooter(context, l10n),
               ),
             ),
           ],
@@ -790,6 +918,26 @@ class _DeleteButtonState extends State<_DeleteButton> {
   bool get _highlight => widget.highlightFromParent || _hoveringDelete;
 
   Future<void> _delete() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.exploreDeletePostTitle),
+        content: Text(l10n.exploreDeletePostMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.exploreDeletePostCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.exploreDeletePostConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     setState(() => _deleting = true);
     try {
       await TattooRequestService.deleteRequest(widget.requestId);

@@ -4,6 +4,7 @@ import '../config/supabase_schema.dart';
 import '../utils/supabase_list.dart';
 import '../models/tattoo_request.dart';
 import '../utils/user_type_utils.dart';
+import 'review_service.dart';
 
 /// Creates and manages tattoo requests (photo + description + starting bid).
 class TattooRequestService {
@@ -38,20 +39,139 @@ class TattooRequestService {
     return map;
   }
 
-  /// Fetches bid counts per request_id for the given request IDs.
-  static Future<Map<String, int>> _fetchBidCounts(
-      List<String> requestIds) async {
+  /// Who counts as “interested” on explore cards.
+  static String? _interestedPartyTypeForPoster(String? posterUserType) {
+    if (canonicalUserType(posterUserType) == 'tattoo_artist') {
+      return 'customer';
+    }
+    return 'tattoo_artist';
+  }
+
+  static bool _bidderCountsForExplore(
+    String? bidderType,
+    String? wantType,
+    String? posterType,
+  ) {
+    if (bidderType == wantType) return true;
+    if (bidderType != null) return false;
+    if (wantType == 'tattoo_artist' &&
+        canonicalUserType(posterType) != 'tattoo_artist') {
+      return true;
+    }
+    if (wantType == 'customer' &&
+        canonicalUserType(posterType) == 'tattoo_artist') {
+      return true;
+    }
+    return false;
+  }
+
+  /// Interest count + avatar previews filtered by poster type.
+  static Future<Map<String, ({int count, List<String> avatarUrls})>>
+      _fetchInterestPreviews(
+    List<Map<String, dynamic>> rows,
+    Map<String, ({String? name, String? location, String? userType})>
+        posterProfiles, {
+    int maxAvatars = 3,
+  }) async {
+    final requestIds =
+        rows.map((r) => r[SupabaseTattooRequests.id] as String).toList();
     if (requestIds.isEmpty) return {};
+
+    final posterTypeByRequest = <String, String?>{};
+    for (final r in rows) {
+      final rid = r[SupabaseTattooRequests.id] as String?;
+      final uid = r[SupabaseTattooRequests.userId] as String?;
+      if (rid != null) {
+        posterTypeByRequest[rid] =
+            uid != null ? posterProfiles[uid]?.userType : null;
+      }
+    }
+
     final res = await _client
         .from(SupabaseBids.table)
-        .select(SupabaseBids.requestId)
-        .inFilter(SupabaseBids.requestId, requestIds);
-    final counts = <String, int>{};
+        .select(
+          '${SupabaseBids.requestId}, ${SupabaseBids.bidderId}, '
+          '${SupabaseBids.createdAt}',
+        )
+        .inFilter(SupabaseBids.requestId, requestIds)
+        .order(SupabaseBids.createdAt, ascending: false);
+
+    final bidsByRequest = <String, List<String>>{};
     for (final m in mapListFrom(res)) {
       final rid = m[SupabaseBids.requestId] as String?;
-      if (rid != null) {
-        counts[rid] = (counts[rid] ?? 0) + 1;
+      final bidder = m[SupabaseBids.bidderId] as String?;
+      if (rid == null || bidder == null || bidder.isEmpty) continue;
+      bidsByRequest.putIfAbsent(rid, () => []).add(bidder);
+    }
+
+    final bidderIds =
+        bidsByRequest.values.expand((ids) => ids).toSet().toList();
+    if (bidderIds.isEmpty) {
+      return {
+        for (final id in requestIds) id: (count: 0, avatarUrls: <String>[])
+      };
+    }
+
+    final profileRes = await _client
+        .from(SupabaseProfiles.table)
+        .select(
+          '${SupabaseProfiles.id}, ${SupabaseProfiles.userType}, '
+          '${SupabaseProfiles.avatarUrl}',
+        )
+        .inFilter(SupabaseProfiles.id, bidderIds);
+    final bidderProfiles = <String, ({String? userType, String? avatarUrl})>{};
+    for (final m in mapListFrom(profileRes)) {
+      final id = m[SupabaseProfiles.id] as String?;
+      if (id == null) continue;
+      final userType =
+          canonicalUserType(m[SupabaseProfiles.userType] as String?);
+      final avatar = (m[SupabaseProfiles.avatarUrl] as String?)?.trim();
+      bidderProfiles[id] = (
+        userType: userType,
+        avatarUrl: avatar?.isEmpty == true ? null : avatar,
+      );
+    }
+
+    final previews = <String, ({int count, List<String> avatarUrls})>{};
+    for (final rid in requestIds) {
+      final posterType = posterTypeByRequest[rid];
+      final wantType = _interestedPartyTypeForPoster(posterType);
+      final seen = <String>{};
+      var count = 0;
+      final avatars = <String>[];
+      for (final bidderId in bidsByRequest[rid] ?? const []) {
+        final profile = bidderProfiles[bidderId];
+        if (!_bidderCountsForExplore(
+          profile?.userType,
+          wantType,
+          posterType,
+        )) {
+          continue;
+        }
+        if (!seen.add(bidderId)) continue;
+        count++;
+        if (avatars.length < maxAvatars) {
+          avatars.add(profile?.avatarUrl ?? '');
+        }
       }
+      previews[rid] = (count: count, avatarUrls: avatars);
+    }
+    return previews;
+  }
+
+  static Future<Map<String, int>> _fetchReviewCounts(
+    List<String> artistIds,
+  ) async {
+    if (artistIds.isEmpty) return {};
+    final res = await _client
+        .from(SupabaseReviews.table)
+        .select(SupabaseReviews.artistId)
+        .inFilter(SupabaseReviews.artistId, artistIds);
+    final counts = <String, int>{};
+    for (final m in mapListFrom(res)) {
+      final aid = m[SupabaseReviews.artistId] as String?;
+      if (aid == null || aid.isEmpty) continue;
+      counts.update(aid, (v) => v + 1, ifAbsent: () => 1);
     }
     return counts;
   }
@@ -242,22 +362,36 @@ class TattooRequestService {
         .map((r) => r[SupabaseTattooRequests.userId] as String)
         .toSet()
         .toList();
-    final requestIds =
-        requests.map((r) => r[SupabaseTattooRequests.id] as String).toList();
     final profiles = await _fetchProfiles(userIds);
-    final bidCounts = await _fetchBidCounts(requestIds);
+    final interest = await _fetchInterestPreviews(rows, profiles);
+    final artistIds = profiles.entries
+        .where((e) => e.value.userType == 'tattoo_artist')
+        .map((e) => e.key)
+        .toList();
+    final reviewAvgs =
+        await ReviewService.fetchDualAveragesForArtistIds(artistIds);
+    final reviewCounts = await _fetchReviewCounts(artistIds);
 
     return requests.map((e) {
       final uid = e[SupabaseTattooRequests.userId] as String?;
       final rid = e[SupabaseTattooRequests.id] as String?;
       final profile = uid != null ? profiles[uid] : null;
-      final bidCount = rid != null ? (bidCounts[rid] ?? 0) : 0;
+      final preview = rid != null ? interest[rid] : null;
+      final bidCount = preview?.count ?? 0;
+      final avatarUrls = preview?.avatarUrls ?? const <String>[];
+      final dual = uid != null ? reviewAvgs[uid] : null;
+      final rating =
+          dual != null && dual.experienceMean > 0 ? dual.experienceMean : null;
+      final reviewCount = uid != null ? (reviewCounts[uid] ?? 0) : 0;
       return TattooRequest.fromJson(
         e,
         customerName: profile?.name,
         customerLocation: profile?.location,
         posterUserType: profile?.userType,
+        posterRating: rating,
+        posterReviewCount: reviewCount,
         bidCount: bidCount,
+        bidderAvatarUrls: avatarUrls,
       );
     }).toList();
   }

@@ -21,6 +21,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tabUpload => 'post a bid';
 
   @override
+  String get tabPromo => 'promote';
+
+  @override
+  String get addPromoTitle => 'Promo';
+
+  @override
+  String get addPromoFieldDescriptionLabel => 'Describe this Tattoo';
+
+  @override
+  String get addPromoStartingBidLabel => 'This Tattoo (\$)';
+
+  @override
+  String get addPromoNextAvailabilityLabel => 'Availability';
+
+  @override
+  String get addPromoNextAvailabilityHint => 'e.g. Next week, 15 June';
+
+  @override
+  String get addPromoChatButton => 'Chat';
+
+  @override
   String get tabMessage => 'Message';
 
   @override
@@ -56,6 +77,77 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get exploreNoSearchResults => 'No posts match your search';
+
+  @override
+  String exploreArtistsInterested(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Artists Interested',
+      one: '1 Artist Interested',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String exploreCustomersInterested(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Customers Interested',
+      one: '1 Customer Interested',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String exploreReviewCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count reviews',
+      one: '1 review',
+    );
+    return '($_temp0)';
+  }
+
+  @override
+  String exploreBidBudget(String amount) {
+    return 'Budget $amount';
+  }
+
+  @override
+  String explorePromoPrice(String amount) {
+    return 'This Tattoo $amount';
+  }
+
+  @override
+  String get exploreBidCardTitleFallback => 'Tattoo request';
+
+  @override
+  String get explorePostedToday => 'Posted today';
+
+  @override
+  String explorePostedHoursAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Posted $count hours ago',
+      one: 'Posted 1 hour ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String explorePostedDaysAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Posted $count days ago',
+      one: 'Posted 1 day ago',
+    );
+    return '$_temp0';
+  }
 
   @override
   String exploreTitleWithCountry(String country) {
@@ -438,7 +530,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bidDetailWhatCustomerWants => 'What does the customer want?';
 
   @override
+  String get bidDetailAboutThisTattoo => 'About this Tattoo';
+
+  @override
+  String get bidDetailChatToThisArtist => 'Chat to the Artist';
+
+  @override
   String get bidDetailPlacement => 'Placement';
+
+  @override
+  String get bidDetailNextAvailability => 'Availability';
 
   @override
   String get bidDetailSize => 'Size';
@@ -607,7 +708,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bidDetailArtistToolsSheetBody =>
-      'More artist actions for this job will appear here. This does not place a bid.';
+      'Promote your work on Explore while you wait for the customer to review bids.';
+
+  @override
+  String get bidDetailArtistToolsPostPromo => 'Post a promo';
+
+  @override
+  String get bidDetailPostPromoTitle => 'Post a promo?';
+
+  @override
+  String get bidDetailPostPromoMessage =>
+      'Share your tattoo work on Explore so customers can see your style alongside your bid.';
+
+  @override
+  String get bidDetailPostPromoOpen => 'Open promo page';
+
+  @override
+  String get bidDetailPostPromoLater => 'Not now';
 
   @override
   String get bidDetailCouldNotOpenProfile => 'Could not open this profile.';
@@ -750,6 +867,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String exploreDeleteFailedDetails(String details) {
     return 'Delete failed: $details';
   }
+
+  @override
+  String get exploreDeletePostTitle => 'Remove post?';
+
+  @override
+  String get exploreDeletePostMessage =>
+      'This will permanently remove your post from Explore.';
+
+  @override
+  String get exploreDeletePostConfirm => 'Remove';
+
+  @override
+  String get exploreDeletePostCancel => 'Cancel';
 
   @override
   String get checkoutTitle => 'Checkout';

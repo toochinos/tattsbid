@@ -17,6 +17,7 @@ import 'bid_detail_page.dart';
 import 'explore_page.dart';
 import 'tattsagram_page.dart';
 import 'add_page.dart';
+import 'promo_page.dart';
 import 'chat_page.dart';
 import 'create_post_page.dart';
 import 'destination_page.dart';
@@ -283,7 +284,7 @@ class _MainShellPageState extends State<MainShellPage> {
   void _openUploadFromExplore() {
     Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => AddPage(
+        builder: (_) => PromoPage(
           selectedExploreCountryNotifier: _postCountryNotifier,
           onRequestSubmitted: switchToExploreAndRefresh,
         ),
@@ -408,7 +409,7 @@ class _MainShellPageState extends State<MainShellPage> {
       BottomNavigationBarItem(
         icon: const _UploadTabBarIcon(selected: false),
         activeIcon: const _UploadTabBarIcon(selected: true),
-        label: l10n.tabUpload,
+        label: _isCustomer ? l10n.tabUpload : l10n.tabPromo,
       ),
       BottomNavigationBarItem(
         icon: _MessageTabIconWithEnvelope(showEnvelope: showEnvelope),
@@ -563,15 +564,19 @@ class _MainShellPageState extends State<MainShellPage> {
                 top: 0,
                 right: 0,
                 child: SafeArea(
-                  minimum: const EdgeInsets.only(top: 6, right: 8),
-                  child: _GlobalTopRightActions(
-                    l10n: AppLocalizations.of(context)!,
-                    onGlobeTap: _openGlobe,
-                    onTattsagramTap: () {
-                      setState(() => _currentIndex = _tattsagramStackIndex);
-                      _popTabNavigatorToRoot(_tattsagramStackIndex);
-                    },
-                    onSettingsTap: _openSettings,
+                  minimum: const EdgeInsets.only(top: 0, right: 8),
+                  bottom: false,
+                  child: SizedBox(
+                    height: 40,
+                    child: _GlobalTopRightActions(
+                      l10n: AppLocalizations.of(context)!,
+                      onGlobeTap: _openGlobe,
+                      onTattsagramTap: () {
+                        setState(() => _currentIndex = _tattsagramStackIndex);
+                        _popTabNavigatorToRoot(_tattsagramStackIndex);
+                      },
+                      onSettingsTap: _openSettings,
+                    ),
                   ),
                 ),
               ),
@@ -681,6 +686,9 @@ class _TopActionButton extends StatelessWidget {
       child: IconButton(
         tooltip: tooltip,
         onPressed: onTap,
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
         icon: icon,
       ),
     );
@@ -697,8 +705,10 @@ class _FlexemoTattsagramTopAction extends StatelessWidget {
   final AppLocalizations l10n;
   final VoidCallback onTap;
 
-  static const double _markSize = 34;
-  static const double _brandFontSize = 11;
+  static const double _markSize = 26;
+  static const double _brandFontSize = 10;
+  static const double _textLift = -2;
+  static const double _textToMarkGap = 3;
 
   @override
   Widget build(BuildContext context) {
@@ -724,11 +734,11 @@ class _FlexemoTattsagramTopAction extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            minWidth: kMinInteractiveDimension,
-            minHeight: kMinInteractiveDimension,
+            minWidth: 40,
+            minHeight: 40,
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
             child: Tooltip(
               message: l10n.tabTattsagram,
               child: Column(
@@ -736,27 +746,30 @@ class _FlexemoTattsagramTopAction extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  SizedBox(
-                    width: 62,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      alignment: Alignment.center,
-                      children: [
-                        Text(
-                          'Flexemo',
-                          textAlign: TextAlign.center,
-                          style: nameStyle,
-                          maxLines: 1,
-                        ),
-                        Positioned(
-                          right: 1,
-                          top: -1,
-                          child: Text('™', style: tmStyle),
-                        ),
-                      ],
+                  Transform.translate(
+                    offset: const Offset(0, _textLift),
+                    child: SizedBox(
+                      width: 62,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          Text(
+                            'Flexemo',
+                            textAlign: TextAlign.center,
+                            style: nameStyle,
+                            maxLines: 1,
+                          ),
+                          Positioned(
+                            right: 1,
+                            top: -1,
+                            child: Text('™', style: tmStyle),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: _textToMarkGap),
                   const Center(
                     child: FlexemoMark(size: _markSize),
                   ),
@@ -779,12 +792,12 @@ class _UploadTabBarIcon extends StatelessWidget {
 
   /// Must match the vertical slot of other tab icons (see [_ArtistsTabIcon]).
   static const double _layoutSize = 30;
-  static const double _visualLift = -6;
+  static const double _visualLift = -36;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: _UploadTabIcon.diameter,
+      width: _UploadTabIcon.outerDiameter,
       height: _layoutSize,
       child: Stack(
         clipBehavior: Clip.none,
@@ -800,30 +813,39 @@ class _UploadTabBarIcon extends StatelessWidget {
   }
 }
 
-/// Grey circle + white plus for Upload tab (matches classic bottom-bar upload control).
+/// Blue circle, white ring, and plus for the post-a-bid tab.
 class _UploadTabIcon extends StatelessWidget {
   const _UploadTabIcon({required this.selected});
 
   final bool selected;
 
-  static const Color _inactiveGrey = Color(0xFF6B7280);
-  static const double diameter = 38;
-  static const double _iconSize = 30;
+  static const Color _uploadBlue = Color(0xFF2563EB);
+  static const double diameter = 52;
+  static const double _borderWidth = 4;
+  static const double _iconSize = 28;
+
+  static double get outerDiameter => diameter + _borderWidth * 2;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final bg = selected ? scheme.primary : _inactiveGrey;
     return SizedBox(
-      width: diameter,
-      height: diameter,
+      width: outerDiameter,
+      height: outerDiameter,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: bg,
+          color: _uploadBlue,
           shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: _borderWidth),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: const Icon(
-          Icons.add,
+          Icons.add_rounded,
           color: Colors.white,
           size: _iconSize,
         ),

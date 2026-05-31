@@ -12,7 +12,9 @@ class SafeMediaRenderer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safeUrl = url.trim();
-    if (safeUrl.isEmpty || !safeUrl.startsWith('http') || !safeUrl.contains('.')) {
+    if (safeUrl.isEmpty ||
+        !safeUrl.startsWith('http') ||
+        !safeUrl.contains('.')) {
       return Container(color: Colors.black);
     }
     final isVideo = safeUrl.toLowerCase().endsWith('.mp4');

@@ -13,7 +13,10 @@ class TattooRequest {
     this.customerName,
     this.customerLocation,
     this.posterUserType,
+    this.posterRating,
+    this.posterReviewCount = 0,
     this.bidCount = 0,
+    this.bidderAvatarUrls = const [],
     this.placement,
     this.size,
     this.colourPreference,
@@ -30,7 +33,16 @@ class TattooRequest {
 
   /// Owner account type: `tattoo_artist` or `customer`.
   final String? posterUserType;
+
+  /// Artist experience rating mean (promo cards).
+  final double? posterRating;
+
+  final int posterReviewCount;
+
   final int bidCount;
+
+  /// Up to three bidder avatar URLs for explore facepile (empty string = placeholder).
+  final List<String> bidderAvatarUrls;
   final String? description;
   final String? placement;
   final String? size;
@@ -49,7 +61,10 @@ class TattooRequest {
     String? customerName,
     String? customerLocation,
     String? posterUserType,
+    double? posterRating,
+    int posterReviewCount = 0,
     int bidCount = 0,
+    List<String> bidderAvatarUrls = const [],
   }) {
     return TattooRequest(
       id: json['id'] as String,
@@ -58,7 +73,10 @@ class TattooRequest {
       customerName: customerName,
       customerLocation: customerLocation,
       posterUserType: posterUserType,
+      posterRating: posterRating,
+      posterReviewCount: posterReviewCount,
       bidCount: bidCount,
+      bidderAvatarUrls: bidderAvatarUrls,
       description: json['description'] as String?,
       placement: json['placement'] as String?,
       size: json['size'] as String?,

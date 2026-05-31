@@ -21,7 +21,7 @@ String? userRoleLabelForType(
   return null;
 }
 
-/// Primary name with an optional second line: Tattoo artist / Customer in smaller type.
+/// Primary name with an optional role: on a second line, or inline when [compactRole] is true.
 class UserNameWithRole extends StatelessWidget {
   const UserNameWithRole({
     super.key,
@@ -51,6 +51,38 @@ class UserNameWithRole extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final role = userRoleLabelForType(context, userType, compact: compactRole);
+    final resolvedRoleStyle = roleStyle ??
+        Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.outline,
+            );
+
+    if (compactRole && role != null) {
+      return Row(
+        mainAxisAlignment: _mainAxisForAlign(textAlign),
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Flexible(
+            child: Text(
+              name,
+              style: nameStyle,
+              strutStyle: nameStrutStyle,
+              textAlign: textAlign,
+              maxLines: maxNameLines,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            role,
+            style: resolvedRoleStyle,
+            strutStyle: roleStrutStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: _crossForAlign(textAlign),
@@ -67,10 +99,7 @@ class UserNameWithRole extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             role,
-            style: roleStyle ??
-                Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
+            style: resolvedRoleStyle,
             strutStyle: roleStrutStyle,
             textAlign: textAlign,
             maxLines: 1,
@@ -79,6 +108,18 @@ class UserNameWithRole extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  MainAxisAlignment _mainAxisForAlign(TextAlign align) {
+    switch (align) {
+      case TextAlign.center:
+        return MainAxisAlignment.center;
+      case TextAlign.end:
+      case TextAlign.right:
+        return MainAxisAlignment.end;
+      default:
+        return MainAxisAlignment.start;
+    }
   }
 
   CrossAxisAlignment _crossForAlign(TextAlign align) {

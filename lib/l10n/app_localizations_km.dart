@@ -21,6 +21,27 @@ class AppLocalizationsKm extends AppLocalizations {
   String get tabUpload => 'ដាក់តម្លៃ';
 
   @override
+  String get tabPromo => 'ផ្សព្វផ្សាយ';
+
+  @override
+  String get addPromoTitle => 'Promo';
+
+  @override
+  String get addPromoFieldDescriptionLabel => 'ពណ៌នាសាក់នេះ';
+
+  @override
+  String get addPromoStartingBidLabel => 'សាក់នេះ (\$)';
+
+  @override
+  String get addPromoNextAvailabilityLabel => 'ភាពអាចប្រើបាន';
+
+  @override
+  String get addPromoNextAvailabilityHint => 'ឧ. សប្តាហ៍ក្រោយ, 15 មិថុនា';
+
+  @override
+  String get addPromoChatButton => 'ជជែក';
+
+  @override
   String get tabMessage => 'សារ';
 
   @override
@@ -56,6 +77,77 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get exploreNoSearchResults => 'គ្មានប្រកាសដែលត្រូវគ្នា';
+
+  @override
+  String exploreArtistsInterested(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'សិល្បករ $count នាក់ចាប់អារម្មណ៍',
+      one: 'សិល្បករ 1 នាក់ចាប់អារម្មណ៍',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String exploreCustomersInterested(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'អតិថិជន $count នាក់ចាប់អារម្មណ៍',
+      one: 'អតិថិជន 1 នាក់ចាប់អារម្មណ៍',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String exploreReviewCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ការវាយតម្លៃ',
+      one: '1 ការវាយតម្លៃ',
+    );
+    return '($_temp0)';
+  }
+
+  @override
+  String exploreBidBudget(String amount) {
+    return 'ថវិកា $amount';
+  }
+
+  @override
+  String explorePromoPrice(String amount) {
+    return 'សាក់នេះ $amount';
+  }
+
+  @override
+  String get exploreBidCardTitleFallback => 'ស្នើសុំសាក់';
+
+  @override
+  String get explorePostedToday => 'បានប្រកាសថ្ងៃនេះ';
+
+  @override
+  String explorePostedHoursAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'បានប្រកាស $count ម៉ោងមុន',
+      one: 'បានប្រកាស 1 ម៉ោងមុន',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String explorePostedDaysAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'បានប្រកាស $count ថ្ងៃមុន',
+      one: 'បានប្រកាស 1 ថ្ងៃមុន',
+    );
+    return '$_temp0';
+  }
 
   @override
   String exploreTitleWithCountry(String country) {
@@ -438,7 +530,16 @@ class AppLocalizationsKm extends AppLocalizations {
   String get bidDetailWhatCustomerWants => 'តើអតិថិជនចង់បានអ្វី?';
 
   @override
+  String get bidDetailAboutThisTattoo => 'អំពីសាក់នេះ';
+
+  @override
+  String get bidDetailChatToThisArtist => 'ជជែកទៅសិល្បករនេះ';
+
+  @override
   String get bidDetailPlacement => 'ទីតាំង';
+
+  @override
+  String get bidDetailNextAvailability => 'ភាពអាចប្រើបាន';
 
   @override
   String get bidDetailSize => 'ទំហំ';
@@ -608,7 +709,23 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get bidDetailArtistToolsSheetBody =>
-      'សកម្មភាពសិល្បករបន្ថែមសម្រាប់ការងារនេះនឹងបង្ហាញនៅទីនេះ។ នេះមិនដាក់ការដេញថ្លៃទេ។';
+      'ផ្សព្វផ្សាយការងាររបស់អ្នកនៅ Explore ខណៈរង់ចាំអតិថិជនពិនិត្យការដេញថ្លៃ។';
+
+  @override
+  String get bidDetailArtistToolsPostPromo => 'ផ្សាយប្រូម៉ូ';
+
+  @override
+  String get bidDetailPostPromoTitle => 'ផ្សាយប្រូម៉ូ?';
+
+  @override
+  String get bidDetailPostPromoMessage =>
+      'ចែករំលែកការងារស្បែករបស់អ្នកនៅ Explore ដើម្បីឱ្យអតិថិជនឃើញរចនាបថរបស់អ្នកជាមួយការដេញថ្លៃ។';
+
+  @override
+  String get bidDetailPostPromoOpen => 'បើកទំព័រប្រូម៉ូ';
+
+  @override
+  String get bidDetailPostPromoLater => 'មិនទាន់';
 
   @override
   String get bidDetailCouldNotOpenProfile => 'មិនអាចបើកប្រវត្តិរូបនេះ។';
@@ -751,6 +868,19 @@ class AppLocalizationsKm extends AppLocalizations {
   String exploreDeleteFailedDetails(String details) {
     return 'លុបបរាជ័យ៖ $details';
   }
+
+  @override
+  String get exploreDeletePostTitle => 'លុបការផ្សាយ?';
+
+  @override
+  String get exploreDeletePostMessage =>
+      'ការផ្សាយនេះនឹងត្រូវលុបចេញពី Explore ជាអចិន្ត្រៃយ៍។';
+
+  @override
+  String get exploreDeletePostConfirm => 'លុប';
+
+  @override
+  String get exploreDeletePostCancel => 'បោះបង់';
 
   @override
   String get checkoutTitle => 'Checkout';

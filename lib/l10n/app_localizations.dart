@@ -124,6 +124,48 @@ abstract class AppLocalizations {
   /// **'post a bid'**
   String get tabUpload;
 
+  /// No description provided for @tabPromo.
+  ///
+  /// In en, this message translates to:
+  /// **'promote'**
+  String get tabPromo;
+
+  /// No description provided for @addPromoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Promo'**
+  String get addPromoTitle;
+
+  /// No description provided for @addPromoFieldDescriptionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe this Tattoo'**
+  String get addPromoFieldDescriptionLabel;
+
+  /// No description provided for @addPromoStartingBidLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'This Tattoo (\$)'**
+  String get addPromoStartingBidLabel;
+
+  /// No description provided for @addPromoNextAvailabilityLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Availability'**
+  String get addPromoNextAvailabilityLabel;
+
+  /// No description provided for @addPromoNextAvailabilityHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Next week, 15 June'**
+  String get addPromoNextAvailabilityHint;
+
+  /// No description provided for @addPromoChatButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get addPromoChatButton;
+
   /// No description provided for @tabMessage.
   ///
   /// In en, this message translates to:
@@ -195,6 +237,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No posts match your search'**
   String get exploreNoSearchResults;
+
+  /// No description provided for @exploreArtistsInterested.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{1 Artist Interested} other{{count} Artists Interested}}'**
+  String exploreArtistsInterested(int count);
+
+  /// No description provided for @exploreCustomersInterested.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{1 Customer Interested} other{{count} Customers Interested}}'**
+  String exploreCustomersInterested(int count);
+
+  /// No description provided for @exploreReviewCount.
+  ///
+  /// In en, this message translates to:
+  /// **'({count, plural, one{1 review} other{{count} reviews}})'**
+  String exploreReviewCount(int count);
+
+  /// No description provided for @exploreBidBudget.
+  ///
+  /// In en, this message translates to:
+  /// **'Budget {amount}'**
+  String exploreBidBudget(String amount);
+
+  /// No description provided for @explorePromoPrice.
+  ///
+  /// In en, this message translates to:
+  /// **'This Tattoo {amount}'**
+  String explorePromoPrice(String amount);
+
+  /// No description provided for @exploreBidCardTitleFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Tattoo request'**
+  String get exploreBidCardTitleFallback;
+
+  /// No description provided for @explorePostedToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Posted today'**
+  String get explorePostedToday;
+
+  /// No description provided for @explorePostedHoursAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{Posted 1 hour ago} other{Posted {count} hours ago}}'**
+  String explorePostedHoursAgo(int count);
+
+  /// No description provided for @explorePostedDaysAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{Posted 1 day ago} other{Posted {count} days ago}}'**
+  String explorePostedDaysAgo(int count);
 
   /// No description provided for @exploreTitleWithCountry.
   ///
@@ -862,11 +958,29 @@ abstract class AppLocalizations {
   /// **'What does the customer want?'**
   String get bidDetailWhatCustomerWants;
 
+  /// No description provided for @bidDetailAboutThisTattoo.
+  ///
+  /// In en, this message translates to:
+  /// **'About this Tattoo'**
+  String get bidDetailAboutThisTattoo;
+
+  /// No description provided for @bidDetailChatToThisArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat to the Artist'**
+  String get bidDetailChatToThisArtist;
+
   /// No description provided for @bidDetailPlacement.
   ///
   /// In en, this message translates to:
   /// **'Placement'**
   String get bidDetailPlacement;
+
+  /// No description provided for @bidDetailNextAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Availability'**
+  String get bidDetailNextAvailability;
 
   /// No description provided for @bidDetailSize.
   ///
@@ -1154,8 +1268,38 @@ abstract class AppLocalizations {
   /// No description provided for @bidDetailArtistToolsSheetBody.
   ///
   /// In en, this message translates to:
-  /// **'More artist actions for this job will appear here. This does not place a bid.'**
+  /// **'Promote your work on Explore while you wait for the customer to review bids.'**
   String get bidDetailArtistToolsSheetBody;
+
+  /// No description provided for @bidDetailArtistToolsPostPromo.
+  ///
+  /// In en, this message translates to:
+  /// **'Post a promo'**
+  String get bidDetailArtistToolsPostPromo;
+
+  /// No description provided for @bidDetailPostPromoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Post a promo?'**
+  String get bidDetailPostPromoTitle;
+
+  /// No description provided for @bidDetailPostPromoMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Share your tattoo work on Explore so customers can see your style alongside your bid.'**
+  String get bidDetailPostPromoMessage;
+
+  /// No description provided for @bidDetailPostPromoOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open promo page'**
+  String get bidDetailPostPromoOpen;
+
+  /// No description provided for @bidDetailPostPromoLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get bidDetailPostPromoLater;
 
   /// No description provided for @bidDetailCouldNotOpenProfile.
   ///
@@ -1408,6 +1552,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete failed: {details}'**
   String exploreDeleteFailedDetails(String details);
+
+  /// No description provided for @exploreDeletePostTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove post?'**
+  String get exploreDeletePostTitle;
+
+  /// No description provided for @exploreDeletePostMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This will permanently remove your post from Explore.'**
+  String get exploreDeletePostMessage;
+
+  /// No description provided for @exploreDeletePostConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get exploreDeletePostConfirm;
+
+  /// No description provided for @exploreDeletePostCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get exploreDeletePostCancel;
 
   /// No description provided for @checkoutTitle.
   ///

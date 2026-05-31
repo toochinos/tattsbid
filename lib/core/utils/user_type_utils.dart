@@ -12,6 +12,16 @@ String? canonicalUserType(String? raw) {
   return null;
 }
 
+/// Prefer [userType]; fall back to [role] (`artist` / `customer` in profiles).
+String? resolveProfileUserType({String? userType, String? role}) {
+  return canonicalUserType(userType) ?? canonicalUserType(role);
+}
+
+/// Explore bid cards (not artist promos).
+bool isCustomerBidPost(String? posterUserType) {
+  return resolveProfileUserType(userType: posterUserType) != 'tattoo_artist';
+}
+
 /// True when the profile has a saved tattoo artist or customer role.
 bool profileHasSetAccountType(UserProfile? profile) {
   if (profile == null) return false;

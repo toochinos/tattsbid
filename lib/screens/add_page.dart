@@ -10,6 +10,7 @@ import '../core/services/tattoo_request_service.dart';
 import '../core/utils/pick_images.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/safe_media_renderer.dart';
+import 'chat_page.dart';
 
 /// Add tab: customer uploads reference photo, adds description and starting bid.
 class AddPage extends StatefulWidget {
@@ -17,6 +18,7 @@ class AddPage extends StatefulWidget {
     super.key,
     required this.selectedExploreCountryNotifier,
     this.onRequestSubmitted,
+    this.isArtistPromo = false,
   });
 
   /// Posts are tagged for this country (same as Explore filter).
@@ -24,6 +26,9 @@ class AddPage extends StatefulWidget {
 
   /// Called after a request is successfully submitted (e.g. to switch to Explore).
   final VoidCallback? onRequestSubmitted;
+
+  /// When true, shows promo copy for tattoo artists posting portfolio work.
+  final bool isArtistPromo;
 
   @override
   State<AddPage> createState() => _AddPageState();
@@ -36,6 +41,7 @@ class _AddPageState extends State<AddPage> {
   final _placementController = TextEditingController();
   final _sizeController = TextEditingController();
   final _startingBidController = TextEditingController();
+  final _nextAvailabilityController = TextEditingController();
 
   String? _colourPreference; // 'colour' or 'black_and_grey'
   String? _timeframe; // 'asap', 'during_the_week', 'when_you_can_book_me_in'
@@ -53,6 +59,7 @@ class _AddPageState extends State<AddPage> {
     _placementController.dispose();
     _sizeController.dispose();
     _startingBidController.dispose();
+    _nextAvailabilityController.dispose();
     super.dispose();
   }
 
@@ -109,6 +116,7 @@ class _AddPageState extends State<AddPage> {
       _timeframe = null;
       _artistCreativeFreedom = true;
       _startingBidController.clear();
+      _nextAvailabilityController.clear();
       _errorMessage = null;
     });
   }
@@ -184,15 +192,22 @@ class _AddPageState extends State<AddPage> {
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
-        placement: _placementController.text.trim().isEmpty
+        placement: widget.isArtistPromo
+            ? (_nextAvailabilityController.text.trim().isEmpty
+                ? null
+                : _nextAvailabilityController.text.trim())
+            : (_placementController.text.trim().isEmpty
+                ? null
+                : _placementController.text.trim()),
+        size: widget.isArtistPromo
             ? null
-            : _placementController.text.trim(),
-        size: _sizeController.text.trim().isEmpty
-            ? null
-            : _sizeController.text.trim(),
-        colourPreference: _colourPreference,
-        artistCreativeFreedom: _artistCreativeFreedom,
-        timeframe: _timeframe,
+            : (_sizeController.text.trim().isEmpty
+                ? null
+                : _sizeController.text.trim()),
+        colourPreference: widget.isArtistPromo ? null : _colourPreference,
+        artistCreativeFreedom:
+            widget.isArtistPromo ? true : _artistCreativeFreedom,
+        timeframe: widget.isArtistPromo ? null : _timeframe,
         startingBid: startingBid,
         country: postCountry,
       );
@@ -212,13 +227,23 @@ class _AddPageState extends State<AddPage> {
     }
   }
 
+  void _openPromoChat() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const ChatPage(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
-        title: Text(l10n.tabUpload),
+        title: Text(
+          widget.isArtistPromo ? l10n.addPromoTitle : l10n.tabUpload,
+        ),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -359,116 +384,122 @@ class _AddPageState extends State<AddPage> {
           TextFormField(
             controller: _descriptionController,
             decoration: InputDecoration(
-              labelText: l10n.addFieldDescriptionLabel,
-              hintText: l10n.addDescriptionHint,
+              labelText: widget.isArtistPromo
+                  ? l10n.addPromoFieldDescriptionLabel
+                  : l10n.addFieldDescriptionLabel,
+              hintText: widget.isArtistPromo ? null : l10n.addDescriptionHint,
               alignLabelWithHint: true,
               border: const OutlineInputBorder(),
             ),
             maxLines: 3,
             textInputAction: TextInputAction.next,
           ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _placementController,
-            decoration: InputDecoration(
-              labelText: l10n.addFieldPlacementLabel,
-              hintText: l10n.addPlacementHint,
-              border: const OutlineInputBorder(),
+          if (!widget.isArtistPromo) ...[
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _placementController,
+              decoration: InputDecoration(
+                labelText: l10n.addFieldPlacementLabel,
+                hintText: l10n.addPlacementHint,
+                border: const OutlineInputBorder(),
+              ),
+              textInputAction: TextInputAction.next,
             ),
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _sizeController,
-            decoration: InputDecoration(
-              labelText: l10n.addFieldSizeLabel,
-              hintText: l10n.addSizeHint,
-              border: const OutlineInputBorder(),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _sizeController,
+              decoration: InputDecoration(
+                labelText: l10n.addFieldSizeLabel,
+                hintText: l10n.addSizeHint,
+                border: const OutlineInputBorder(),
+              ),
+              textInputAction: TextInputAction.next,
             ),
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            l10n.addSectionColourTitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
+            const SizedBox(height: 16),
+            Text(
+              l10n.addSectionColourTitle,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ChoiceChip(
+                  label: Text(l10n.addColourChip),
+                  selected: _colourPreference == 'colour',
+                  onSelected: (selected) {
+                    setState(
+                        () => _colourPreference = selected ? 'colour' : null);
+                  },
                 ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              ChoiceChip(
-                label: Text(l10n.addColourChip),
-                selected: _colourPreference == 'colour',
-                onSelected: (selected) {
-                  setState(
-                      () => _colourPreference = selected ? 'colour' : null);
-                },
-              ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: Text(l10n.addBlackGreyChip),
-                selected: _colourPreference == 'black_and_grey',
-                onSelected: (selected) {
-                  setState(() =>
-                      _colourPreference = selected ? 'black_and_grey' : null);
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            l10n.addSectionTimeframeTitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: Text(l10n.addBlackGreyChip),
+                  selected: _colourPreference == 'black_and_grey',
+                  onSelected: (selected) {
+                    setState(() =>
+                        _colourPreference = selected ? 'black_and_grey' : null);
+                  },
                 ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ChoiceChip(
-                label: Text(l10n.addTimeAsap),
-                selected: _timeframe == 'asap',
-                onSelected: (selected) {
-                  setState(() => _timeframe = selected ? 'asap' : null);
-                },
-              ),
-              ChoiceChip(
-                label: Text(l10n.addTimeWeek),
-                selected: _timeframe == 'during_the_week',
-                onSelected: (selected) {
-                  setState(
-                      () => _timeframe = selected ? 'during_the_week' : null);
-                },
-              ),
-              ChoiceChip(
-                label: Text(l10n.addTimeBookWhen),
-                selected: _timeframe == 'when_you_can_book_me_in',
-                onSelected: (selected) {
-                  setState(() =>
-                      _timeframe = selected ? 'when_you_can_book_me_in' : null);
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          CheckboxListTile(
-            value: _artistCreativeFreedom,
-            onChanged: (v) =>
-                setState(() => _artistCreativeFreedom = v ?? true),
-            title: Text(
-              l10n.addCreativeFreedomTitle,
+              ],
             ),
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-          ),
+            const SizedBox(height: 16),
+            Text(
+              l10n.addSectionTimeframeTitle,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  label: Text(l10n.addTimeAsap),
+                  selected: _timeframe == 'asap',
+                  onSelected: (selected) {
+                    setState(() => _timeframe = selected ? 'asap' : null);
+                  },
+                ),
+                ChoiceChip(
+                  label: Text(l10n.addTimeWeek),
+                  selected: _timeframe == 'during_the_week',
+                  onSelected: (selected) {
+                    setState(
+                        () => _timeframe = selected ? 'during_the_week' : null);
+                  },
+                ),
+                ChoiceChip(
+                  label: Text(l10n.addTimeBookWhen),
+                  selected: _timeframe == 'when_you_can_book_me_in',
+                  onSelected: (selected) {
+                    setState(() => _timeframe =
+                        selected ? 'when_you_can_book_me_in' : null);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            CheckboxListTile(
+              value: _artistCreativeFreedom,
+              onChanged: (v) =>
+                  setState(() => _artistCreativeFreedom = v ?? true),
+              title: Text(
+                l10n.addCreativeFreedomTitle,
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ],
           const SizedBox(height: 16),
           TextFormField(
             controller: _startingBidController,
             decoration: InputDecoration(
-              labelText: l10n.addStartingBidLabel,
+              labelText: widget.isArtistPromo
+                  ? l10n.addPromoStartingBidLabel
+                  : l10n.addStartingBidLabel,
               hintText: l10n.addBidAmountHint,
               prefixText: '\$ ',
               border: const OutlineInputBorder(),
@@ -485,6 +516,24 @@ class _AddPageState extends State<AddPage> {
               return null;
             },
           ),
+          if (widget.isArtistPromo) ...[
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _nextAvailabilityController,
+              decoration: InputDecoration(
+                labelText: l10n.addPromoNextAvailabilityLabel,
+                hintText: l10n.addPromoNextAvailabilityHint,
+                border: const OutlineInputBorder(),
+              ),
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _openPromoChat,
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: Text(l10n.addPromoChatButton),
+            ),
+          ],
           const SizedBox(height: 24),
           FilledButton(
             onPressed: _submitting ? null : _submitRequest,
