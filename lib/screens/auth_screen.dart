@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/routes/app_routes.dart';
 import '../core/services/auth_service.dart';
+import '../core/services/online_heartbeat_service.dart';
 import '../l10n/app_localizations.dart';
 
 /// Auth screen with Login and SignUp tabs.
@@ -67,6 +68,7 @@ class _LoginTabState extends State<_LoginTab> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      OnlineHeartbeatService.start();
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed(AppRoutes.root);
     } on AuthException catch (e) {

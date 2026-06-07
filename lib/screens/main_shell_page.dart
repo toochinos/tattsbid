@@ -8,7 +8,7 @@ import '../core/routes/app_routes.dart';
 import '../core/startup/post_dashboard_onboarding.dart';
 import '../core/models/tattoo_request.dart';
 import '../core/services/message_indicator_service.dart';
-import '../core/services/online_presence_service.dart';
+import '../core/services/online_heartbeat_service.dart';
 import '../core/services/profile_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/flexemo_mark.dart';
@@ -79,7 +79,6 @@ class _MainShellPageState extends State<MainShellPage> {
       ValueNotifier<bool>(false);
   String? _userType;
   bool _profileLoaded = false;
-  Timer? _presenceTimer;
   bool _didPushWinnerProfile = false;
   StreamSubscription<List<SharedMediaFile>>? _sharedTextSub;
 
@@ -99,6 +98,37 @@ class _MainShellPageState extends State<MainShellPage> {
   /// Bump when [IndexedStack] child order changes so memoized pages are rebuilt.
   static const int _kTabLayoutVersion = 5;
   int _memoTabLayoutVersion = 0;
+
+  /// One [GlobalKey] per tab — never reuse the same key across different stacks.
+  final GlobalKey<NavigatorState> _exploreNavKey = GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> _addNavKey = GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> _artistsNavKey = GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> _tattsagramNavKey =
+      GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> _chatNavKey = GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> _profileNavKey = GlobalKey<NavigatorState>();
+
+  GlobalKey<NavigatorState> _navKeyForStackIndex(int stackIndex) {
+    if (_isCustomer) {
+      return switch (stackIndex) {
+        0 => _exploreNavKey,
+        1 => _addNavKey,
+        2 => _artistsNavKey,
+        3 => _tattsagramNavKey,
+        4 => _chatNavKey,
+        5 => _profileNavKey,
+        _ => _exploreNavKey,
+      };
+    }
+    return switch (stackIndex) {
+      0 => _exploreNavKey,
+      1 => _artistsNavKey,
+      2 => _tattsagramNavKey,
+      3 => _chatNavKey,
+      4 => _profileNavKey,
+      _ => _exploreNavKey,
+    };
+  }
 
   @override
   void initState() {
@@ -121,10 +151,8 @@ class _MainShellPageState extends State<MainShellPage> {
     _exploreFeedScopeNotifier.addListener(_onExploreScopeForTabs);
     PostDashboardOnboarding.scheduleAfterFirstFrame();
     _loadProfile();
-    OnlinePresenceService.updatePresence();
-    _presenceTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      OnlinePresenceService.updatePresence();
-    });
+    debugPrint('MainShellPage: init — starting heartbeat');
+    OnlineHeartbeatService.start();
   }
 
   void _onExploreScopeForTabs() {
@@ -302,7 +330,7 @@ class _MainShellPageState extends State<MainShellPage> {
   List<Widget> _buildTabPages() {
     final pages = <Widget>[
       Navigator(
-        key: _navKeys[0],
+        key: _exploreNavKey,
         onGenerateRoute: (_) => MaterialPageRoute<void>(
           builder: (_) => ExplorePage(
             refreshTrigger: _exploreRefreshTrigger,
@@ -316,7 +344,7 @@ class _MainShellPageState extends State<MainShellPage> {
     if (_isCustomer) {
       pages.add(
         Navigator(
-          key: _navKeys[3],
+          key: _addNavKey,
           onGenerateRoute: (_) => MaterialPageRoute<void>(
             builder: (_) => AddPage(
               selectedExploreCountryNotifier: _postCountryNotifier,
@@ -328,13 +356,13 @@ class _MainShellPageState extends State<MainShellPage> {
     }
     pages.addAll([
       Navigator(
-        key: _navKeys[1],
+        key: _artistsNavKey,
         onGenerateRoute: (_) => MaterialPageRoute<void>(
           builder: (_) => const ArtistsPage(),
         ),
       ),
       Navigator(
-        key: _navKeys[2],
+        key: _tattsagramNavKey,
         onGenerateRoute: (_) => MaterialPageRoute<void>(
           builder: (_) => TattsagramPage(
             feedPlaybackListenable: _tattsagramFeedPlaybackActive,
@@ -347,7 +375,7 @@ class _MainShellPageState extends State<MainShellPage> {
         ),
       ),
       Navigator(
-        key: _navKeys[_chatStackIndex],
+        key: _chatNavKey,
         onGenerateRoute: (_) => MaterialPageRoute<void>(
           builder: (_) => ChatPage(
             initialReceiverId: widget.initialChatReceiverId,
@@ -356,7 +384,7 @@ class _MainShellPageState extends State<MainShellPage> {
         ),
       ),
       Navigator(
-        key: _navKeys[_profileStackIndex],
+        key: _profileNavKey,
         onGenerateRoute: (_) => MaterialPageRoute<void>(
           builder: (_) => ProfilePage(
             onProfileUpdated: () {
@@ -381,15 +409,6 @@ class _MainShellPageState extends State<MainShellPage> {
     _memoTabPages = _buildTabPages();
     return _memoTabPages!;
   }
-
-  static final List<GlobalKey<NavigatorState>> _navKeys = [
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
-  ];
 
   List<BottomNavigationBarItem> _navItems(
     BuildContext context,
@@ -440,13 +459,13 @@ class _MainShellPageState extends State<MainShellPage> {
     Future<void>(() async {
       await _loadProfile();
       if (!mounted) return;
-      _navKeys[0].currentState?.push(
-            MaterialPageRoute<void>(
-              builder: (_) => BidDetailPage(
-                request: request,
-              ),
-            ),
-          );
+      _exploreNavKey.currentState?.push(
+        MaterialPageRoute<void>(
+          builder: (_) => BidDetailPage(
+            request: request,
+          ),
+        ),
+      );
     });
   }
 
@@ -455,9 +474,11 @@ class _MainShellPageState extends State<MainShellPage> {
   }
 
   /// Bottom bar taps always show that tab’s root screen (pop nested routes).
-  void _popTabNavigatorToRoot(int tabIndex) {
+  void _popTabNavigatorToRoot(int stackIndex) {
     void popNested() {
-      _navKeys[tabIndex].currentState?.popUntil((route) => route.isFirst);
+      _navKeyForStackIndex(stackIndex)
+          .currentState
+          ?.popUntil((route) => route.isFirst);
     }
 
     popNested();
@@ -521,7 +542,6 @@ class _MainShellPageState extends State<MainShellPage> {
     _sharedTextSub?.cancel();
     _exploreFeedScopeNotifier.removeListener(_onExploreScopeForTabs);
     MessageIndicatorService.stop();
-    _presenceTimer?.cancel();
     _postCountryNotifier.dispose();
     _exploreFeedScopeNotifier.dispose();
     _exploreRefreshTrigger.dispose();

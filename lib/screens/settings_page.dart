@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,6 +10,7 @@ import '../core/navigation/link_handler.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/auth_service.dart';
 import '../core/theme/app_theme.dart';
+import '../core/widgets/developer_login_dialog.dart';
 import '../l10n/app_localizations.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -18,6 +21,70 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  static const int _developerTapTarget = 5;
+  static const Duration _developerTapResetDelay = Duration(seconds: 2);
+
+  int _developerTapCount = 0;
+  Timer? _developerTapResetTimer;
+  bool _developerGateInProgress = false;
+
+  @override
+  void dispose() {
+    _developerTapResetTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onDeveloperModeTap() {
+    if (_developerGateInProgress) return;
+    _developerTapResetTimer?.cancel();
+    _developerTapCount++;
+    if (_developerTapCount >= _developerTapTarget) {
+      _developerTapCount = 0;
+      _openDeveloperGate();
+      return;
+    }
+    _developerTapResetTimer = Timer(_developerTapResetDelay, () {
+      if (mounted) setState(() => _developerTapCount = 0);
+    });
+    setState(() {});
+  }
+
+  Future<void> _openDeveloperGate() async {
+    if (_developerGateInProgress || !mounted) return;
+    _developerGateInProgress = true;
+    try {
+      final result = await DeveloperLoginDialog.prompt(context);
+      if (!mounted) return;
+
+      switch (result) {
+        case DeveloperLoginResult.cancelled:
+          return;
+        case DeveloperLoginResult.wrongPassword:
+          if (!mounted) return;
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            const SnackBar(content: Text('Incorrect password')),
+          );
+          return;
+        case DeveloperLoginResult.success:
+          _developerTapResetTimer?.cancel();
+          if (!mounted) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            debugPrint('Developer login: navigating to dashboard');
+            unawaited(
+              Navigator.of(context, rootNavigator: true).pushNamed(
+                AppRoutes.developerDashboard,
+              ),
+            );
+          });
+      }
+    } finally {
+      if (mounted) {
+        _developerGateInProgress = false;
+      }
+    }
+  }
+
   Future<void> _openSupportEmail() async {
     final uri = Uri(
       scheme: 'mailto',
@@ -91,9 +158,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _logout(BuildContext context) async {
-    await AuthService.signOut();
-    if (!context.mounted) return;
-    Navigator.of(context).pushReplacementNamed(AppRoutes.landing);
+    await AuthService.signOutAndLeaveApp();
   }
 
   Future<void> _confirmDeleteAccount() async {
@@ -137,16 +202,12 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
 
-      // 2) THEN clear local session (only after successful delete)
-      await AuthService.signOut();
+      // 2) Clear session and return to login (only after successful delete)
+      await AuthService.signOutAndReturnToLogin();
 
       debugPrint('delete-user: account deleted');
 
       if (!mounted) return;
-      LinkHandler.navigatorKey.currentState?.pushNamedAndRemoveUntil(
-        AppRoutes.login,
-        (route) => false,
-      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final root = LinkHandler.navigatorKey.currentContext;
         if (root != null && root.mounted) {
@@ -274,23 +335,33 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text.rich(
-                    TextSpan(
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.outline,
+                  GestureDetector(
+                    onTap: _onDeveloperModeTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
                       ),
-                      children: [
+                      child: Text.rich(
                         TextSpan(
-                          text: 'TattsBid ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onSurface,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.outline,
                           ),
+                          children: [
+                            TextSpan(
+                              text: 'TattsBid ',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                            const TextSpan(text: '\u00A9 2026'),
+                          ],
                         ),
-                        const TextSpan(text: '\u00A9 2026'),
-                      ],
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   TextButton(

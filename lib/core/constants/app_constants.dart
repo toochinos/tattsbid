@@ -59,4 +59,5 @@ class AppConstants {
   /// Direct Stripe Checkout link for Pro Max subscription.
   static const String stripeProMaxCheckoutUrl =
       'https://buy.stripe.com/dRmeV5eJt8krauz5D76EU00';
+
 }

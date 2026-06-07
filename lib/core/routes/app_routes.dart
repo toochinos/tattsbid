@@ -4,6 +4,7 @@ import '../../screens/auth_gate_page.dart';
 import '../../screens/auth_screen.dart';
 import '../../screens/checkout_cancel_page.dart';
 import '../../screens/checkout_success_page.dart';
+import '../../screens/developer_dashboard_page.dart';
 import '../../screens/edit_profile_page.dart';
 import '../../screens/landing_page.dart';
 import '../../screens/main_shell_page.dart';
@@ -32,6 +33,7 @@ class AppRoutes {
   static const String dashboard = '/dashboard';
   static const String paywall = '/paywall';
   static const String settings = '/settings';
+  static const String developerDashboard = '/developer-dashboard';
   static const String checkoutSuccess = '/checkout/success';
   static const String checkoutCancel = '/checkout/cancel';
   static const String editProfile = '/profile/edit';
@@ -66,6 +68,7 @@ class AppRoutes {
         },
         paywall: (_) => const PaywallPage(),
         settings: (_) => const SettingsPage(),
+        developerDashboard: (_) => const DeveloperDashboardPage(),
         checkoutCancel: (_) => const CheckoutCancelPage(),
         tattsagram: (_) => const TattsagramPage(),
       };

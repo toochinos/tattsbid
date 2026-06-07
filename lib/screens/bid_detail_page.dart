@@ -345,10 +345,11 @@ class _BidDetailPageState extends State<BidDetailPage>
     return _isViewerArtist;
   }
 
-  /// Artists can send a private message to the request owner.
+  /// Artists can message the customer on job posts (not promos).
   bool get _showCustomerChatButton =>
       !_profileRoleLoading &&
       !_isOwner &&
+      !_isPromoPost &&
       (_userRole == 'artist' || (_userRole == null && _legacyTattooArtist));
 
   /// Role `artist`: show tools entry — does not open the bid dialog.
@@ -370,8 +371,9 @@ class _BidDetailPageState extends State<BidDetailPage>
       ) ==
       'tattoo_artist';
 
-  /// Chat with the promo artist (shown on all promo posts).
-  bool get _showPromoChatButton => _isPromoPost && !_profileRoleLoading;
+  /// Chat with the promo artist (not on your own promo).
+  bool get _showPromoChatButton =>
+      _isPromoPost && !_profileRoleLoading && !_isOwner;
 
   bool get _isOwner {
     final user = Supabase.instance.client.auth.currentUser;
@@ -744,29 +746,6 @@ class _BidDetailPageState extends State<BidDetailPage>
     );
   }
 
-  Future<void> _offerPromoPageAfterBid() async {
-    final l10n = AppLocalizations.of(context)!;
-    final openPromo = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.bidDetailPostPromoTitle),
-        content: Text(l10n.bidDetailPostPromoMessage),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.bidDetailPostPromoLater),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.bidDetailPostPromoOpen),
-          ),
-        ],
-      ),
-    );
-    if (openPromo != true || !mounted) return;
-    await _openPromoPage();
-  }
-
   Future<void> _openPromoPage() async {
     final country = _request.country?.trim() ?? '';
     final notifier = ValueNotifier(country);
@@ -823,9 +802,6 @@ class _BidDetailPageState extends State<BidDetailPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.bidDetailBidPlaced)),
         );
-        if (_isViewerArtist) {
-          await _offerPromoPageAfterBid();
-        }
       } catch (e) {
         if (!mounted) return;
         final l10n = AppLocalizations.of(context)!;

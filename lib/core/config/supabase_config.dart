@@ -25,8 +25,19 @@ Future<void> ensureSupabaseInitialized() async {
   }
 }
 
+/// True when [Supabase.instance] is safe to use.
+bool isSupabaseReady() {
+  try {
+    Supabase.instance.client.auth;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 /// [Supabase.instance] throws if not initialized — use this from UI before init finishes.
 Session? readSupabaseSessionIfReady() {
+  if (!isSupabaseReady()) return null;
   try {
     return Supabase.instance.client.auth.currentSession;
   } catch (_) {

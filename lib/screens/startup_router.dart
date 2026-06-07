@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/config/supabase_config.dart';
 import '../core/locale/app_locale_controller.dart';
+import '../core/services/auth_service.dart';
 import '../core/services/language_service.dart';
 import 'language_selection_screen.dart';
 import 'login_page.dart';
@@ -66,7 +69,7 @@ class StartupSnapshot {
 Future<void> applyStartupTestingAfterSupabase() async {
   if (!_kForceLogoutOnStartupForTesting) return;
   try {
-    await Supabase.instance.client.auth.signOut();
+    await AuthService.signOut();
   } catch (_) {}
 }
 
@@ -82,10 +85,13 @@ class StartupRouter extends StatefulWidget {
 class _StartupRouterState extends State<StartupRouter> {
   late bool _hasSeenOnboarding = widget.snapshot.hasSeenOnboarding;
   late bool _hasSelectedLanguage = widget.snapshot.hasSelectedLanguage;
+  StreamSubscription<AuthState>? _authSub;
+  Timer? _authListenRetryTimer;
 
   @override
   void initState() {
     super.initState();
+    _attachAuthListener();
     // [StartupSnapshot] is frozen from [main]; prefs may update (e.g. language)
     // before the widget tree rebuilds — resync once.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -95,6 +101,29 @@ class _StartupRouterState extends State<StartupRouter> {
         setState(() => _hasSelectedLanguage = true);
       }
     });
+  }
+
+  void _attachAuthListener() {
+    if (!isSupabaseReady()) {
+      _authListenRetryTimer?.cancel();
+      _authListenRetryTimer = Timer(const Duration(milliseconds: 250), () {
+        if (mounted) _attachAuthListener();
+      });
+      return;
+    }
+    _authSub?.cancel();
+    _authSub = AuthService.authStateChanges.listen((state) {
+      if (!mounted) return;
+      debugPrint('StartupRouter: auth ${state.event}');
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _authListenRetryTimer?.cancel();
+    _authSub?.cancel();
+    super.dispose();
   }
 
   @override

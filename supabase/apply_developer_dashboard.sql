@@ -1,0 +1,10 @@
+-- Run the full migration in Supabase Dashboard → SQL Editor:
+--   Copy/paste contents of: supabase/migrations/20260601120000_developer_dashboard.sql
+--
+-- Then grant your account dashboard access (replace UUID):
+--   update public.profiles
+--   set role = 'super_admin'
+--   where id = '00000000-0000-0000-0000-000000000000';
+--
+-- Test from SQL Editor (as that user via JWT) or from the app:
+--   select public.get_developer_dashboard();

@@ -15,14 +15,23 @@
 /// - last_location_update (timestamptz, optional)
 /// - bio (text)
 /// - user_type (text): 'tattoo_artist' or 'customer'
-/// - role (text, optional): 'artist' or 'customer' — Request Detail UI; may be null
+/// - role (text, optional): 'customer' | 'artist' | 'admin' | 'super_admin'
+///   Legacy UI also used 'artist' | 'customer'; developer stats use [user_type].
 /// - rating (numeric, optional): average rating for Artists directory when added
 /// - contact_email (text, optional): public contact email
 /// - mobile (text, optional): phone / mobile
 /// - portfolio_urls (jsonb): array of image URLs for tattoo artist portfolio (max 10 in app)
 /// - has_accepted_terms (boolean, default false): user accepted agreement
+/// - last_seen (timestamptz, optional): last app activity; synced from online_users
 /// - created_at (timestamptz)
 /// - updated_at (timestamptz)
+///
+/// Table: public.online_users
+/// - user_id (uuid, PK, references auth.users)
+/// - username (text, optional): copy of profiles.display_name
+/// - user_type (text, optional): customer | tattoo_artist
+/// - last_seen (timestamptz, UTC): set by PostgreSQL trigger on insert/upsert (not from Flutter)
+/// Developer dashboard: onlineUsers (60s), active_users_today (24 h).
 ///
 /// Table: public.reviews
 /// - id (uuid, PK)
@@ -65,6 +74,7 @@ abstract final class SupabaseProfiles {
   static const String hasAcceptedTerms = 'has_accepted_terms';
   static const String createdAt = 'created_at';
   static const String updatedAt = 'updated_at';
+  static const String lastSeen = 'last_seen';
 
   /// Select clause for full profile fetch.
   static const String selectAll =
