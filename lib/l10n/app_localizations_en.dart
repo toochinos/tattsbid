@@ -257,6 +257,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsDeleteAccount => 'Delete Account';
 
   @override
+  String get deleteAccountTitle => 'Delete account';
+
+  @override
+  String get deleteAccountWarningTitle => 'This action is permanent';
+
+  @override
+  String get deleteAccountWarningBody =>
+      'Deleting your account will permanently remove your profile, tattoo listings, bids, promo posts, messages, reviews, favourites, uploaded images, and all other data linked to your account. This cannot be undone.';
+
+  @override
+  String get deleteAccountTypePrompt => 'Type DELETE to confirm';
+
+  @override
+  String get deleteAccountTypeHint => 'DELETE';
+
+  @override
+  String get deleteAccountConfirmButton => 'Permanently delete my account';
+
+  @override
+  String get deleteAccountDeleting => 'Deleting your account…';
+
+  @override
+  String get accountDeletionSuccessMessage =>
+      'Your account has been permanently deleted. Thank you for using TattsBid.';
+
+  @override
   String get settingsAccountDeleted => 'Account deleted';
 
   @override

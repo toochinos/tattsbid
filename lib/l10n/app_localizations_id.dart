@@ -259,6 +259,32 @@ class AppLocalizationsId extends AppLocalizations {
   String get settingsDeleteAccount => 'Hapus akun';
 
   @override
+  String get deleteAccountTitle => 'Hapus akun';
+
+  @override
+  String get deleteAccountWarningTitle => 'Tindakan ini permanen';
+
+  @override
+  String get deleteAccountWarningBody =>
+      'Menghapus akun akan menghapus permanen profil, listing tato, penawaran, promo, pesan, ulasan, favorit, gambar yang diunggah, dan semua data lain yang terhubung ke akun Anda. Tindakan ini tidak dapat dibatalkan.';
+
+  @override
+  String get deleteAccountTypePrompt => 'Ketik DELETE untuk konfirmasi';
+
+  @override
+  String get deleteAccountTypeHint => 'DELETE';
+
+  @override
+  String get deleteAccountConfirmButton => 'Hapus akun saya secara permanen';
+
+  @override
+  String get deleteAccountDeleting => 'Menghapus akun Anda…';
+
+  @override
+  String get accountDeletionSuccessMessage =>
+      'Akun Anda telah dihapus permanen. Terima kasih telah menggunakan TattsBid.';
+
+  @override
   String get settingsAccountDeleted => 'Akun dihapus';
 
   @override

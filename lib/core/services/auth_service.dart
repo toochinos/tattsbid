@@ -75,6 +75,30 @@ class AuthService {
     _navigateToLoginClearingStack();
   }
 
+  /// After account deletion: return to the device home screen (iPhone/Android).
+  static void leaveAppAfterAccountDeletion() {
+    debugPrint('AuthService: leaveAppAfterAccountDeletion');
+    _exitAppToHomeScreen();
+  }
+
+  /// Legacy: login screen with deletion message (not used after delete flow).
+  static void navigateToLoginAfterAccountDeletion() {
+    debugPrint('AuthService: navigateToLoginAfterAccountDeletion');
+    final nav = LinkHandler.navigatorKey.currentState;
+    if (nav == null) {
+      debugPrint(
+        'AuthService: navigator not ready — StartupRouter will show login',
+      );
+      return;
+    }
+    nav.pushNamedAndRemoveUntil(
+      AppRoutes.login,
+      (route) => false,
+      arguments: {AppRoutes.showAccountDeletedMessageArg: true},
+    );
+    debugPrint('AuthService: navigated to login after account deletion');
+  }
+
   static void _navigateToLoginClearingStack() {
     final nav = LinkHandler.navigatorKey.currentState;
     if (nav == null) {

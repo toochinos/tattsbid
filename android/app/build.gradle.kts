@@ -23,8 +23,8 @@ android {
         applicationId = "com.tooch.tattsbid"
         minSdk = flutter.minSdkVersion
         targetSdk = 35
-        versionCode = 5
-        versionName = "2.0.2"
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     buildTypes {

@@ -257,6 +257,33 @@ class AppLocalizationsKm extends AppLocalizations {
   String get settingsDeleteAccount => 'លុបគណនី';
 
   @override
+  String get deleteAccountTitle => 'លុបគណនី';
+
+  @override
+  String get deleteAccountWarningTitle => 'សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ';
+
+  @override
+  String get deleteAccountWarningBody =>
+      'ការលុបគណនីរបស់អ្នកនឹងលុបជម្រះអចិន្ត្រៃយ៍នូវប្រវត្តិរូប ការបង្ហោះសាក់ ការដេញដំណឹង ប្រូម៉ូ សារ ការវាយតម្លៃ រូបភាព និងទិន្នន័យផ្សេងទៀតទាំងអស់ដែលភ្ជាប់ទៅគណនីរបស់អ្នក។ មិនអាចស្តារវិញបានទេ។';
+
+  @override
+  String get deleteAccountTypePrompt => 'វាយ DELETE ដើម្បីបញ្ជាក់';
+
+  @override
+  String get deleteAccountTypeHint => 'DELETE';
+
+  @override
+  String get deleteAccountConfirmButton =>
+      'លុបគណនីរបស់ខ្ញុំជាមួយនឹងការលុបជម្រះ';
+
+  @override
+  String get deleteAccountDeleting => 'កំពុងលុបគណនីរបស់អ្នក…';
+
+  @override
+  String get accountDeletionSuccessMessage =>
+      'គណនីរបស់អ្នកត្រូវបានលុបជម្រះអចិន្ត្រៃយ៍។ សូមអរគុណដែលបានប្រើ TattsBid។';
+
+  @override
   String get settingsAccountDeleted => 'គណនីត្រូវបានលុប';
 
   @override

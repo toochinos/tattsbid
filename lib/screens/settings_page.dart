@@ -2,11 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/locale/app_locale_controller.dart';
-import '../core/navigation/link_handler.dart';
 import '../core/routes/app_routes.dart';
 import '../core/services/auth_service.dart';
 import '../core/theme/app_theme.dart';
@@ -162,92 +160,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _confirmDeleteAccount() async {
-    final supabase = Supabase.instance.client;
-
-    final session = supabase.auth.currentSession;
-
-    if (session == null) {
-      debugPrint('delete-user: no session');
-      return;
-    }
-
-    try {
-      await supabase.auth.refreshSession();
-      if (supabase.auth.currentSession == null) {
-        debugPrint('delete-user: no session after refresh');
-        return;
-      }
-
-      // Do not set Authorization manually: AuthHttpClient uses putIfAbsent, so a
-      // hand-set Bearer token blocks automatic refresh and can produce stale JWTs.
-      // The SDK attaches the current session JWT (and refreshes when needed).
-
-      // 1) Edge function deletes user while JWT is still valid
-      final response = await supabase.functions.invoke('delete-user');
-
-      if (response.status != 200) {
-        if (!mounted) return;
-        var reason = 'HTTP ${response.status}';
-        final data = response.data;
-        if (data is Map && data['error'] != null) {
-          reason = data['error'].toString();
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.settingsAccountDeleteFailed(reason),
-            ),
-          ),
-        );
-        return;
-      }
-
-      // 2) Clear session and return to login (only after successful delete)
-      await AuthService.signOutAndReturnToLogin();
-
-      debugPrint('delete-user: account deleted');
-
-      if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final root = LinkHandler.navigatorKey.currentContext;
-        if (root != null && root.mounted) {
-          final msg = AppLocalizations.of(root)?.settingsAccountDeleted ??
-              'Account deleted';
-          ScaffoldMessenger.of(root).showSnackBar(
-            SnackBar(content: Text(msg)),
-          );
-        }
-      });
-    } on FunctionException catch (e) {
-      if (!mounted) return;
-      final detail = e.details?.toString() ?? e.toString();
-      if (detail.contains('Invalid JWT')) {
-        debugPrint(
-          'delete-user: Supabase gateway rejected the JWT. If this persists, '
-          'deploy the function with verify_jwt disabled for this route (see '
-          'supabase/config.toml [functions.delete-user] verify_jwt = false) '
-          'then run: supabase functions deploy delete-user',
-        );
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppLocalizations.of(context)!.settingsAccountDeleteFailed(detail),
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppLocalizations.of(context)!.settingsAccountDeleteFailed(
-              e.toString(),
-            ),
-          ),
-        ),
-      );
-    }
+    if (!mounted) return;
+    await Navigator.of(context).pushNamed(AppRoutes.deleteAccount);
   }
 
   @override
@@ -381,7 +295,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    l10n.appVersionLabel('2.0.2'),
+                    l10n.appVersionLabel('2.0.7 (7)'),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.outline,
                     ),

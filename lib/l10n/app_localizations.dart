@@ -472,6 +472,54 @@ abstract class AppLocalizations {
   /// **'Delete Account'**
   String get settingsDeleteAccount;
 
+  /// No description provided for @deleteAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete account'**
+  String get deleteAccountTitle;
+
+  /// No description provided for @deleteAccountWarningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This action is permanent'**
+  String get deleteAccountWarningTitle;
+
+  /// No description provided for @deleteAccountWarningBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting your account will permanently remove your profile, tattoo listings, bids, promo posts, messages, reviews, favourites, uploaded images, and all other data linked to your account. This cannot be undone.'**
+  String get deleteAccountWarningBody;
+
+  /// No description provided for @deleteAccountTypePrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Type DELETE to confirm'**
+  String get deleteAccountTypePrompt;
+
+  /// No description provided for @deleteAccountTypeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'DELETE'**
+  String get deleteAccountTypeHint;
+
+  /// No description provided for @deleteAccountConfirmButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete my account'**
+  String get deleteAccountConfirmButton;
+
+  /// No description provided for @deleteAccountDeleting.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting your account…'**
+  String get deleteAccountDeleting;
+
+  /// No description provided for @accountDeletionSuccessMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account has been permanently deleted. Thank you for using TattsBid.'**
+  String get accountDeletionSuccessMessage;
+
   /// No description provided for @settingsAccountDeleted.
   ///
   /// In en, this message translates to:

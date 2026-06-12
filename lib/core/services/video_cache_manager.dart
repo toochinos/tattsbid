@@ -17,6 +17,14 @@ class VideoCacheManager {
     ),
   );
 
+  static Future<void> clearAll() async {
+    try {
+      await _cache.emptyCache();
+    } catch (e, st) {
+      debugPrint('VideoCacheManager.clearAll: $e\n$st');
+    }
+  }
+
   /// Fire-and-forget download into cache (e.g. next feed item). Never throws to caller.
   void downloadFile(String url) {
     final u = url.trim();

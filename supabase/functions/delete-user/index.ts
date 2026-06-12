@@ -1,11 +1,31 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
 
-const STORAGE_BUCKETS = ['avatars', 'posts', 'portfolio'] as const;
+const USER_PREFIX_BUCKETS = ['avatars', 'posts', 'portfolio'] as const;
+const MEDIA_BUCKETS = ['tattsagram', 'videos'] as const;
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type',
+};
 
 type SupabaseAdmin = ReturnType<typeof createClient>;
 
-/// Lists one "page" of a storage prefix and returns file paths (recurses into folders).
+type DeletionLog = {
+  step: string;
+  detail?: string;
+  count?: number;
+  ok?: boolean;
+};
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
 async function collectObjectPaths(
   supabase: SupabaseAdmin,
   bucket: string,
@@ -65,33 +85,284 @@ async function collectAllFilesUnderPrefix(
   return out;
 }
 
-async function removeUserStorage(supabase: SupabaseAdmin, userId: string) {
-  for (const bucket of STORAGE_BUCKETS) {
-    const paths = await collectAllFilesUnderPrefix(supabase, bucket, userId);
-    const batchSize = 100;
-    for (let i = 0; i < paths.length; i += batchSize) {
-      const batch = paths.slice(i, i + batchSize);
-      const { error } = await supabase.storage.from(bucket).remove(batch);
-      if (error) {
-        console.error(`storage remove ${bucket}:`, error.message);
-      }
-    }
+function storagePathFromPublicUrl(
+  publicUrl: string,
+  bucket: string,
+): string | null {
+  if (!publicUrl?.trim()) return null;
+  try {
+    const url = new URL(publicUrl.trim());
+    const marker = `/storage/v1/object/public/${bucket}/`;
+    const idx = url.pathname.indexOf(marker);
+    if (idx === -1) return null;
+    return decodeURIComponent(url.pathname.slice(idx + marker.length));
+  } catch {
+    return null;
   }
 }
 
-serve(async (req) => {
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+function addPath(
+  bucketPaths: Map<string, Set<string>>,
+  bucket: string,
+  path: string | null,
+) {
+  if (!path?.trim()) return;
+  if (!bucketPaths.has(bucket)) bucketPaths.set(bucket, new Set());
+  bucketPaths.get(bucket)!.add(path);
+}
+
+async function collectUserMediaPaths(
+  supabase: SupabaseAdmin,
+  userId: string,
+): Promise<Map<string, Set<string>>> {
+  const bucketPaths = new Map<string, Set<string>>();
+
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('avatar_url, portfolio_urls')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profileErr) {
+    console.error('profiles select:', profileErr.message);
+  } else if (profile) {
+    for (const bucket of ['avatars', 'posts', 'portfolio'] as const) {
+      addPath(
+        bucketPaths,
+        bucket,
+        storagePathFromPublicUrl(profile.avatar_url ?? '', bucket),
+      );
+    }
+
+    const portfolio = profile.portfolio_urls;
+    if (Array.isArray(portfolio)) {
+      for (const entry of portfolio) {
+        const url = typeof entry === 'string' ? entry : String(entry ?? '');
+        for (const bucket of ['portfolio', 'posts', 'avatars'] as const) {
+          addPath(bucketPaths, bucket, storagePathFromPublicUrl(url, bucket));
+        }
+      }
+    }
+  }
+
+  const { data: requests, error: requestsErr } = await supabase
+    .from('tattoo_requests')
+    .select('image_url')
+    .eq('user_id', userId);
+
+  if (requestsErr) {
+    console.error('tattoo_requests select:', requestsErr.message);
+  } else {
+    for (const row of requests ?? []) {
+      addPath(
+        bucketPaths,
+        'posts',
+        storagePathFromPublicUrl(row.image_url ?? '', 'posts'),
+      );
+    }
+  }
+
+  const { data: tattsagramPosts, error: tattsagramErr } = await supabase
+    .from('tattsagram_post')
+    .select('media_url, thumbnail_url, video_url')
+    .eq('user_id', userId);
+
+  if (tattsagramErr) {
+    console.error('tattsagram_post select:', tattsagramErr.message);
+  } else {
+    for (const row of tattsagramPosts ?? []) {
+      for (const bucket of MEDIA_BUCKETS) {
+        addPath(
+          bucketPaths,
+          bucket,
+          storagePathFromPublicUrl(row.media_url ?? '', bucket),
+        );
+        addPath(
+          bucketPaths,
+          bucket,
+          storagePathFromPublicUrl(row.thumbnail_url ?? '', bucket),
+        );
+        addPath(
+          bucketPaths,
+          bucket,
+          storagePathFromPublicUrl(row.video_url ?? '', bucket),
+        );
+      }
+    }
+  }
+
+  return bucketPaths;
+}
+
+/// Best-effort: never blocks account deletion on storage errors.
+async function removePathsBestEffort(
+  supabase: SupabaseAdmin,
+  bucket: string,
+  paths: string[],
+  log: DeletionLog[],
+): Promise<number> {
+  let removed = 0;
+  const batchSize = 100;
+  for (let i = 0; i < paths.length; i += batchSize) {
+    const batch = paths.slice(i, i + batchSize);
+    const { error } = await supabase.storage.from(bucket).remove(batch);
+    if (error) {
+      console.error(`storage remove ${bucket} (batch):`, error.message);
+      log.push({
+        step: 'storage_warning',
+        detail: `${bucket}: ${error.message}`,
+        ok: false,
+      });
+    } else {
+      removed += batch.length;
+    }
+  }
+  return removed;
+}
+
+async function removeUserStorageBestEffort(
+  supabase: SupabaseAdmin,
+  userId: string,
+  log: DeletionLog[],
+): Promise<void> {
+  const bucketPaths = await collectUserMediaPaths(supabase, userId);
+
+  for (const bucket of USER_PREFIX_BUCKETS) {
+    const prefixPaths = await collectAllFilesUnderPrefix(
+      supabase,
+      bucket,
+      userId,
+    );
+    if (!bucketPaths.has(bucket)) bucketPaths.set(bucket, new Set());
+    for (const path of prefixPaths) {
+      bucketPaths.get(bucket)!.add(path);
+    }
+  }
+
+  let totalRemoved = 0;
+  for (const [bucket, pathSet] of bucketPaths.entries()) {
+    const paths = [...pathSet];
+    if (!paths.length) continue;
+    const count = await removePathsBestEffort(supabase, bucket, paths, log);
+    totalRemoved += count;
+    log.push({ step: 'storage', detail: bucket, count, ok: true });
+  }
+
+  log.push({ step: 'storage_total', count: totalRemoved, ok: true });
+}
+
+async function deleteWhere(
+  supabase: SupabaseAdmin,
+  table: string,
+  filter: string,
+  log: DeletionLog[],
+): Promise<void> {
+  const { error, count } = await supabase
+    .from(table)
+    .delete({ count: 'exact' })
+    .or(filter);
+
+  if (error) {
+    console.error(`delete ${table}:`, error.message);
+    log.push({ step: `db_${table}`, detail: error.message, ok: false });
+  } else {
+    log.push({ step: `db_${table}`, count: count ?? 0, ok: true });
+  }
+}
+
+/// Explicit user-scoped DB cleanup before auth delete (safety net).
+async function purgeUserDatabaseRows(
+  supabase: SupabaseAdmin,
+  userId: string,
+  log: DeletionLog[],
+): Promise<void> {
+  await deleteWhere(
+    supabase,
+    'reviews',
+    `user_id.eq.${userId},artist_id.eq.${userId}`,
+    log,
   );
+  await deleteWhere(
+    supabase,
+    'tattsagram_likes',
+    `user_id.eq.${userId}`,
+    log,
+  );
+  await deleteWhere(
+    supabase,
+    'tattsagram_post',
+    `user_id.eq.${userId}`,
+    log,
+  );
+  await deleteWhere(
+    supabase,
+    'live_messages',
+    `user_id.eq.${userId}`,
+    log,
+  );
+  await deleteWhere(
+    supabase,
+    'live_online',
+    `user_id.eq.${userId}`,
+    log,
+  );
+  await deleteWhere(
+    supabase,
+    'online_users',
+    `user_id.eq.${userId}`,
+    log,
+  );
+  await deleteWhere(
+    supabase,
+    'chat_messages',
+    `sender_id.eq.${userId},receiver_id.eq.${userId}`,
+    log,
+  );
+  await deleteWhere(
+    supabase,
+    'contact_unlocks',
+    `user_id.eq.${userId},artist_id.eq.${userId}`,
+    log,
+  );
+  await deleteWhere(
+    supabase,
+    'bids',
+    `bidder_id.eq.${userId}`,
+    log,
+  );
+  await deleteWhere(
+    supabase,
+    'tattoo_requests',
+    `user_id.eq.${userId}`,
+    log,
+  );
+  await deleteWhere(supabase, 'profiles', `id.eq.${userId}`, log);
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('delete-user: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    return jsonResponse(
+      { error: 'Server misconfigured: missing service role credentials' },
+      500,
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
 
   if (!token) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 
   const {
@@ -100,42 +371,41 @@ serve(async (req) => {
   } = await supabase.auth.getUser(token);
 
   if (userErr || !user) {
-    return new Response(JSON.stringify({ error: 'Invalid user' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    console.error('delete-user: invalid token', userErr?.message);
+    return jsonResponse({ error: 'Invalid user' }, 401);
   }
 
   const userId = user.id;
+  const log: DeletionLog[] = [];
+
+  console.log(`delete-user: start userId=${userId} email=${user.email ?? ''}`);
 
   try {
-    await removeUserStorage(supabase, userId);
+    await removeUserStorageBestEffort(supabase, userId, log);
+    await purgeUserDatabaseRows(supabase, userId, log);
+
+    const { error: delErr } = await supabase.auth.admin.deleteUser(userId);
+
+    if (delErr) {
+      console.error('delete-user: auth delete failed', delErr.message);
+      return jsonResponse(
+        {
+          error: delErr.message ?? 'Failed to delete auth user',
+          step: 'auth',
+          userId,
+          log,
+        },
+        500,
+      );
+    }
+
+    log.push({ step: 'auth', ok: true });
+    console.log(`delete-user: success userId=${userId}`, JSON.stringify(log));
+
+    return jsonResponse({ success: true, userId, log });
   } catch (e) {
-    console.error('removeUserStorage:', e);
+    const message = e instanceof Error ? e.message : String(e);
+    console.error('delete-user: unexpected error', message);
+    return jsonResponse({ error: message, step: 'unexpected', log }, 500);
   }
-
-  const { error: reviewsErr } = await supabase
-    .from('reviews')
-    .delete()
-    .or(`user_id.eq.${userId},artist_id.eq.${userId}`);
-
-  if (reviewsErr) {
-    console.error('reviews delete (table may be absent):', reviewsErr.message);
-  }
-
-  const { error: delErr } = await supabase.auth.admin.deleteUser(userId);
-
-  if (delErr) {
-    return new Response(
-      JSON.stringify({ error: delErr.message ?? 'Failed to delete user' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      },
-    );
-  }
-
-  return new Response(JSON.stringify({ success: true }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
 });
