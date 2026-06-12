@@ -7,6 +7,26 @@ class AppConstants {
 
   static const String appName = 'SaaS App';
 
+  /// Public web links shared from the app (universal links / marketing).
+  static const String tattsbidWebBaseUrl = 'https://tattsbid.com';
+
+  /// OG preview origin for link shares (Facebook reads og:image from this page).
+  /// Override with `--dart-define=TATTOO_SHARE_PREVIEW_ORIGIN=https://tattsbid.com/tattoo`
+  /// once that path serves the same HTML as [tattooSharePreviewFunctionUrl].
+  static const String tattooSharePreviewOrigin = String.fromEnvironment(
+    'TATTOO_SHARE_PREVIEW_ORIGIN',
+    defaultValue:
+        'https://ikkfdwjmqujgkokpqhez.supabase.co/functions/v1/tattoo-share',
+  );
+
+  /// Share link with Open Graph image metadata for Facebook / Messenger.
+  static String tattooShareUrl(String requestId) =>
+      '${tattooSharePreviewOrigin.replaceAll(RegExp(r'/+$'), '')}/${requestId.trim()}';
+
+  /// Canonical tattoo page on the marketing domain (app deep links / universal links).
+  static String tattooCanonicalUrl(String requestId) =>
+      '$tattsbidWebBaseUrl/tattoo/${requestId.trim()}';
+
   /// Default HTTP API origin (no `/api/...` suffix). Override with
   /// `--dart-define=API_URL=...` when building or running.
   ///
@@ -59,5 +79,4 @@ class AppConstants {
   /// Direct Stripe Checkout link for Pro Max subscription.
   static const String stripeProMaxCheckoutUrl =
       'https://buy.stripe.com/dRmeV5eJt8krauz5D76EU00';
-
 }

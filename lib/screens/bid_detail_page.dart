@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,6 +23,8 @@ import 'promo_page.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/safe_media_renderer.dart';
 import '../widgets/user_name_with_role.dart';
+import '../core/utils/share_utils.dart';
+import '../core/utils/tattoo_share_card.dart';
 import '../core/utils/user_type_utils.dart';
 
 /// Detail page for a tattoo request. Shows image and description.
@@ -71,6 +74,8 @@ class _BidDetailPageState extends State<BidDetailPage>
   UserProfile? _winnerArtistProfile;
   UserProfile? _posterProfile;
 
+  final GlobalKey _shareButtonKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -117,6 +122,47 @@ class _BidDetailPageState extends State<BidDetailPage>
     final profile = await ProfileService.getProfileByUserId(_request.userId);
     if (!mounted) return;
     setState(() => _posterProfile = profile);
+  }
+
+  Future<void> shareTattoo() async {
+    const shareText = 'TattsBid 🔥  www.tattsbid.com';
+    final artist = _posterDisplayName(_request);
+    final artistLabel = artist.isNotEmpty ? artist : 'Tattoo artist';
+
+    try {
+      final cardFile = await buildTattooShareCardFile(
+        TattooShareCardData(
+          imageUrl: _request.imageUrl,
+          artist: artistLabel,
+          price: _request.startingBid,
+        ),
+        basename: 'tattoo_${_request.id}',
+      );
+
+      if (cardFile == null) {
+        await shareTextWithAnchor(
+          anchorKey: _shareButtonKey,
+          text: shareText,
+        );
+        return;
+      }
+
+      // Image only — Facebook drops the photo when text/URLs are also shared.
+      // Artist, price, and www.tattsbid.com are drawn on the card image.
+      await shareImageFilesWithAnchor(
+        anchorKey: _shareButtonKey,
+        files: [cardFile],
+        fileNameOverrides: ['tattsbid_share.png'],
+      );
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('shareTattoo failed: $e\n$st');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open share sheet')),
+      );
+    }
   }
 
   /// Reads [SupabaseProfiles.role] for the signed-in user; on error or missing
@@ -835,7 +881,35 @@ class _BidDetailPageState extends State<BidDetailPage>
             // Image
             AspectRatio(
               aspectRatio: 1,
-              child: SafeMediaRenderer(url: request.imageUrl),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  SafeMediaRenderer(url: request.imageUrl),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Material(
+                      key: _shareButtonKey,
+                      color: Colors.black54,
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: IconButton(
+                        onPressed: () => unawaited(shareTattoo()),
+                        icon: const Icon(
+                          Icons.share_outlined,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(
+                          minWidth: 44,
+                          minHeight: 44,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             Padding(
               padding: EdgeInsets.only(

@@ -320,6 +320,81 @@ app.get('/cancel', (req, res) => {
   res.send('Payment cancelled.');
 });
 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Open Graph preview for tattoo shares (Facebook / link previews). */
+app.get('/tattoo/:id', async (req, res) => {
+  const requestId = String(req.params.id || '').trim();
+  if (!requestId || !supabase) {
+    res.status(requestId ? 503 : 404).send('Not found');
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('tattoo_requests')
+    .select('id, image_url, starting_bid')
+    .eq('id', requestId)
+    .maybeSingle();
+
+  if (error || !data) {
+    res.status(404).send('Not found');
+    return;
+  }
+
+  const imageUrl = String(data.image_url || '').trim();
+  const sharePageUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  const appDeepLink = `tattsbid://tattoo/${requestId}`;
+  const userAgent = String(req.get('user-agent') || '');
+  const crawler = /facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|slackbot|discordbot|telegrambot|pinterest|googlebot/i.test(
+    userAgent,
+  );
+  const redirectTag = crawler
+    ? ''
+    : `<meta http-equiv="refresh" content="0;url=${escapeHtml(appDeepLink)}" />`;
+  const title = 'Tattoo listing on TattsBid';
+  const bid = data.starting_bid != null ? String(data.starting_bid) : '';
+  const description =
+    bid !== ''
+      ? `Starting bid $${bid} — bid on TattsBid`
+      : 'Bid on this tattoo on TattsBid';
+  const ogImage =
+    imageUrl.startsWith('http') ? imageUrl : 'https://tattsbid.com/logo.png';
+
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=300');
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(title)}</title>
+<meta name="description" content="${escapeHtml(description)}" />
+<meta property="og:title" content="${escapeHtml(title)}" />
+<meta property="og:description" content="${escapeHtml(description)}" />
+<meta property="og:site_name" content="TattsBid" />
+<meta property="og:image" content="${escapeHtml(ogImage)}" />
+<meta property="og:image:secure_url" content="${escapeHtml(ogImage)}" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="${escapeHtml(sharePageUrl)}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${escapeHtml(title)}" />
+<meta name="twitter:description" content="${escapeHtml(description)}" />
+<meta name="twitter:image" content="${escapeHtml(ogImage)}" />
+${redirectTag}
+</head>
+<body>
+<p><a href="${escapeHtml(appDeepLink)}">Open in TattsBid</a></p>
+<img src="${escapeHtml(ogImage)}" alt="Tattoo listing" style="max-width:100%;height:auto;" />
+</body>
+</html>`);
+});
+
 app.listen(4000, '0.0.0.0', () => {
   console.log('Server running on port 4000');
 });

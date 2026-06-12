@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../routes/app_routes.dart';
+import '../services/tattoo_request_service.dart';
+import '../../screens/bid_detail_page.dart';
 
-/// Handles incoming app links (Stripe checkout success/cancel redirects).
+/// Handles incoming app links (tattoo listings, Stripe checkout redirects).
 class LinkHandler {
   LinkHandler._();
 
@@ -65,6 +67,12 @@ class LinkHandler {
     final nav = navigatorKey.currentState;
     if (nav == null) return;
 
+    final tattooRequestId = _tattooRequestIdFromUri(uri);
+    if (tattooRequestId != null && tattooRequestId.isNotEmpty) {
+      unawaited(_openTattooListing(tattooRequestId));
+      return;
+    }
+
     if (_isCheckoutSuccess(uri)) {
       final sessionId = uri.queryParameters['session_id'];
       final kind = uri.queryParameters['kind'] ?? 'subscription';
@@ -84,6 +92,48 @@ class LinkHandler {
       }
     } else if (_isCheckoutCancel(uri)) {
       nav.pushNamed(AppRoutes.checkoutCancel);
+    }
+  }
+
+  /// `https://tattsbid.com/tattoo/{id}`, `.../tattoo-share/{id}`, or `tattsbid://tattoo/{id}`.
+  static String? _tattooRequestIdFromUri(Uri uri) {
+    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    if (segments.length >= 2 && segments[0] == 'tattoo') {
+      return segments[1];
+    }
+    final tattooShareIdx = segments.indexOf('tattoo-share');
+    if (tattooShareIdx >= 0 && tattooShareIdx + 1 < segments.length) {
+      return segments[tattooShareIdx + 1];
+    }
+    final fromQuery =
+        uri.queryParameters['id'] ?? uri.queryParameters['request_id'];
+    if (fromQuery != null && fromQuery.trim().isNotEmpty) {
+      return fromQuery.trim();
+    }
+    if (uri.scheme == 'tattsbid' &&
+        uri.host == 'tattoo' &&
+        segments.isNotEmpty) {
+      return segments.first;
+    }
+    return null;
+  }
+
+  static Future<void> _openTattooListing(String requestId) async {
+    final nav = navigatorKey.currentState;
+    if (nav == null || !nav.mounted) return;
+
+    try {
+      final request = await TattooRequestService.fetchRequestById(requestId);
+      if (request == null || !nav.mounted) return;
+      await nav.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => BidDetailPage(request: request),
+        ),
+      );
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[LinkHandler] tattoo deep link failed: $e\n$st');
+      }
     }
   }
 

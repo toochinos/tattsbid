@@ -7,3 +7,8 @@ entrypoint = "./functions/delete-user/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/admin-purge-profile/index.ts"
+
+[functions.tattoo-share]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/tattoo-share/index.ts"
