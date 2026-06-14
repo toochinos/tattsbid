@@ -682,8 +682,7 @@ class _RequestCardState extends State<_RequestCard> {
 
   /// Customers delete own job posts; artists delete own promo posts.
   bool get _canDelete =>
-      _isOwner &&
-      (widget.userType != 'tattoo_artist' || _showPromoBadge);
+      _isOwner && (widget.userType != 'tattoo_artist' || _showPromoBadge);
 
   bool get _showBidsBadge =>
       request.status != 'completed' &&

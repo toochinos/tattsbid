@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -12,13 +13,17 @@ import 'package:share_plus/share_plus.dart';
 class TattooShareCardData {
   const TattooShareCardData({
     required this.imageUrl,
-    required this.artist,
+    required this.posterName,
     required this.price,
+    this.isArtistPost = false,
   });
 
   final String imageUrl;
-  final String artist;
+  final String posterName;
   final double price;
+
+  /// Artist promo / bid card — original share footer. Customer job post otherwise.
+  final bool isArtistPost;
 }
 
 String formatTattooSharePrice(double price) {
@@ -59,28 +64,66 @@ Future<Uint8List?> _renderShareCardPng(TattooShareCardData data) async {
     const imageHeight = cardWidth;
     const footerPadding = 48.0;
     const lineGap = 12.0;
-    const bodySize = 42.0;
-    const brandSize = 48.0;
+    final bodySize = data.isArtistPost ? 42.0 : 38.0;
+    final brandSize = data.isArtistPost ? 48.0 : 40.0;
 
-    final artistLabel =
-        data.artist.trim().isNotEmpty ? data.artist.trim() : 'Tattoo artist';
+    final posterLabel = data.posterName.trim().isNotEmpty
+        ? data.posterName.trim()
+        : (data.isArtistPost ? 'Tattoo artist' : 'A customer');
     final priceLabel = formatTattooSharePrice(data.price);
 
     const brandUrl = 'www.tattsbid.com';
-    final lines = <_ShareCardLine>[
-      _ShareCardLine('Artist: $artistLabel', bodySize, FontWeight.w600),
-      _ShareCardLine('Price: $priceLabel', bodySize, FontWeight.w600),
-      _ShareCardLine('Available on', bodySize, FontWeight.w500),
-    ];
+    final lines = data.isArtistPost
+        ? <_ShareCardLine>[
+            _ShareCardLine('Artist: $posterLabel', bodySize, FontWeight.w600),
+            _ShareCardLine('Price: $priceLabel', bodySize, FontWeight.w600),
+            _ShareCardLine('Available on', bodySize, FontWeight.w500),
+          ]
+        : <_ShareCardLine>[
+            _ShareCardLine(posterLabel, bodySize, FontWeight.w700),
+            _ShareCardLine(
+              'has a budget of $priceLabel for this tattoo.',
+              bodySize,
+              FontWeight.w600,
+            ),
+            _ShareCardLine(
+              'Looking for a tattoo Artist to do the job.',
+              bodySize,
+              FontWeight.w600,
+            ),
+            _ShareCardLine('Available on', bodySize, FontWeight.w500),
+          ];
 
-    final textMaxWidth = cardWidth - footerPadding * 2;
-    final brandLineHeight = _measureBrandLineHeight(textMaxWidth, brandSize);
+    const logoHeight = 420.0;
+    const logoPadding = 24.0;
+    const logoVerticalAnchor = 0.68;
+    final logo = await _loadShareLogoImage();
+    final logoWidth = logo != null
+        ? logoHeight * (logo.width / logo.height)
+        : 0.0;
 
-    double footerHeight = footerPadding * 2;
+    final fullTextWidth = cardWidth - footerPadding * 2;
+    final textMaxWidth = logo != null
+        ? (fullTextWidth - logoWidth - logoPadding).clamp(280.0, fullTextWidth)
+        : fullTextWidth;
+
+    double lineBlockHeight = 0;
     for (final line in lines) {
-      footerHeight += line.height + lineGap;
+      lineBlockHeight += _measureLineHeight(line, textMaxWidth) + lineGap;
     }
-    footerHeight += brandLineHeight;
+    if (lines.isNotEmpty) lineBlockHeight -= lineGap;
+
+    final brandLineHeight = _measureBrandLineHeight(textMaxWidth, brandSize);
+    var footerHeight = footerPadding * 2 + lineBlockHeight + brandLineHeight;
+
+    if (logo != null) {
+      final logoBottom =
+          imageHeight - logoHeight * logoVerticalAnchor + logoHeight;
+      final minFooterForLogo = logoBottom - imageHeight + footerPadding;
+      if (minFooterForLogo > footerHeight) {
+        footerHeight = minFooterForLogo;
+      }
+    }
 
     final cardHeight = imageHeight + footerHeight;
     final recorder = ui.PictureRecorder();
@@ -110,11 +153,36 @@ Future<Uint8List?> _renderShareCardPng(TattooShareCardData data) async {
 
     var y = imageHeight + footerPadding;
     for (final line in lines) {
+      final lineHeight = _measureLineHeight(line, textMaxWidth);
       _paintShareLine(canvas, line, footerPadding, y, textMaxWidth);
-      y += line.height + lineGap;
+      y += lineHeight + lineGap;
     }
     _paintBrandLine(
-        canvas, footerPadding, y, textMaxWidth, brandSize, brandUrl);
+      canvas,
+      footerPadding,
+      y,
+      textMaxWidth,
+      brandSize,
+      brandUrl,
+    );
+
+    if (logo != null) {
+      try {
+        paintImage(
+          canvas: canvas,
+          rect: Rect.fromLTWH(
+            cardWidth - logoWidth - logoPadding,
+            imageHeight - logoHeight * logoVerticalAnchor,
+            logoWidth,
+            logoHeight,
+          ),
+          image: logo,
+          fit: BoxFit.contain,
+        );
+      } finally {
+        logo.dispose();
+      }
+    }
 
     canvas.drawRect(
       Rect.fromLTWH(0, 0, cardWidth, cardHeight),
@@ -143,18 +211,10 @@ class _ShareCardLine {
   final String text;
   final double fontSize;
   final FontWeight weight;
-
-  double get height => fontSize * 1.25;
 }
 
-void _paintShareLine(
-  Canvas canvas,
-  _ShareCardLine line,
-  double left,
-  double top,
-  double maxWidth,
-) {
-  final painter = TextPainter(
+TextPainter _linePainter(_ShareCardLine line, double maxWidth) {
+  return TextPainter(
     text: TextSpan(
       text: line.text,
       style: TextStyle(
@@ -165,11 +225,23 @@ void _paintShareLine(
       ),
     ),
     textDirection: TextDirection.ltr,
-    maxLines: 2,
+    maxLines: 4,
     ellipsis: '…',
   )..layout(maxWidth: maxWidth);
+}
 
-  painter.paint(canvas, Offset(left, top));
+double _measureLineHeight(_ShareCardLine line, double maxWidth) {
+  return _linePainter(line, maxWidth).height;
+}
+
+void _paintShareLine(
+  Canvas canvas,
+  _ShareCardLine line,
+  double left,
+  double top,
+  double maxWidth,
+) {
+  _linePainter(line, maxWidth).paint(canvas, Offset(left, top));
 }
 
 TextPainter _brandLinePainter(double maxWidth, double fontSize, String url) {
@@ -218,4 +290,15 @@ void _paintBrandLine(
 ) {
   final painter = _brandLinePainter(maxWidth, fontSize, url);
   painter.paint(canvas, Offset(left, top));
+}
+
+Future<ui.Image?> _loadShareLogoImage() async {
+  try {
+    final data = await rootBundle.load('assets/tattsbid_share_logo.png');
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  } catch (_) {
+    return null;
+  }
 }

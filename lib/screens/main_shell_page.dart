@@ -454,10 +454,7 @@ class _MainShellPageState extends State<MainShellPage> {
   /// Opens [BidDetailPage] from the Explore stack (no dedicated Bid tab).
   void _navigateToBidTab(TattooRequest request) {
     setState(() => _currentIndex = 0);
-    // Refresh profile so [BidDetailPage] has up-to-date role; eligibility also
-    // re-fetched there via [BidService.isCurrentUserTattooArtist].
-    Future<void>(() async {
-      await _loadProfile();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _exploreNavKey.currentState?.push(
         MaterialPageRoute<void>(
@@ -467,6 +464,7 @@ class _MainShellPageState extends State<MainShellPage> {
         ),
       );
     });
+    unawaited(_loadProfile());
   }
 
   void _openSettings() {

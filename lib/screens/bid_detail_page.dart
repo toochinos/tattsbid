@@ -125,16 +125,31 @@ class _BidDetailPageState extends State<BidDetailPage>
   }
 
   Future<void> shareTattoo() async {
-    const shareText = 'TattsBid 🔥  www.tattsbid.com';
-    final artist = _posterDisplayName(_request);
-    final artistLabel = artist.isNotEmpty ? artist : 'Tattoo artist';
+    final posterName = _posterDisplayName(_request);
+    final isArtistPost = _isPromoPost;
+    final price = _request.startingBid;
+    final priceLabel = price == price.roundToDouble()
+        ? '\$${price.toStringAsFixed(0)}'
+        : '\$${price.toStringAsFixed(2)}';
+
+    final posterLabel = posterName.isNotEmpty
+        ? posterName
+        : (isArtistPost ? 'Tattoo artist' : 'A customer');
+
+    final shareText = isArtistPost
+        ? 'TattsBid 🔥  www.tattsbid.com'
+        : '$posterLabel\n'
+            'has a budget of $priceLabel for this tattoo. '
+            'Looking for a tattoo Artist to do the job. '
+            'Available on TattsBid 🔥  www.tattsbid.com';
 
     try {
       final cardFile = await buildTattooShareCardFile(
         TattooShareCardData(
           imageUrl: _request.imageUrl,
-          artist: artistLabel,
+          posterName: posterLabel,
           price: _request.startingBid,
+          isArtistPost: isArtistPost,
         ),
         basename: 'tattoo_${_request.id}',
       );
