@@ -631,7 +631,7 @@
   "chatNoContactYet": "No phone or email on file yet.",
   "chatUnknownUser": "User",
   "chatInboxEmptyTitle": "No conversations yet",
-  "chatInboxEmptyBody": "Chats from Explore (customer messages first) appear here. After you pay the deposit on your winning bid, this screen shows your artist’s contact details and a button to start messaging.",
+  "chatInboxEmptyBody": "Start a chat from a job or promo detail page — your conversations with artists and customers will appear here.",
   "chatInboxUnlockTitle": "Pay to unlock messaging",
   "chatInboxUnlockBody": "Complete the deposit from your request’s winning bid to unlock artist contact and chat.",
   "chatPaidArtistBlurbLong": "Deposit paid — you can message your artist or use their contact details below.",

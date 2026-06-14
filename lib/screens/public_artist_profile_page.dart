@@ -29,8 +29,7 @@ class PublicArtistProfilePage extends StatefulWidget {
 
   /// When true (Artists tab list → profile), email/phone in the Contact block are hidden
   /// (browse-only). The “Chat with Artist” button above Reviews still opens [ChatPage].
-  /// When false, Contact details also require a paid relationship for customers
-  /// (see [ChatService.customerHasPaidDepositWithArtist]).
+  /// When false, chat is available without a deposit payment.
   final bool fromArtistsDirectory;
 
   static bool isPublicProfileRoute(Route<dynamic> route) {
@@ -110,13 +109,8 @@ class _PublicArtistProfilePageState extends State<PublicArtistProfilePage> {
         allowContact = false;
       } else if (p != null) {
         final uid = Supabase.instance.client.auth.currentUser?.id;
-        final my = await ProfileService.getCurrentProfile();
-        if (uid != null &&
-            uid != widget.userId &&
-            my?.userType == 'customer' &&
-            p.userType == 'tattoo_artist') {
-          allowContact =
-              await ChatService.customerHasPaidDepositWithArtist(widget.userId);
+        if (uid != null && uid != widget.userId) {
+          allowContact = true;
         }
       }
       if (!mounted) return;

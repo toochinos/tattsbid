@@ -23,6 +23,7 @@ import 'promo_page.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/safe_media_renderer.dart';
 import '../widgets/user_name_with_role.dart';
+import '../core/utils/bid_card_action_rules.dart';
 import '../core/utils/share_utils.dart';
 import '../core/utils/tattoo_share_card.dart';
 import '../core/utils/user_type_utils.dart';
@@ -35,9 +36,13 @@ class BidDetailPage extends StatefulWidget {
   const BidDetailPage({
     super.key,
     required this.request,
+    this.openPlaceBidOnLoad = false,
   });
 
   final TattooRequest request;
+
+  /// When true, opens the place-bid dialog after profile role loads if eligible.
+  final bool openPlaceBidOnLoad;
 
   @override
   State<BidDetailPage> createState() => _BidDetailPageState();
@@ -75,6 +80,8 @@ class _BidDetailPageState extends State<BidDetailPage>
   UserProfile? _posterProfile;
 
   final GlobalKey _shareButtonKey = GlobalKey();
+
+  bool _didAutoOpenPlaceBid = false;
 
   @override
   void initState() {
@@ -225,6 +232,7 @@ class _BidDetailPageState extends State<BidDetailPage>
         _legacyTattooArtist = legacy;
         _viewerUserType = viewerUt?.isEmpty == true ? null : viewerUt;
       });
+      _maybeAutoOpenPlaceBid();
       await _loadUnlock();
     } catch (e, st) {
       debugPrint('BidDetailPage _loadProfileRole: $e\n$st');
@@ -266,6 +274,7 @@ class _BidDetailPageState extends State<BidDetailPage>
         _legacyTattooArtist = legacy;
         _viewerUserType = ut?.trim().isEmpty == true ? null : ut?.trim();
       });
+      _maybeAutoOpenPlaceBid();
     } catch (e2, st2) {
       debugPrint('BidDetailPage _loadProfileRoleFallback: $e2\n$st2');
       final legacy = await BidService.isCurrentUserTattooArtist();
@@ -276,8 +285,22 @@ class _BidDetailPageState extends State<BidDetailPage>
         _legacyTattooArtist = legacy;
         _viewerUserType = null;
       });
+      _maybeAutoOpenPlaceBid();
     }
     if (mounted) await _loadUnlock();
+  }
+
+  void _maybeAutoOpenPlaceBid() {
+    if (!widget.openPlaceBidOnLoad ||
+        _didAutoOpenPlaceBid ||
+        _profileRoleLoading) {
+      return;
+    }
+    if (!_canSubmitBid) return;
+    _didAutoOpenPlaceBid = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_showPlaceBidDialog());
+    });
   }
 
   /// Request owner who is not a tattoo artist (customers only for unlock UI).
@@ -394,24 +417,19 @@ class _BidDetailPageState extends State<BidDetailPage>
   /// Bidding only while the request is [open]. Closed after winner / payment.
   bool get _biddingOpen => _request.status == 'open';
 
-  /// Base visibility rules for the Bid button.
-  bool get _bidButtonBaseEligible => !_profileRoleLoading && _biddingOpen;
+  BidCardActionRules get _actionRules => BidCardActionRules.from(
+        posterUserType: _request.posterUserType ?? _posterProfile?.userType,
+        isOwner: _isOwner,
+        requestStatus: _request.status,
+        profileRoleLoading: _profileRoleLoading,
+        isViewerArtist: _isViewerArtist,
+      );
 
-  /// Artists bid on customer jobs; customers bid on artist promos — not own posts.
-  bool get _showBidButton {
-    if (!_bidButtonBaseEligible || _isOwner || _profileRoleLoading) {
-      return false;
-    }
-    if (_isPromoPost) return !_isViewerArtist;
-    return _isViewerArtist;
-  }
+  bool get _showBidButton => _actionRules.showBidButton;
 
-  /// Artists can message the customer on job posts (not promos).
-  bool get _showCustomerChatButton =>
-      !_profileRoleLoading &&
-      !_isOwner &&
-      !_isPromoPost &&
-      (_userRole == 'artist' || (_userRole == null && _legacyTattooArtist));
+  bool get _canSubmitBid => _actionRules.canSubmitBid;
+
+  bool get _showPosterChatButton => _actionRules.showChat;
 
   /// Role `artist`: show tools entry — does not open the bid dialog.
   bool get _showArtistToolsButton =>
@@ -420,11 +438,11 @@ class _BidDetailPageState extends State<BidDetailPage>
       _biddingOpen &&
       !_isOwner;
 
-  /// Matches [_showBidButton] — used before submitting a bid.
-  bool get _canSubmitBid => _showBidButton;
-
-  bool get _isViewerArtist =>
-      _userRole == 'artist' || (_userRole == null && _legacyTattooArtist);
+  bool get _isViewerArtist => BidCardActionRules.resolveViewerIsArtist(
+        profileRole: _userRole,
+        profileUserType: _viewerUserType,
+        legacyTattooArtist: _legacyTattooArtist,
+      );
 
   bool get _isPromoPost =>
       canonicalUserType(
@@ -433,8 +451,10 @@ class _BidDetailPageState extends State<BidDetailPage>
       'tattoo_artist';
 
   /// Chat with the promo artist (not on your own promo).
-  bool get _showPromoChatButton =>
-      _isPromoPost && !_profileRoleLoading && !_isOwner;
+  bool get _showPromoChatButton => _isPromoPost && _showPosterChatButton;
+
+  /// Chat with the customer on job posts (not promos).
+  bool get _showCustomerChatButton => !_isPromoPost && _showPosterChatButton;
 
   bool get _isOwner {
     final user = Supabase.instance.client.auth.currentUser;
@@ -1004,24 +1024,6 @@ class _BidDetailPageState extends State<BidDetailPage>
                                         size: 18),
                                     label: Text(l10n.bidDetailChat),
                                   ),
-                                if (_showPromoChatButton && _showBidButton)
-                                  const SizedBox(width: 8),
-                                if (_showBidButton)
-                                  FilledButton.icon(
-                                    onPressed: _showPlaceBidDialog,
-                                    style: FilledButton.styleFrom(
-                                      visualDensity: VisualDensity.compact,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                    ),
-                                    icon: const Icon(Icons.gavel, size: 18),
-                                    label: Text(l10n.bidDetailBid),
-                                  ),
-                                if (_showCustomerChatButton &&
-                                    (_showPromoChatButton || _showBidButton))
-                                  const SizedBox(width: 8),
                                 if (_showCustomerChatButton)
                                   FilledButton.tonalIcon(
                                     onPressed: _openChatWithCustomer,
@@ -1035,6 +1037,23 @@ class _BidDetailPageState extends State<BidDetailPage>
                                     icon: const Icon(Icons.chat_bubble_outline,
                                         size: 18),
                                     label: Text(l10n.bidDetailChat),
+                                  ),
+                                if ((_showPromoChatButton ||
+                                        _showCustomerChatButton) &&
+                                    _showBidButton)
+                                  const SizedBox(width: 8),
+                                if (_showBidButton)
+                                  FilledButton.icon(
+                                    onPressed: _showPlaceBidDialog,
+                                    style: FilledButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.gavel, size: 18),
+                                    label: Text(l10n.bidDetailBid),
                                   ),
                               ],
                             ),

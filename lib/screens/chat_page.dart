@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/supabase_schema.dart';
 import '../core/models/chat_conversation_summary.dart';
 import '../core/models/chat_message.dart';
-import '../core/models/paid_artist_contact.dart';
 import '../core/services/chat_service.dart';
 import '../core/services/message_indicator_service.dart';
 import '../core/utils/user_type_utils.dart';
@@ -42,7 +41,6 @@ class _ChatPageState extends State<ChatPage> {
   String? _receiverEmail;
   String? _receiverMobile;
   List<ChatConversationSummary> _conversations = [];
-  List<PaidArtistContact> _paidArtistContacts = [];
   bool _loadingConversations = false;
   String? _conversationsError;
 
@@ -85,14 +83,10 @@ class _ChatPageState extends State<ChatPage> {
       _conversationsError = null;
     });
     try {
-      final results = await Future.wait([
-        ChatService.fetchConversationSummaries(),
-        ChatService.fetchPaidArtistContactsForCustomer(),
-      ]);
+      final conversations = await ChatService.fetchConversationSummaries();
       if (!mounted) return;
       setState(() {
-        _conversations = results[0] as List<ChatConversationSummary>;
-        _paidArtistContacts = results[1] as List<PaidArtistContact>;
+        _conversations = conversations;
         _loadingConversations = false;
       });
       await MessageIndicatorService.refresh();
@@ -109,17 +103,6 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {
       _receiverId = row.partnerId;
       _partnerDisplayName = row.title;
-      _loading = true;
-      _messages = [];
-      _error = null;
-    });
-    _loadMessages();
-  }
-
-  void _openChatWithPaidArtist(PaidArtistContact contact) {
-    setState(() {
-      _receiverId = contact.artistUserId;
-      _partnerDisplayName = contact.displayName;
       _loading = true;
       _messages = [];
       _error = null;
@@ -400,40 +383,6 @@ class _ChatPageState extends State<ChatPage> {
         ),
       );
     }
-    if (_conversations.isEmpty && _paidArtistContacts.isNotEmpty) {
-      return RefreshIndicator(
-        onRefresh: _loadConversations,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          children: [
-            Text(
-              l10n.chatYourArtist,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.chatPaidArtistBlurbLong,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-            ),
-            const SizedBox(height: 20),
-            ..._paidArtistContacts.map(
-              (c) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _PaidArtistContactCard(
-                  contact: c,
-                  onMessageArtist: () => _openChatWithPaidArtist(c),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
     if (_conversations.isEmpty) {
       return RefreshIndicator(
         onRefresh: _loadConversations,
@@ -463,90 +412,19 @@ class _ChatPageState extends State<ChatPage> {
                   ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 20),
-            Text(
-              l10n.chatInboxUnlockTitle,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              l10n.chatInboxUnlockBody,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-              textAlign: TextAlign.center,
-            ),
           ],
         ),
       );
     }
 
-    final paid = _paidArtistContacts;
-    final items = <Widget>[];
-    if (paid.isNotEmpty) {
-      items.add(
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.chatYourArtist,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                l10n.chatPaidArtistBlurbShort,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      );
-      for (final c in paid) {
-        items.add(
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: _PaidArtistContactCard(
-              contact: c,
-              onMessageArtist: () => _openChatWithPaidArtist(c),
-            ),
-          ),
-        );
-      }
-      items.add(const Divider(height: 24));
-      items.add(
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-          child: Text(
-            l10n.chatConversationsSection,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-        ),
-      );
-    }
-
-    for (var i = 0; i < _conversations.length; i++) {
-      items.add(_conversationListTile(_conversations[i]));
-      if (i < _conversations.length - 1) {
-        items.add(const Divider(height: 1));
-      }
-    }
-
     return RefreshIndicator(
       onRefresh: _loadConversations,
-      child: ListView(
-        padding: EdgeInsets.symmetric(vertical: paid.isNotEmpty ? 4 : 8),
-        children: items,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _conversations.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) =>
+            _conversationListTile(_conversations[index]),
       ),
     );
   }
@@ -845,100 +723,6 @@ class _ChatPageState extends State<ChatPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.send),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PaidArtistContactCard extends StatelessWidget {
-  const _PaidArtistContactCard({
-    required this.contact,
-    required this.onMessageArtist,
-  });
-
-  final PaidArtistContact contact;
-  final VoidCallback onMessageArtist;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final scheme = Theme.of(context).colorScheme;
-    final avatar = contact.avatarUrl;
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: scheme.outline.withValues(alpha: 0.28)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: scheme.primaryContainer,
-                  backgroundImage: avatar != null && avatar.isNotEmpty
-                      ? NetworkImage(avatar)
-                      : null,
-                  child: avatar == null || avatar.isEmpty
-                      ? Text(
-                          contact.displayName.isNotEmpty
-                              ? contact.displayName[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(color: scheme.onPrimaryContainer),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: UserNameWithRole(
-                    name: contact.displayName,
-                    userType: 'tattoo_artist',
-                    nameStyle:
-                        Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                    roleStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: scheme.outline,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-            if (contact.mobile != null) ...[
-              const SizedBox(height: 12),
-              SelectableText(
-                l10n.chatPhoneLine(contact.mobile!),
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-            ],
-            if (contact.contactEmail != null) ...[
-              const SizedBox(height: 8),
-              SelectableText(
-                l10n.chatEmailLine(contact.contactEmail!),
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-            ],
-            if (contact.mobile == null && contact.contactEmail == null) ...[
-              const SizedBox(height: 8),
-              Text(
-                l10n.chatNoContactYet,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.outline,
-                    ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onMessageArtist,
-              icon: const Icon(Icons.chat_bubble_outline),
-              label: Text(l10n.chatMessageArtist),
             ),
           ],
         ),

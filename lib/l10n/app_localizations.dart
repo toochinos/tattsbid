@@ -2018,7 +2018,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatInboxEmptyBody.
   ///
   /// In en, this message translates to:
-  /// **'Chats from Explore (customer messages first) appear here. After you pay the deposit on your winning bid, this screen shows your artist’s contact details and a button to start messaging.'**
+  /// **'Start a chat from a job or promo detail page — your conversations with artists and customers will appear here.'**
   String get chatInboxEmptyBody;
 
   /// No description provided for @chatInboxUnlockTitle.

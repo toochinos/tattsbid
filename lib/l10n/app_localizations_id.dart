@@ -1152,7 +1152,7 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get chatInboxEmptyBody =>
-      'Obrolan dari Jelajahi (pelanggan memulai pesan) muncul di sini. Setelah Anda membayar deposit pada penawaran yang menang, layar ini menampilkan detail kontak seniman dan tombol untuk mulai mengirim pesan.';
+      'Mulai obrolan dari halaman detail pekerjaan atau promo — percakapan Anda dengan seniman dan pelanggan akan muncul di sini.';
 
   @override
   String get chatInboxUnlockTitle => 'Bayar untuk membuka pesan';

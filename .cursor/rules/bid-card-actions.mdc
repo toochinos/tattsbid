@@ -1,0 +1,31 @@
+---
+description: Chat/Bid button rules for Explore cards and BidDetailPage
+globs: lib/screens/explore_page.dart,lib/screens/bid_detail_page.dart,lib/core/utils/bid_card_action_rules.dart,lib/core/services/bid_service.dart
+alwaysApply: false
+---
+
+# Bid card Chat / Bid rules
+
+Use [BidCardActionRules](lib/core/utils/bid_card_action_rules.dart) as the single source of truth. Do not duplicate visibility logic in screens.
+
+## Product rules (locked in)
+
+| Post type | Chat | Bid button | Who can submit bid |
+|-----------|------|------------|-------------------|
+| **Customer job** (customer poster) | Non-owners when open; artists always on detail | **Artists only** (always on detail for artists) | Tattoo artists only (open requests) |
+| **Promo** (artist poster) | Non-owners when open | Customers only when open | Customers only (open requests) |
+| **Own post** | Hidden | Hidden | — |
+| **Closed promo / closed job (customer viewer)** | Hidden | Hidden | — |
+
+## Implementation
+
+- `showChat`, `showBidButton`, and `canSubmitBid` come from `BidCardActionRules`.
+- **Explore cards do not show Chat/Bid buttons** — tap a card to open [BidDetailPage](lib/screens/bid_detail_page.dart), where buttons live.
+- On detail, `_showPlaceBidDialog` must gate on `canSubmitBid`, not `showBidButton` alone.
+- Server enforcement stays in [BidService.placeBid](lib/core/services/bid_service.dart).
+
+## Do not change without explicit request
+
+- Artists bidding on customer jobs only.
+- Customers bidding on artist promos only.
+- No Chat/Bid on own posts or closed requests.

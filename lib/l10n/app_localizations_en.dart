@@ -1142,7 +1142,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatInboxEmptyBody =>
-      'Chats from Explore (customer messages first) appear here. After you pay the deposit on your winning bid, this screen shows your artist’s contact details and a button to start messaging.';
+      'Start a chat from a job or promo detail page — your conversations with artists and customers will appear here.';
 
   @override
   String get chatInboxUnlockTitle => 'Pay to unlock messaging';
