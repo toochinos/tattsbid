@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Tattoo marketplace: post custom requests and receive bids from artists.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
